@@ -1,21 +1,25 @@
 const articles = [
-  { id: 1, title: 'Bem-vindo ao MINIJOOMLA', alias: 'boas-vindas', introtext: 'Uma camada Joomla-like pequena e independente.', fulltext: '<p>Este artigo demonstra conteúdo seguro, categorias e módulos.</p>', author: 'Equipe editorial', category: 'noticias', tags: ['início', 'guia'], published: true, featured: true, publishUp: '2026-01-01' },
-  { id: 2, title: 'Conteúdo modular', alias: 'conteudo-modular', introtext: 'Componentes e módulos usam contratos explícitos.', fulltext: '<p>O template não conhece detalhes do adapter de dados.</p>', author: 'Equipe editorial', category: 'noticias', tags: ['arquitetura'], published: true, featured: false, publishUp: '2026-02-01' }
+  { id: 1, title: 'Bem-vindo ao MINIJOOMLA', alias: 'boas-vindas', introtext: 'Uma camada Joomla-like pequena e independente.', fulltext: '<p>Este artigo demonstra conteúdo seguro, categorias e módulos.</p>', author: 'Equipe editorial', category: 'noticias', tags: ['início', 'guia'], published: true, featured: true, publishUp: '2026-01-01', publishDown: null },
+  { id: 2, title: 'Conteúdo modular', alias: 'conteudo-modular', introtext: 'Componentes e módulos usam contratos explícitos.', fulltext: '<p>O template não conhece detalhes do adapter de dados.</p>', author: 'Equipe editorial', category: 'noticias', tags: ['arquitetura'], published: true, featured: false, publishUp: '2026-02-01', publishDown: null }
 ];
 const categories = [{ id: 1, title: 'Notícias', alias: 'noticias', parentId: null, description: 'Publicações recentes.' }];
 const menus = [{ title: 'Início', path: '/' }, { title: 'Notícias', path: '/category/noticias' }];
 
-function visible(article, now = new Date()) { return article.published && new Date(article.publishUp) <= now; }
+function visible(article, now = new Date()) { const current = new Date(now).getTime(); const start = new Date(article.publishUp ?? 0).getTime(); const end = article.publishDown ? new Date(article.publishDown).getTime() : Infinity; return article.published === true && start <= current && current < end; }
+function pageOptions({ page = 1, pageSize = 5 } = {}) { return { page: Math.max(1, Number(page) || 1), pageSize: Math.min(50, Math.max(1, Number(pageSize) || 5)) }; }
 export function createFakeAdapter(seed = {}) {
   const data = { articles: seed.articles ?? articles, categories: seed.categories ?? categories, menus: seed.menus ?? menus };
   return Object.freeze({
-    async listArticles({ category, page = 1, pageSize = 5, search = '' } = {}) {
-      const term = search.toLocaleLowerCase(); const items = data.articles.filter((a) => visible(a) && (!category || a.category === category) && (!term || `${a.title} ${a.introtext}`.toLocaleLowerCase().includes(term)));
-      const start = (page - 1) * pageSize; return { items: items.slice(start, start + pageSize), total: items.length, page, pageSize };
+    async listArticles({ category, tag, page = 1, pageSize = 5, search = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
+      const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase();
+      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!term || `${a.title} ${a.introtext}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[sort] ?? ''; const right = b[sort] ?? ''; return (left < right ? -1 : left > right ? 1 : 0) * (direction === 'asc' ? 1 : -1); });
+      const start = (paging.page - 1) * paging.pageSize; return { items: items.slice(start, start + paging.pageSize), total: items.length, page: paging.page, pageSize: paging.pageSize, pages: Math.ceil(items.length / paging.pageSize) };
     },
-    async getArticle(alias) { return data.articles.find((a) => a.alias === alias && visible(a)) ?? null; },
+    async getArticle(alias, { now = new Date() } = {}) { return data.articles.find((a) => a.alias === alias && visible(a, now)) ?? null; },
     async getCategory(alias) { return data.categories.find((c) => c.alias === alias) ?? null; },
+    async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId); },
     async listMenus() { return data.menus; },
-    async listTags() { return [...new Set(data.articles.flatMap((a) => a.tags))]; }
+    async listTags() { return [...new Set(data.articles.flatMap((a) => a.tags ?? []))].sort(); },
+    async listArticlesByTag(tag, options = {}) { return this.listArticles({ ...options, tag }); }
   });
 }
