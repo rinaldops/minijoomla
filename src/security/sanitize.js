@@ -8,7 +8,10 @@ export function escapeHtml(value = '') {
 
 export function safeUrl(value = '') {
   const url = String(value).trim();
-  if (!url || BLOCKED_URL.test(url) || /[\u0000-\u001F]/.test(url)) return '#';
+  let parsed;
+  try { parsed = new URL(url, 'https://minijoomla.invalid'); } catch { return '#'; }
+  const protocol = parsed.protocol.toLowerCase();
+  if (!url || BLOCKED_URL.test(url) || /[\u0000-\u001F]/.test(url) || parsed.username || parsed.password || (!['http:', 'https:', 'mailto:'].includes(protocol) && !url.startsWith('/') && !url.startsWith('#'))) return '#';
   return escapeHtml(url);
 }
 
