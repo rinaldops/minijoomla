@@ -6,6 +6,6 @@
   "description": "Camada Joomla-like modular e independente de adapters de dados.",
   "scripts": {
     "test": "node tests/run-tests.js",
-    "check": "node --check src/index.js"
+    "check": "node scripts/check-syntax.js"
   }
 }
