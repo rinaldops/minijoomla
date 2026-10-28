@@ -13,7 +13,8 @@ export class Router {
     }
     return { ...location, route: null };
   }
-  start(routes) { this.routes = routes; this.handle(); this._listener = () => this.handle(); globalThis.addEventListener?.('hashchange', this._listener); }
+  start(routes) { this.stop(); this.routes = routes; this._listener = () => this.handle(); globalThis.addEventListener?.('hashchange', this._listener); return this.handle(); }
+  stop() { if (this._listener) globalThis.removeEventListener?.('hashchange', this._listener); this._listener = null; }
   handle() { return this.onNavigate(this.match(globalThis.location?.hash || '#/', this.routes ?? [])); }
   navigate(href) { return this.onNavigate(this.match(href, this.routes ?? [])); }
   link(path, params = {}) { const query = new URLSearchParams(params).toString(); return `#${path}${query ? `?${query}` : ''}`; }
