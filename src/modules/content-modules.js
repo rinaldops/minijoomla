@@ -32,6 +32,6 @@ export const tagsPopularModule = {
   render({ state = 'ready', tags = [], message } = {}) {
     const status = stateMessage(state, message); if (status) return status;
     if (!tags.length) return '<p class="module-empty">Nenhuma tag disponível.</p>';
-    return `<section class="module module-tags-popular"><h2>Tags</h2><ul>${tags.map((tag) => `<li><a href="#/search?q=${encodeURIComponent(tag)}">${escapeHtml(tag)}</a></li>`).join('')}</ul></section>`;
+    return `<section class="module module-tags-popular"><h2>Tags</h2><ul>${tags.map((tag) => { const name = typeof tag === 'string' ? tag : tag.name; const count = typeof tag === 'string' ? '' : ` (${tag.count})`; return `<li><a href="#/search?q=${encodeURIComponent(name)}">${escapeHtml(name)}${count}</a></li>`; }).join('')}</ul></section>`;
   }
 };

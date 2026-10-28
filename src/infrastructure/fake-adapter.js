@@ -24,7 +24,7 @@ export function createFakeAdapter(seed = {}) {
     },
     async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId); },
     async listMenus() { return data.menus; },
-    async listTags() { return [...new Set(data.articles.flatMap((a) => a.tags ?? []))].sort(); },
+    async listTags({ popular = false } = {}) { const counts = data.articles.flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); return popular ? tags.map((name) => ({ name, count: counts[name] })) : tags; },
     async listArticlesByTag(tag, options = {}) { return this.listArticles({ ...options, tag }); }
   });
 }
