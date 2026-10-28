@@ -57,6 +57,10 @@
 - [x] A página expôs o shell SharePoint/Office com iframes, mas não expôs
   `main` nem controles identificáveis do MINIJOOMLA; portanto, não há evidência
   para validar visualmente o aplicativo nesse endereço.
+- [x] A inspeção estrutural encontrou apenas webparts/Canvas genéricos; não
+  encontrou identificadores semânticos `minijoomla`, `modern-script-editor` ou
+  `script-editor`. O único falso sinal `mse` veio de uma classe CSS ofuscada,
+  sem id semântico, e não caracteriza um webpart MSE.
 - [ ] O aceite visual SharePoint permanece pendente: a página autorizada não
   disponibilizou o conteúdo MINIJOOMLA nesta sessão. Uma navegação adicional
   também excedeu o timeout de `networkidle`, embora o DOM do shell tenha
