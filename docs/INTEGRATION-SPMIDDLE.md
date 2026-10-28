@@ -137,7 +137,7 @@ do MINIJOOMLA até existir um escopo próprio, aprovado e documentado.
   validação de produção; `Default.aspx` permanece fora desta etapa.
 - [ ] Qualquer escrita futura tem contrato separado, proteção CSRF, validação,
   sanitização, idempotência e rollback demonstrado.
-- [ ] Não existem segredos ou dados pessoais em fixtures, logs, documentação ou
+- [x] Não existem segredos ou dados pessoais em fixtures, logs, documentação ou
   configuração versionada.
 
 ## 6. Rollback e isolamento

@@ -178,7 +178,7 @@ declarativa e validada; não permite JavaScript arbitrário.
   320/768/1366/1920 px.
 - [ ] `git diff --check` passa e o working tree contém somente as alterações
   intencionais da entrega.
-- [ ] Não houve publicação, alteração em `Preview.aspx`/`Default.aspx` ou
+- [x] Não houve publicação, alteração em `Preview.aspx`/`Default.aspx` ou
   criação de dados editoriais permanentes.
 
 ## 6. Rollback da fase 1
