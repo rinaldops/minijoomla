@@ -27,6 +27,10 @@ corporativo quando a instalação de dependências for necessária).
 - `src/templates`: shell responsivo e posições de módulo.
 - `src/security`: escaping e sanitização de conteúdo/URLs.
 
+`createApplication()` aceita `autoStart: false` para composição controlada e
+expõe `start()`/`stop()` idempotentes para iniciar ou liberar o listener de
+navegação do router em hosts que montam e desmontam a aplicação dinamicamente.
+
 Não há ACL nesta fase. Leitura e escrita são separadas no contrato; o fake só
 expõe leitura. O plano para uma integração futura está em
 [`docs/INTEGRATION-SPMIDDLE.md`](docs/INTEGRATION-SPMIDDLE.md).
