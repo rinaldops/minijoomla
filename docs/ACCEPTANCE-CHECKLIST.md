@@ -20,6 +20,9 @@
   sobrescrevam.
 - [x] O estado de carregamento também aparece antes de listeners assíncronos
   registrados em `onBeforeRender`.
+- [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
+  interrompem a renderização segura; hooks observacionais pós-render não
+  invalidam uma tela já montada.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
