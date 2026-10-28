@@ -11,6 +11,8 @@
   com `aria-live`/`aria-atomic`.
 - [x] CSS contém breakpoints para 768 e 480 px.
 - [x] CSS contém foco visível, redução de movimento, `forced-colors` e impressão.
+- [x] O router sincroniza navegação programática, `hashchange` e
+  voltar/avançar via `popstate`.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais

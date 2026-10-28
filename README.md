@@ -44,7 +44,8 @@ expõe leitura. O plano para uma integração futura está em
 
 Navegações internas programáticas preservam o hash completo da rota no
 navegador (incluindo query string), evitam reload e ignoram renderizações
-assíncronas obsoletas quando o usuário muda de rota rapidamente.
+assíncronas obsoletas quando o usuário muda de rota rapidamente. O router também
+escuta `popstate`, mantendo voltar/avançar do navegador sincronizados com a tela.
 
 O formulário de busca identifica explicitamente sua finalidade, associa o campo
 a uma instrução acessível e mantém essa instrução visualmente oculta sem removê-la
