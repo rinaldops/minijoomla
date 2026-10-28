@@ -118,13 +118,13 @@ declarativa e validada; não permite JavaScript arbitrário.
 | --- | --- | --- |
 | `mod_menu` | alimentado por `MenuService`, com item ativo e estados vazios | incluído |
 | `mod_breadcrumbs` | derivado do router e das categorias/menus | incluído |
-| `mod_articles_latest` | contrato e fixture para artigos recentes | incluído se o shell já consumir a lista; caso contrário, lacuna explícita de implementação |
+| `mod_articles_latest` | contrato, fixture e consumo no sidebar do shell | incluído |
 | `mod_articles_news` | view compacta de artigos selecionados | parcial, contrato preparado |
 | `mod_articles_category` | lista filtrada por categoria | incluído junto do fluxo de categoria |
 | `mod_articles_archive` | agrupamento temporal de arquivados | lacuna da fase 1, salvo fixture/teste específico |
-| `mod_tags_popular` | agregação por contagem de tags | lacuna da fase 1 |
+| `mod_tags_popular` | agregação por contagem de tags e consumo no sidebar do shell | incluído |
 | `mod_tags_similar` | relação de similaridade por tags | lacuna da fase 1 |
-| `mod_search` | interface e contrato de busca | lacuna da fase 1; implementar na onda de plugins/busca |
+| `mod_search` | interface e contrato de busca na rota dedicada | incluído; indexação avançada permanece futura |
 | `mod_login` | somente sessão simulada/configurável, se necessária ao shell | opcional; sem autenticação real |
 | HTML personalizado | conteúdo sanitizado, sem script | parcial/futuro |
 | Feed | somente com contrato explícito | fora da fase 1 |
@@ -133,18 +133,15 @@ declarativa e validada; não permite JavaScript arbitrário.
 
 ### Lacunas conhecidas
 
-1. O repositório inicial não contém implementação nem suíte de testes; esta
-   documentação não deve ser interpretada como evidência de que os itens
-   “incluídos” já estão implementados.
-2. Não há definição final de API pública dos serviços, esquema de erro ou
+1. Não há definição final de API pública dos serviços, esquema de erro ou
    convenção de `ref` (id, alias ou objeto); isso deve ser fechado antes de
    conectar outro adapter.
-3. Busca/indexação, plugins/eventos completos, feed, edição, upload e ACL não
+2. Indexação avançada, plugins/eventos completos, feed, edição, upload e ACL não
    são entregas da fase 1.
-4. A acessibilidade visual precisa ser verificada em viewport 320, 768, 1366 e
+3. A acessibilidade visual precisa ser verificada em viewport 320, 768, 1366 e
    1920 px, zoom e alto contraste; não há aprovação visual implícita nesta
    matriz.
-5. O fuso, idioma e serialização de datas devem ser normalizados no contrato,
+4. O fuso, idioma e serialização de datas devem ser normalizados no contrato,
    sem depender do relógio ou locale da máquina de teste.
 
 ### Dependências obrigatórias
