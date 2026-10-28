@@ -1,6 +1,11 @@
 # MINIJOOMLA — plano futuro de integração com SPMIDDLE
 
 **Status:** planejamento; não implementa nem executa integração SharePoint
+
+O aceite da fase local não equivale a prontidão para integração. Os Marcos C e
+D continuam bloqueados até que a matriz visual exigida pelo prompt seja fechada
+(incluindo zoom/alto contraste), o working tree da entrega esteja limpo e haja
+autorização operacional explícita para o destino correto.
 **Princípio:** somente adapters/interfaces injetáveis
 **Fase atual:** fake contracts, fixtures locais e testes sem rede
 
