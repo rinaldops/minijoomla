@@ -29,7 +29,7 @@ export const articlesCategoryModule = {
 export const tagsPopularModule = {
   name: 'tags-popular', settingsSchema: {},
   settings: { position: 'sidebar', state: 'ready' },
-  render({ state = 'ready', tags = [], message, link = (path, params) => `#/search?q=${encodeURIComponent(params?.q ?? path)}` } = {}) {
+  render({ state = 'ready', tags = [], message, link = (path, params) => `${path}?q=${encodeURIComponent(params?.q ?? '')}` } = {}) {
     const status = stateMessage(state, message); if (status) return status;
     if (!tags.length) return '<p class="module-empty" role="status">Nenhuma tag disponível.</p>';
     return `<section class="module module-tags-popular"><h2>Tags</h2><ul>${tags.map((tag) => { const name = typeof tag === 'string' ? tag : tag.name; const count = typeof tag === 'string' ? '' : ` (${tag.count})`; return `<li><a href="${escapeHtml(link('/search', { q: name }))}">${escapeHtml(name)}${count}</a></li>`; }).join('')}</ul></section>`;
