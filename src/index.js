@@ -27,7 +27,7 @@ export function createApplication({ adapter = createFakeAdapter(), config = {}, 
     if (documentRef) { documentRef.documentElement && (documentRef.documentElement.lang = siteConfig.language); const pageTitle = crumbs[crumbs.length - 1] === 'Início' ? siteConfig.siteName : `${crumbs[crumbs.length - 1]} | ${siteConfig.siteName}`; documentRef.title = pageTitle; documentRef.body.innerHTML = renderShell({ config: siteConfig, menus: modules.render('menu', { menus, link: (path) => router.link(path), activePath: location.path }), breadcrumbs: modules.render('breadcrumbs', { items: crumbs }), content: body, modules: { sidebar } }); const searchForm = documentRef.body.querySelector?.('form[role="search"]'); const submitSearch = async (event) => { event?.preventDefault?.(); const query = searchForm?.querySelector?.('#search-term')?.value ?? ''; await router.navigate(router.link('/search', { q: query })); }; searchForm?.addEventListener?.('submit', submitSearch, true); documentRef.body.querySelector?.('#main-content')?.focus?.(); } await events.emit('onAfterRender', { location, body });
   }});
   const routes = [{ name: 'article', pattern: /^\/article\/([^/]+)$/, keys: ['alias'] }, { name: 'category', pattern: /^\/category\/([^/]+)$/, keys: ['alias'] }, { name: 'search', pattern: /^\/search$/, keys: [] }, { name: 'home', pattern: /^\/$/, keys: [] }];
-  const application = { config: siteConfig, events, router, modules, start: () => router.start(routes), stop: () => router.stop() };
+  const application = { config: siteConfig, events, router, modules, start: () => router.start(routes), stop: () => { latestNavigation += 1; router.stop(); } };
   if (autoStart) application.start();
   return application;
 }
