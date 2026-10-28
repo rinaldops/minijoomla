@@ -105,7 +105,7 @@ hierárquica.
 | Tags | relações many-to-many e filtro | incluído | tags desconhecidas não causam erro de renderização |
 | Estado editorial | publicado/draft/arquivado e janela de publicação | parcial | primeira fase cobre leitura determinística; autorização de edição não existe |
 | Destaque | atributo de artigo para filtro/ordenação | parcial | somente se presente no fixture/contrato; não há painel editorial |
-| Busca | não é dependência do shell; contrato pode ser reservado | lacuna | indexação e módulo `mod_search` ficam para onda posterior |
+| Busca | rota `#/search`, consulta textual paginada e formulário acessível | incluído | indexação avançada e módulo `mod_search` completo ficam para onda posterior |
 | Sanitização | fronteira de segurança antes da renderização | requisito | HTML/URL/atributos precisam ser sanitizados; nunca usar conteúdo não confiável diretamente |
 
 ### 3.3 Módulos
