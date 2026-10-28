@@ -15,6 +15,9 @@
   voltar/avançar via `popstate`.
 - [x] Estados de carregamento, erro e rota inexistente possuem anúncio
   semântico para tecnologias assistivas.
+- [x] O shell exibe o estado de carregamento imediatamente, antes da conclusão
+  de operações assíncronas do adapter, sem permitir que renders obsoletos o
+  sobrescrevam.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
