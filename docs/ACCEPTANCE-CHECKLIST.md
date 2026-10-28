@@ -47,6 +47,9 @@ aceite visual completo em navegador/SharePoint.
   novamente foco em `main#main-content`, ausência de overflow horizontal,
   títulos por rota e idioma `pt-BR`; a busca manteve `role="search"` e
   `aria-live`.
+- [x] O shell também expõe nomes acessíveis para os landmarks estruturais:
+  `main[aria-label="Conteúdo principal"]` e
+  `aside[aria-label="Navegação secundária"]`.
 - [x] O cálculo WCAG das combinações usadas confirmou branco sobre verde em
   `4,74:1`, branco sobre azul em `6,56:1`, preto sobre amarelo em `13,48:1`,
   preto sobre verde-água em `7,94:1` e preto sobre branco em `21:1`. O cinza
