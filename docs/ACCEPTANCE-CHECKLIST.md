@@ -7,7 +7,8 @@
 - [x] Shell possui skip link, landmarks e foco no conteúdo após navegação.
 - [x] Menu e breadcrumbs expõem o item atual com `aria-current`.
 - [x] Busca possui label associado, nome acessível no formulário, instrução
-  associada por `aria-describedby`, `role="search"` e região `aria-live`.
+  associada por `aria-describedby`, `role="search"` e status `role="status"`
+  com `aria-live`/`aria-atomic`.
 - [x] CSS contém breakpoints para 768 e 480 px.
 - [x] CSS contém foco visível, redução de movimento, `forced-colors` e impressão.
 - [x] `git diff --check` passa.
