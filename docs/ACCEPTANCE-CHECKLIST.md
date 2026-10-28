@@ -21,7 +21,9 @@ aceite visual completo em navegador/SharePoint.
   `Shift+Tab`, skip link, `Enter` na busca e foco pós-navegação.
 - [ ] Zoom de 200% e 400%, incluindo reflow sem rolagem horizontal indevida.
 - [ ] Alto contraste/`forced-colors` em navegador.
-- [ ] Contraste WCAG e leitura das rotas principais.
+- [x] Contraste WCAG calculado para as combinações usadas e leitura estrutural
+  das rotas principais concluída; a emulação de alto contraste permanece
+  pendente.
 - [ ] Inspeção visual no site de testes SharePoint informado pelo usuário.
 
 ### Evidência local parcial — FIORI-AUTO
