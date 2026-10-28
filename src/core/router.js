@@ -9,10 +9,11 @@ export class Router {
     const location = this.parse(href);
     for (const route of routes) {
       const match = location.path.match(route.pattern);
-      if (match) return { ...location, route, params: { ...location.params, ...(route.keys ?? []).reduce((a, key, i) => ({ ...a, [key]: match[i + 1] }), {}) } };
+      if (match) return { ...location, route, params: { ...location.params, ...(route.keys ?? []).reduce((a, key, i) => ({ ...a, [key]: this.decode(match[i + 1]) }), {}) } };
     }
     return { ...location, route: null };
   }
+  decode(value) { try { return decodeURIComponent(value); } catch { return value; } }
   start(routes) { this.stop(); this.routes = routes; this._listener = () => { if (this._skipHashChange) { this._skipHashChange = false; return; } return this.handle(); }; this._popstateListener = () => this.handle(); globalThis.addEventListener?.('hashchange', this._listener); globalThis.addEventListener?.('popstate', this._popstateListener); return this.handle(); }
   stop() { if (this._listener) globalThis.removeEventListener?.('hashchange', this._listener); if (this._popstateListener) globalThis.removeEventListener?.('popstate', this._popstateListener); this._listener = null; this._popstateListener = null; this._skipHashChange = false; }
   handle() { return this.onNavigate(this.match(globalThis.location?.hash || '#/', this.routes ?? [])); }
