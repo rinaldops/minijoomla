@@ -12,7 +12,7 @@ export function createFakeAdapter(seed = {}) {
   return Object.freeze({
     async listArticles({ category, tag, page = 1, pageSize = 5, search = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
       const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase();
-      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!term || `${a.title} ${a.introtext}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[sort] ?? ''; const right = b[sort] ?? ''; return (left < right ? -1 : left > right ? 1 : 0) * (direction === 'asc' ? 1 : -1); });
+      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!term || `${a.title} ${a.introtext} ${a.fulltext} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[sort] ?? ''; const right = b[sort] ?? ''; return (left < right ? -1 : left > right ? 1 : 0) * (direction === 'asc' ? 1 : -1); });
       const start = (paging.page - 1) * paging.pageSize; return { items: items.slice(start, start + paging.pageSize), total: items.length, page: paging.page, pageSize: paging.pageSize, pages: Math.ceil(items.length / paging.pageSize) };
     },
     async getArticle(alias, { now = new Date() } = {}) { return data.articles.find((a) => a.alias === alias && visible(a, now)) ?? null; },

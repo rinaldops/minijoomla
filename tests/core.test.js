@@ -5,6 +5,7 @@ import { escapeHtml, safeUrl, sanitizeHtml } from '../src/security/sanitize.js';
 import { createModuleRegistry, menuModule, breadcrumbsModule } from '../src/modules/registry.js';
 import { articlesLatestModule, tagsPopularModule } from '../src/modules/content-modules.js';
 import { renderSearch } from '../src/components/search.js';
+import { normalizeQuery } from '../src/core/contracts.js';
 
 export async function runTests() {
   const tests = [
@@ -16,6 +17,7 @@ export async function runTests() {
     ,['content modules expose loading, empty and ready states', () => { assert.match(articlesLatestModule.render({ state: 'loading' }), /Carregando/); assert.match(articlesLatestModule.render({ articles: [] }), /Nenhum artigo/); assert.match(articlesLatestModule.render({ articles: [{ alias: 'x', title: '<X>' }] }), /&lt;X&gt;/); assert.match(tagsPopularModule.render({ tags: ['energia'] }), /energia/); }]
     ,['search component escapes query and renders a form', () => { const html = renderSearch('<script>', { items: [], total: 0 }); assert.match(html, /&lt;script&gt;/); assert.match(html, /name="q"/); }]
     ,['module registry orders positions and skips disabled modules', () => { const registry = createModuleRegistry(); registry.register('a', { settings: {}, render: () => 'A' }).register('b', { settings: {}, render: () => 'B' }); assert.equal(registry.renderPosition('sidebar', [{ name: 'b', order: 2 }, { name: 'a', order: 1, enabled: false }]), 'B'); }]
+    ,['search contract limits query and searches full text', async () => { assert.equal(normalizeQuery('  abc  '), 'abc'); const adapter = createFakeAdapter({ articles: [{ title: 'A', alias: 'a', introtext: '', fulltext: 'energia', published: true, publishUp: '2020-01-01', tags: [] }] }); const result = await adapter.listArticles({ search: 'energia', now: '2026-01-01' }); assert.equal(result.total, 1); }]
   ];
   for (const [name, test] of tests) { await test(); console.log(`ok - ${name}`); }
 }
