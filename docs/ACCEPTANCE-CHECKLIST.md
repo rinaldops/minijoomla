@@ -13,6 +13,8 @@
 - [x] CSS contém foco visível, redução de movimento, `forced-colors` e impressão.
 - [x] O router sincroniza navegação programática, `hashchange` e
   voltar/avançar via `popstate`.
+- [x] Estados de carregamento, erro e rota inexistente possuem anúncio
+  semântico para tecnologias assistivas.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
