@@ -13,7 +13,8 @@
 
 ## Pendente de validação visual autorizada
 
-- [ ] Navegação por teclado em 320, 768, 1366 e 1920 px.
+- [x] Navegação por teclado em 320, 768, 1366 e 1920 px, incluindo `Tab`,
+  `Shift+Tab`, skip link, `Enter` na busca e foco pós-navegação.
 - [ ] Zoom de 200% e 400%, incluindo reflow sem rolagem horizontal indevida.
 - [ ] Alto contraste/`forced-colors` em navegador.
 - [ ] Contraste WCAG e leitura das rotas principais.
@@ -42,11 +43,10 @@
   `aria-live`.
 - [x] As cores estruturais observadas correspondem à paleta autorizada:
   verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
-- [ ] A API desta versão do FIORI-AUTO não disponibilizou uma operação de
-  teclado, zoom ou `forced-colors`; esses itens continuam sem evidência.
-- [ ] `browser.evaluate` foi localizado no contrato RPC, mas retornou
-  `E_CDP_NO_VALUE`/`E_INTERNAL` nesta instância para expressões simples; não
-  foi usado como evidência de título, foco, idioma ou overflow.
+- [x] A API desta versão do FIORI-AUTO permitiu a operação de teclado via
+  `fiori.pressKey`; zoom e `forced-colors` continuam sem emulação disponível.
+- [x] `browser.evaluate` foi usado com retorno em envelope serializável para
+  confirmar título, foco, idioma, landmarks e overflow nas matrizes locais.
 
 ### Inspeção read-only do endereço SharePoint autorizado
 
