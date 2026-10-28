@@ -16,12 +16,20 @@ export function safeUrl(value = '') {
 }
 
 export function sanitizeHtml(value = '') {
-  // Minimal safe subset for fixtures: strip executable elements and attributes.
-  return String(value)
-    .replace(/<\/?(?:script|style|iframe|object|embed|form)[^>]*>/gi, '')
-    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/\s+(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (_m, a, b, c) => {
-      const url = a ?? b ?? c ?? '#';
-      return ` href="${safeUrl(url)}"`;
-    });
+  const allowed = new Set(['p', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'br', 'a', 'img']);
+  const withoutExecutableBlocks = String(value).replace(/<(script|style|iframe|object|embed|form)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '').replace(/<!--([\s\S]*?)-->/g, '');
+  return withoutExecutableBlocks.replace(/<\/?([a-z][a-z0-9-]*)([^>]*)>/gi, (whole, rawName, rawAttributes) => {
+    const name = rawName.toLowerCase();
+    if (!allowed.has(name)) return '';
+    if (whole.startsWith('</')) return `</${name}>`;
+    if (name === 'br') return '<br>';
+    const attributes = [];
+    for (const match of rawAttributes.matchAll(/([a-z][a-z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+      const attribute = match[1].toLowerCase();
+      if (!['href', 'src', 'alt'].includes(attribute)) continue;
+      const content = attribute === 'alt' ? escapeHtml(match[2] ?? match[3] ?? match[4] ?? '') : safeUrl(match[2] ?? match[3] ?? match[4] ?? '');
+      attributes.push(`${attribute}="${content}"`);
+    }
+    return `<${name}${attributes.length ? ` ${attributes.join(' ')}` : ''}>`;
+  });
 }
