@@ -11,7 +11,11 @@
 - [x] CSS contém foco visível, redução de movimento, `forced-colors` e impressão.
 - [x] `git diff --check` passa.
 
-## Pendente de validação visual autorizada
+## Status da validação visual e lacunas residuais
+
+O aceite local da fase 1 está concluído. Os itens abaixo são limitações
+residuais que não bloqueiam a composição fake local, mas impedem declarar um
+aceite visual completo em navegador/SharePoint.
 
 - [x] Navegação por teclado em 320, 768, 1366 e 1920 px, incluindo `Tab`,
   `Shift+Tab`, skip link, `Enter` na busca e foco pós-navegação.
