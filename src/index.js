@@ -27,4 +27,4 @@ export function createApplication({ adapter = createFakeAdapter(), config = {}, 
   return { config: siteConfig, events, router, modules, start: () => router.start([{ name: 'article', pattern: /^\/article\/([^/]+)$/, keys: ['alias'] }, { name: 'category', pattern: /^\/category\/([^/]+)$/, keys: ['alias'] }, { name: 'search', pattern: /^\/search$/, keys: [] }, { name: 'home', pattern: /^\/$/ }]) };
 }
 
-  if (typeof document !== 'undefined' && autoStart) createApplication().start();
+if (typeof document !== 'undefined') createApplication().start();
