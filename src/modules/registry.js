@@ -11,5 +11,5 @@ export function createModuleRegistry() {
   };
 }
 
-export const menuModule = { settings: { position: 'mainnav' }, render: ({ menus = [], link = (path) => `#${path}` }) => `<nav aria-label="Menu principal"><ul>${menus.map((m) => `<li><a href="${safeUrl(link(m.path))}">${escapeHtml(m.title)}</a></li>`).join('')}</ul></nav>` };
-export const breadcrumbsModule = { settings: { position: 'breadcrumbs' }, render: ({ items = [] }) => `<nav aria-label="Breadcrumb"><ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ol></nav>` };
+export const menuModule = { settings: { position: 'mainnav' }, render: ({ menus = [], link = (path) => `#${path}`, activePath = '' }) => `<nav aria-label="Menu principal"><ul>${menus.map((m) => { const href = link(m.path); const active = m.path === activePath; return `<li><a href="${safeUrl(href)}"${active ? ' aria-current="page"' : ''}>${escapeHtml(m.title)}</a></li>`; }).join('')}</ul></nav>` };
+export const breadcrumbsModule = { settings: { position: 'breadcrumbs' }, render: ({ items = [] }) => `<nav aria-label="Breadcrumb"><ol>${items.map((item, index) => `<li${index === items.length - 1 ? ' aria-current="page"' : ''}>${escapeHtml(item)}</li>`).join('')}</ol></nav>` };
