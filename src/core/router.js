@@ -3,7 +3,8 @@ export class Router {
   parse(href = globalThis.location?.hash || '#/') {
     const raw = href.replace(/^#/, '') || '/';
     const [path, query = ''] = raw.split('?');
-    return { path: path.replace(this.base, '') || '/', params: Object.fromEntries(new URLSearchParams(query)) };
+    const normalizedPath = this.base && path.startsWith(this.base) ? path.slice(this.base.length) : path;
+    return { path: normalizedPath || '/', params: Object.fromEntries(new URLSearchParams(query)) };
   }
   match(href, routes) {
     const location = this.parse(href);
