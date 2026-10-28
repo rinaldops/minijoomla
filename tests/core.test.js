@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { Router } from '../src/core/router.js';
 import { createFakeAdapter } from '../src/infrastructure/fake-adapter.js';
 import { escapeHtml, safeUrl, sanitizeHtml } from '../src/security/sanitize.js';
-import { menuModule, breadcrumbsModule } from '../src/modules/registry.js';
+import { createModuleRegistry, menuModule, breadcrumbsModule } from '../src/modules/registry.js';
 import { articlesLatestModule, tagsPopularModule } from '../src/modules/content-modules.js';
 import { renderSearch } from '../src/components/search.js';
 
@@ -15,6 +15,7 @@ export async function runTests() {
     ['navigation modules escape external data', () => { const menu = menuModule.render({ menus: [{ title: '<img>', path: '/x' }] }); const crumbs = breadcrumbsModule.render({ items: ['<script>'] }); assert.ok(menu.includes('&lt;img&gt;')); assert.ok(!menu.includes('<img>')); assert.ok(crumbs.includes('&lt;script&gt;')); }]
     ,['content modules expose loading, empty and ready states', () => { assert.match(articlesLatestModule.render({ state: 'loading' }), /Carregando/); assert.match(articlesLatestModule.render({ articles: [] }), /Nenhum artigo/); assert.match(articlesLatestModule.render({ articles: [{ alias: 'x', title: '<X>' }] }), /&lt;X&gt;/); assert.match(tagsPopularModule.render({ tags: ['energia'] }), /energia/); }]
     ,['search component escapes query and renders a form', () => { const html = renderSearch('<script>', { items: [], total: 0 }); assert.match(html, /&lt;script&gt;/); assert.match(html, /name="q"/); }]
+    ,['module registry orders positions and skips disabled modules', () => { const registry = createModuleRegistry(); registry.register('a', { settings: {}, render: () => 'A' }).register('b', { settings: {}, render: () => 'B' }); assert.equal(registry.renderPosition('sidebar', [{ name: 'b', order: 2 }, { name: 'a', order: 1, enabled: false }]), 'B'); }]
   ];
   for (const [name, test] of tests) { await test(); console.log(`ok - ${name}`); }
 }
