@@ -16,6 +16,6 @@ export class Router {
   start(routes) { this.stop(); this.routes = routes; this._listener = () => { if (this._skipHashChange) { this._skipHashChange = false; return; } return this.handle(); }; globalThis.addEventListener?.('hashchange', this._listener); return this.handle(); }
   stop() { if (this._listener) globalThis.removeEventListener?.('hashchange', this._listener); this._listener = null; this._skipHashChange = false; }
   handle() { return this.onNavigate(this.match(globalThis.location?.hash || '#/', this.routes ?? [])); }
-  navigate(href) { if (typeof globalThis.location !== 'undefined' && href.startsWith('#')) { const hash = href.slice(1); if (globalThis.location.hash !== hash) { this._skipHashChange = true; globalThis.location.hash = hash; return this.onNavigate(this.match(href, this.routes ?? [])); } } return this.onNavigate(this.match(href, this.routes ?? [])); }
+  navigate(href) { if (typeof globalThis.location !== 'undefined' && href.startsWith('#')) { const targetHash = href; if (globalThis.location.hash !== targetHash) { this._skipHashChange = true; globalThis.location.hash = targetHash; return this.onNavigate(this.match(href, this.routes ?? [])); } } return this.onNavigate(this.match(href, this.routes ?? [])); }
   link(path, params = {}) { const query = new URLSearchParams(params).toString(); return `#${path}${query ? `?${query}` : ''}`; }
 }
