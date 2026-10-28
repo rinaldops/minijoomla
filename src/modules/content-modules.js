@@ -1,7 +1,7 @@
 import { escapeHtml } from '../security/sanitize.js';
 
 function stateMessage(state, message) {
-  if (state === 'loading') return '<p class="module-loading" aria-live="polite">Carregando…</p>';
+  if (state === 'loading') return '<p class="module-loading" role="status" aria-live="polite" aria-atomic="true">Carregando…</p>';
   if (state === 'error') return `<p class="module-error" role="alert">${escapeHtml(message || 'Não foi possível carregar o módulo.')}</p>`;
   return '';
 }
