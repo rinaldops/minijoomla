@@ -25,6 +25,8 @@
   invalidam uma tela já montada.
 - [x] O router aplica `base` somente quando o caminho realmente começa pelo
   prefixo configurado, evitando remoções acidentais em caminhos semelhantes.
+- [x] Links gerados pelo router normalizam barras, prefixo configurado e
+  parâmetros vazios sem produzir rotas ambíguas.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
