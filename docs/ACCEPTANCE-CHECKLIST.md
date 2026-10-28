@@ -32,6 +32,10 @@
   título específico por rota e `main#main-content`.
 - [x] Após cada navegação, o foco foi confirmado em `main#main-content`; os
   menus/breadcrumbs também expuseram elementos com `aria-current`.
+- [x] O formulário de busca foi testado por teclado: `Enter` no campo preserva
+  a navegação no hash (`#/search?q=arquitetura`) e renderiza o resultado.
+- [x] A sequência `Tab`/`Shift+Tab` foi exercitada no shell, incluindo skip
+  link, título, itens de menu, links de módulos e retorno ao item anterior.
 - [x] As cores estruturais observadas correspondem à paleta autorizada:
   verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
 - [ ] A API desta versão do FIORI-AUTO não disponibilizou uma operação de
