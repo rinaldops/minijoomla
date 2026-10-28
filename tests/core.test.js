@@ -6,6 +6,7 @@ import { createModuleRegistry, menuModule, breadcrumbsModule } from '../src/modu
 import { articlesLatestModule, tagsPopularModule } from '../src/modules/content-modules.js';
 import { renderSearch } from '../src/components/search.js';
 import { normalizeQuery } from '../src/core/contracts.js';
+import { createApplication } from '../src/index.js';
 
 export async function runTests() {
   const tests = [
@@ -19,6 +20,8 @@ export async function runTests() {
     ,['module registry orders positions and skips disabled modules', () => { const registry = createModuleRegistry(); registry.register('a', { settings: {}, render: () => 'A' }).register('b', { settings: {}, render: () => 'B' }); assert.equal(registry.renderPosition('sidebar', [{ name: 'b', order: 2 }, { name: 'a', order: 1, enabled: false }]), 'B'); }]
     ,['search contract limits query and searches full text', async () => { assert.equal(normalizeQuery('  abc  '), 'abc'); const adapter = createFakeAdapter({ articles: [{ title: 'A', alias: 'a', introtext: '', fulltext: 'energia', published: true, publishUp: '2020-01-01', tags: [] }] }); const result = await adapter.listArticles({ search: 'energia', now: '2026-01-01' }); assert.equal(result.total, 1); }]
     ,['module contract rejects missing settings and accepts schemas', () => { const registry = createModuleRegistry(); assert.throws(() => registry.register('invalid', { render: () => '' }), TypeError); registry.register('valid', { settings: {}, settingsSchema: {}, render: () => 'ok' }); assert.equal(registry.has('valid'), true); }]
+    ,['application integrates a replaceable adapter and emits lifecycle events', async () => { const calls = []; const documentRef = { body: { innerHTML: '' } }; const adapter = { listMenus: async () => [{ title: 'Alternativo', path: '/' }], listArticles: async () => ({ items: [], total: 0, page: 1, pageSize: 5, pages: 0 }), listTags: async () => [], getCategory: async () => ({ title: 'Alternativa', alias: 'alternativa', description: '' }), getArticle: async () => null }; const app = createApplication({ adapter, documentRef, autoStart: false }); app.events.on('onBeforeRender', () => calls.push('before')); app.events.on('onAfterRender', () => calls.push('after')); app.router.routes = [{ name: 'category', pattern: /^\/category\/([^/]+)$/, keys: ['alias'] }]; await app.router.navigate('#/category/alternativa'); assert.match(documentRef.body.innerHTML, /Alternativa/); assert.deepEqual(calls, ['before', 'after']); }]
+    ,['application converts adapter failures to a safe error state', async () => { const documentRef = { body: { innerHTML: '' } }; const adapter = { listMenus: async () => { throw new Error('internal transport detail'); } }; const app = createApplication({ adapter, documentRef, autoStart: false }); app.router.routes = [{ name: 'home', pattern: /^\/$/, keys: [] }]; await app.router.navigate('#/'); assert.match(documentRef.body.innerHTML, /Não foi possível carregar/); assert.ok(!documentRef.body.innerHTML.includes('internal transport detail')); }]
   ];
   for (const [name, test] of tests) { await test(); console.log(`ok - ${name}`); }
 }

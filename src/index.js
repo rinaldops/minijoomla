@@ -11,7 +11,7 @@ import { renderSearch } from './components/search.js';
 import { renderShell } from './templates/default.js';
 import { escapeHtml } from './security/sanitize.js';
 
-export function createApplication({ adapter = createFakeAdapter(), config = {}, documentRef = globalThis.document } = {}) {
+export function createApplication({ adapter = createFakeAdapter(), config = {}, documentRef = globalThis.document, autoStart = true } = {}) {
   const siteConfig = createConfig(config); const events = new EventBus(); const content = createContentService(adapter, siteConfig); const modules = createModuleRegistry().register('menu', menuModule).register('breadcrumbs', breadcrumbsModule).register('articles-latest', articlesLatestModule).register('articles-category', articlesCategoryModule).register('tags-popular', tagsPopularModule);
   const router = new Router({ onNavigate: async (location) => { await events.emit('onBeforeRender', location); let menus = []; let body = '<h1>Carregando…</h1>'; let crumbs = ['Início']; let sidebar = '';
     try { menus = await adapter.listMenus();
@@ -27,4 +27,4 @@ export function createApplication({ adapter = createFakeAdapter(), config = {}, 
   return { config: siteConfig, events, router, modules, start: () => router.start([{ name: 'article', pattern: /^\/article\/([^/]+)$/, keys: ['alias'] }, { name: 'category', pattern: /^\/category\/([^/]+)$/, keys: ['alias'] }, { name: 'search', pattern: /^\/search$/, keys: [] }, { name: 'home', pattern: /^\/$/ }]) };
 }
 
-if (typeof document !== 'undefined') createApplication().start();
+  if (typeof document !== 'undefined' && autoStart) createApplication().start();

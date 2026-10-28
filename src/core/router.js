@@ -14,6 +14,7 @@ export class Router {
     return { ...location, route: null };
   }
   start(routes) { this.routes = routes; this.handle(); this._listener = () => this.handle(); globalThis.addEventListener?.('hashchange', this._listener); }
-  handle() { this.onNavigate(this.match(globalThis.location?.hash || '#/', this.routes ?? [])); }
+  handle() { return this.onNavigate(this.match(globalThis.location?.hash || '#/', this.routes ?? [])); }
+  navigate(href) { return this.onNavigate(this.match(href, this.routes ?? [])); }
   link(path, params = {}) { const query = new URLSearchParams(params).toString(); return `#${path}${query ? `?${query}` : ''}`; }
 }
