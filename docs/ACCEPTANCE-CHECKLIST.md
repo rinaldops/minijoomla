@@ -36,6 +36,10 @@
   a navegação no hash (`#/search?q=arquitetura`) e renderiza o resultado.
 - [x] A sequência `Tab`/`Shift+Tab` foi exercitada no shell, incluindo skip
   link, título, itens de menu, links de módulos e retorno ao item anterior.
+- [x] A matriz pós-correção repetida nas cinco rotas e quatro larguras confirmou
+  novamente foco em `main#main-content`, ausência de overflow horizontal,
+  títulos por rota e idioma `pt-BR`; a busca manteve `role="search"` e
+  `aria-live`.
 - [x] As cores estruturais observadas correspondem à paleta autorizada:
   verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
 - [ ] A API desta versão do FIORI-AUTO não disponibilizou uma operação de
