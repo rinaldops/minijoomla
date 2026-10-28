@@ -20,6 +20,8 @@
   sobrescrevam.
 - [x] O estado de carregamento também aparece antes de listeners assíncronos
   registrados em `onBeforeRender`.
+- [x] `main[aria-busy="true"]` identifica o período de carregamento e é
+  removido após a navegação concluir.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.
