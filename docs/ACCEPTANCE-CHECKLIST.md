@@ -27,6 +27,8 @@
   marcados como incluídos; indexação avançada permanece futura.
 - [x] Estados vazios de listas, módulos e tags possuem `role="status"`, sem
   depender somente de mudança visual para informar ausência de conteúdo.
+- [x] Links de módulos usam o router injetado, preservando `basePath` e
+  query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.
