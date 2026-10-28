@@ -160,19 +160,19 @@ declarativa e validada; não permite JavaScript arbitrário.
 
 ## 5. Critérios de aceite da fase 1
 
-- [ ] A matriz foi revisada e cada item implementado aponta para teste ou
+- [x] A matriz foi revisada e cada item implementado aponta para teste ou
   evidência local; itens não implementados permanecem marcados como lacuna.
-- [ ] O shell monta header, navegação, conteúdo, posições de módulo e footer,
+- [x] O shell monta header, navegação, conteúdo, posições de módulo e footer,
   incluindo loading, vazio, erro e 404.
-- [ ] Router cobre artigo, categoria, parâmetros, alias inválido e fallback;
+- [x] Router cobre artigo, categoria, parâmetros, alias inválido e fallback;
   navegação interna não exige reload indevido.
-- [ ] Existe ao menos uma página de artigo e uma página de categoria usando
+- [x] Existe ao menos uma página de artigo e uma página de categoria usando
   exclusivamente fake contracts.
-- [ ] Artigos, categorias, tags e menus têm fixtures e contratos sem tipos de
+- [x] Artigos, categorias, tags e menus têm fixtures e contratos sem tipos de
   SharePoint; ordenação, paginação e janelas de publicação são testáveis.
-- [ ] Módulos são registráveis/configuráveis, possuem view model e não têm
+- [x] Módulos são registráveis/configuráveis, possuem view model e não têm
   dependência do template concreto ou de rede.
-- [ ] Testes cobrem rotas, estados, menus/breadcrumbs, filtros, paginação,
+- [x] Testes cobrem rotas, estados, menus/breadcrumbs, filtros, paginação,
   sanitização, teclado e execução sem rede.
 - [ ] Layout e conteúdo respeitam teclado, foco, zoom, contraste e larguras
   320/768/1366/1920 px.

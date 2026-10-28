@@ -125,13 +125,13 @@ do MINIJOOMLA até existir um escopo próprio, aprovado e documentado.
 
 ## 5. Critérios de aceite do plano
 
-- [ ] Trocar `FakeAdapter` por um adapter de contrato não exige mudar
+- [x] Trocar `FakeAdapter` por um adapter de contrato não exige mudar
   componentes, módulos ou templates.
-- [ ] Nenhum import de SPMIDDLE aparece em UI, template, módulo ou componente.
-- [ ] Os testes unitários rodam sem rede, credenciais, cookies ou SharePoint.
+- [x] Nenhum import de SPMIDDLE aparece em UI, template, módulo ou componente.
+- [x] Os testes unitários rodam sem rede, credenciais, cookies ou SharePoint.
 - [ ] Mapeamentos rejeitam dados inválidos e não deixam escapar DTOs, URLs,
   ETags ou erros de transporte para a apresentação.
-- [ ] Paginação, datas, ausência, falhas e limites têm comportamento documentado
+- [x] Paginação, datas, ausência, falhas e limites têm comportamento documentado
   e testes de contrato.
 - [ ] O plano de leitura em `Preview.aspx` só é executado após autorização e
   validação de produção; `Default.aspx` permanece fora desta etapa.
