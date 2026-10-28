@@ -22,3 +22,27 @@
 A validação visual deve usar uma instância própria do FIORI-AUTO, conforme as
 instruções do workspace. Nenhuma publicação ou acesso SharePoint faz parte dos
 testes locais acima.
+
+## Roteiro FIORI-AUTO para aceite visual
+
+Quando a instância isolada estiver disponível, executar este roteiro no
+documento local servido por HTTP e, somente se autorizado, no MSE da página de
+teste informada pelo responsável:
+
+1. Iniciar uma instância própria do `FioriAgent`, com porta RPC/CDP e perfil
+   exclusivos da sessão; não reutilizar instância de outra LLM.
+2. Abrir as rotas `#/`, `#/article/boas-vindas`, `#/category/noticias`,
+   `#/search?q=energia` e `#/rota-inexistente`.
+3. Repetir cada rota em 320, 768, 1366 e 1920 px e registrar overflow horizontal,
+   cortes, sobreposição, foco e legibilidade.
+4. Testar teclado: skip link, menu, busca com `Enter`, resultados, `Tab`,
+   `Shift+Tab` e foco em `#main-content` após cada troca de rota.
+5. Repetir em zoom 200% e 400%, incluindo reflow equivalente a 320 CSS px.
+6. Ativar `forced-colors`/alto contraste e confirmar que foco, links, campos,
+   estados e bordas continuam distinguíveis sem depender somente de cor.
+7. Conferir título, `lang`, landmarks, breadcrumbs, `aria-current`, região
+   `aria-live` e ausência de documento HTML aninhado no `body`.
+8. Se o MSE for usado, validar primeiro somente leitura no endereço autorizado;
+   qualquer publicação deve usar versão imutável, evidência de rollback e o
+   procedimento oficial do workspace. Não registrar cookies, tokens ou dados
+   corporativos nas evidências.
