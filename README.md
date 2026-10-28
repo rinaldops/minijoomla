@@ -46,5 +46,9 @@ Navegações internas programáticas preservam o hash completo da rota no
 navegador (incluindo query string), evitam reload e ignoram renderizações
 assíncronas obsoletas quando o usuário muda de rota rapidamente.
 
+O formulário de busca identifica explicitamente sua finalidade, associa o campo
+a uma instrução acessível e mantém essa instrução visualmente oculta sem removê-la
+da árvore de acessibilidade.
+
 Critérios, lacunas e rollback estão documentados em
 [`docs/JOOMLA-EQUIVALENCE.md`](docs/JOOMLA-EQUIVALENCE.md).

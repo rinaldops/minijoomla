@@ -20,6 +20,7 @@ export async function runStaticUiTests() {
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /forced-colors/);
   assert.match(css, /@media print/);
+  assert.match(css, /\.visually-hidden\{/);
   assert.ok(contrast('008542', 'FFFFFF') >= 4.5, 'verde Petrobras deve suportar texto branco');
   assert.ok(contrast('006298', 'FFFFFF') >= 4.5, 'azul Petrobras deve suportar texto branco');
   assert.ok(contrast('FDC82F', '000000') >= 4.5, 'amarelo Petrobras deve suportar texto preto');
