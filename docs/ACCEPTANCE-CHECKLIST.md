@@ -48,6 +48,20 @@
   `E_CDP_NO_VALUE`/`E_INTERNAL` nesta instância para expressões simples; não
   foi usado como evidência de título, foco, idioma ou overflow.
 
+### Inspeção read-only do endereço SharePoint autorizado
+
+- [x] A URL informada foi aberta em uma instância própria do FIORI-AUTO, sem
+  publicação ou alteração: `RPC 47176`, perfil isolado da sessão.
+- [x] O shell SharePoint respondeu com título `SAP Scripting`, sem overflow
+  horizontal no viewport observado.
+- [x] A página expôs o shell SharePoint/Office com iframes, mas não expôs
+  `main` nem controles identificáveis do MINIJOOMLA; portanto, não há evidência
+  para validar visualmente o aplicativo nesse endereço.
+- [ ] O aceite visual SharePoint permanece pendente: a página autorizada não
+  disponibilizou o conteúdo MINIJOOMLA nesta sessão. Uma navegação adicional
+  também excedeu o timeout de `networkidle`, embora o DOM do shell tenha
+  continuado acessível para inspeção read-only.
+
 A validação visual deve usar uma instância própria do FIORI-AUTO, conforme as
 instruções do workspace. Nenhuma publicação ou acesso SharePoint faz parte dos
 testes locais acima.
