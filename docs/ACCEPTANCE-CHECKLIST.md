@@ -41,6 +41,11 @@
   novamente foco em `main#main-content`, ausência de overflow horizontal,
   títulos por rota e idioma `pt-BR`; a busca manteve `role="search"` e
   `aria-live`.
+- [x] O cálculo WCAG das combinações usadas confirmou branco sobre verde em
+  `4,74:1`, branco sobre azul em `6,56:1`, preto sobre amarelo em `13,48:1`,
+  preto sobre verde-água em `7,94:1` e preto sobre branco em `21:1`. O cinza
+  `#75787B` permanece restrito a bordas (`4,44:1` sobre branco), conforme a
+  identidade Petrobras.
 - [x] As cores estruturais observadas correspondem à paleta autorizada:
   verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
 - [x] A API desta versão do FIORI-AUTO permitiu a operação de teclado via
