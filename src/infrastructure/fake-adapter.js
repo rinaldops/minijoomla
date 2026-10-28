@@ -17,6 +17,11 @@ export function createFakeAdapter(seed = {}) {
     },
     async getArticle(alias, { now = new Date() } = {}) { return data.articles.find((a) => a.alias === alias && visible(a, now)) ?? null; },
     async getCategory(alias) { return data.categories.find((c) => c.alias === alias) ?? null; },
+    async getCategoryPath(alias) {
+      const path = []; let current = data.categories.find((c) => c.alias === alias); const seen = new Set();
+      while (current && !seen.has(current.id)) { path.unshift(current); seen.add(current.id); current = data.categories.find((category) => category.id === current.parentId); }
+      return path;
+    },
     async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId); },
     async listMenus() { return data.menus; },
     async listTags() { return [...new Set(data.articles.flatMap((a) => a.tags ?? []))].sort(); },
