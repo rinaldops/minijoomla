@@ -42,6 +42,13 @@ administração de usuários ficam explicitamente fora do escopo.
 
 ### 2.1 Contratos funcionais mínimos
 
+O contrato de módulos da fase é declarativo e neutro: cada definição deve
+expor `name`, `settings`, opcionalmente `settingsSchema`, `position`, `order`,
+`enabled` e `render(context)`. O registry seleciona módulos por posição,
+ordena-os de forma determinística e ignora entradas desabilitadas. Loaders
+futuros devem entregar estados `idle`, `loading`, `ready`, `empty` ou `error`;
+nenhuma configuração pode executar JavaScript arbitrário.
+
 Os contratos devem ser assíncronos mesmo quando o fake for síncrono, para não
 criar uma incompatibilidade artificial com um adapter futuro. Os nomes abaixo
 são semânticos; a implementação pode escolher outra nomenclatura, desde que

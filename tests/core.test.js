@@ -18,6 +18,7 @@ export async function runTests() {
     ,['search component escapes query and renders a form', () => { const html = renderSearch('<script>', { items: [], total: 0 }); assert.match(html, /&lt;script&gt;/); assert.match(html, /name="q"/); }]
     ,['module registry orders positions and skips disabled modules', () => { const registry = createModuleRegistry(); registry.register('a', { settings: {}, render: () => 'A' }).register('b', { settings: {}, render: () => 'B' }); assert.equal(registry.renderPosition('sidebar', [{ name: 'b', order: 2 }, { name: 'a', order: 1, enabled: false }]), 'B'); }]
     ,['search contract limits query and searches full text', async () => { assert.equal(normalizeQuery('  abc  '), 'abc'); const adapter = createFakeAdapter({ articles: [{ title: 'A', alias: 'a', introtext: '', fulltext: 'energia', published: true, publishUp: '2020-01-01', tags: [] }] }); const result = await adapter.listArticles({ search: 'energia', now: '2026-01-01' }); assert.equal(result.total, 1); }]
+    ,['module contract rejects missing settings and accepts schemas', () => { const registry = createModuleRegistry(); assert.throws(() => registry.register('invalid', { render: () => '' }), TypeError); registry.register('valid', { settings: {}, settingsSchema: {}, render: () => 'ok' }); assert.equal(registry.has('valid'), true); }]
   ];
   for (const [name, test] of tests) { await test(); console.log(`ok - ${name}`); }
 }

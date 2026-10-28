@@ -7,6 +7,7 @@ function stateMessage(state, message) {
 }
 
 export const articlesLatestModule = {
+  name: 'articles-latest', settingsSchema: { limit: 'number' },
   settings: { position: 'sidebar', limit: 5, state: 'ready' },
   render({ state = 'ready', articles = [], message } = {}) {
     const status = stateMessage(state, message); if (status) return status;
@@ -16,6 +17,7 @@ export const articlesLatestModule = {
 };
 
 export const articlesCategoryModule = {
+  name: 'articles-category', settingsSchema: { limit: 'number', category: 'string' },
   settings: { position: 'content', limit: 5, state: 'ready' },
   render({ state = 'ready', items = [], message } = {}) {
     const status = stateMessage(state, message); if (status) return status;
@@ -25,6 +27,7 @@ export const articlesCategoryModule = {
 };
 
 export const tagsPopularModule = {
+  name: 'tags-popular', settingsSchema: {},
   settings: { position: 'sidebar', state: 'ready' },
   render({ state = 'ready', tags = [], message } = {}) {
     const status = stateMessage(state, message); if (status) return status;
