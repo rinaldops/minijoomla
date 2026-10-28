@@ -27,6 +27,11 @@
   e `footer`; a busca apresentou `form[role="search"]` e região `[aria-live]`.
 - [x] Foram geradas capturas read-only nas quatro larguras configuradas pelo
   probe: 320, 768, 1366 e 1920 px, para as cinco rotas.
+- [x] A matriz DOM nas cinco rotas e quatro larguras confirmou `scrollWidth`
+  igual à largura do viewport, sem overflow horizontal, além de `lang="pt-BR"`,
+  título específico por rota e `main#main-content`.
+- [x] Após cada navegação, o foco foi confirmado em `main#main-content`; os
+  menus/breadcrumbs também expuseram elementos com `aria-current`.
 - [x] As cores estruturais observadas correspondem à paleta autorizada:
   verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
 - [ ] A API desta versão do FIORI-AUTO não disponibilizou uma operação de
