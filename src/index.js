@@ -16,8 +16,7 @@ export function createApplication({ adapter = createFakeAdapter(), config = {}, 
   let latestNavigation = 0;
   const router = new Router({ onNavigate: async (location) => { const navigationId = ++latestNavigation; let menus = []; let body = '<section class="loading-state" role="status" aria-live="polite" aria-atomic="true"><h1>Carregando…</h1></section>'; let crumbs = ['Início']; let sidebar = '';
     if (documentRef) { documentRef.body.innerHTML = renderShell({ config: siteConfig, menus: '', breadcrumbs: '', content: body }); }
-    await events.emit('onBeforeRender', location);
-    try { menus = await adapter.listMenus();
+    try { await events.emit('onBeforeRender', location); menus = await adapter.listMenus();
     if (location.route?.name === 'article') { const article = await content.article(location.params.alias); body = article ? renderArticle(article) : '<section class="error-state" role="alert"><h1>404</h1><p>Artigo não encontrado.</p></section>'; crumbs.push(article?.title ?? '404'); }
     else if (location.route?.name === 'category') { const vm = await content.category(location.params.alias, { page: location.params.page }); const categoryPath = await content.categoryPath(location.params.alias); body = vm ? renderCategory(vm, { link: (page) => router.link(location.path, { page }) }) : '<section class="error-state" role="alert"><h1>404</h1><p>Categoria não encontrada.</p></section>'; crumbs.push(...(categoryPath.length ? categoryPath.map((category) => category.title) : ['404'])); }
     else if (location.route?.name === 'search') { const query = location.params.q ?? ''; const result = await content.search(query, { page: location.params.page }); body = renderSearch(query, result, { link: (page) => router.link(location.path, { q: query, page }) }); crumbs.push('Busca'); }
