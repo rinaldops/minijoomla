@@ -42,5 +42,9 @@ expõe leitura. O plano para uma integração futura está em
 - `#/category/noticias` — blog de categoria
 - `#/search?q=energia` — busca
 
+Navegações internas programáticas preservam o hash completo da rota no
+navegador (incluindo query string), evitam reload e ignoram renderizações
+assíncronas obsoletas quando o usuário muda de rota rapidamente.
+
 Critérios, lacunas e rollback estão documentados em
 [`docs/JOOMLA-EQUIVALENCE.md`](docs/JOOMLA-EQUIVALENCE.md).
