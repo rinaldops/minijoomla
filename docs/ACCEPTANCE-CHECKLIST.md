@@ -18,6 +18,8 @@
 - [x] O shell exibe o estado de carregamento imediatamente, antes da conclusão
   de operações assíncronas do adapter, sem permitir que renders obsoletos o
   sobrescrevam.
+- [x] O estado de carregamento também aparece antes de listeners assíncronos
+  registrados em `onBeforeRender`.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
