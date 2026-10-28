@@ -22,6 +22,9 @@
   registrados em `onBeforeRender`.
 - [x] `main[aria-busy="true"]` identifica o período de carregamento e é
   removido após a navegação concluir.
+- [x] A matriz de equivalência Joomla foi reconciliada com a implementação
+  atual: busca, artigos recentes e tags populares consumidos pelo shell estão
+  marcados como incluídos; indexação avançada permanece futura.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.
