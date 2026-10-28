@@ -61,6 +61,10 @@
   encontrou identificadores semânticos `minijoomla`, `modern-script-editor` ou
   `script-editor`. O único falso sinal `mse` veio de uma classe CSS ofuscada,
   sem id semântico, e não caracteriza um webpart MSE.
+- [x] A página não ofereceu outra página de conteúdo interna além dela própria;
+  a tentativa read-only de abrir a listagem `SitePages/Forms/AllItems.aspx`
+  retornou um documento sem título, links ou estrutura utilizável. Nenhuma
+  permissão foi contornada e nenhuma API alternativa foi usada.
 - [ ] O aceite visual SharePoint permanece pendente: a página autorizada não
   disponibilizou o conteúdo MINIJOOMLA nesta sessão. Uma navegação adicional
   também excedeu o timeout de `networkidle`, embora o DOM do shell tenha
