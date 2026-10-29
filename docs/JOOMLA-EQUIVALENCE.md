@@ -1,8 +1,8 @@
 # MINIJOOMLA — inventário e matriz de equivalência Joomla
 
 **Fase:** 1 — fundação local e contratos fake
-**Status:** fase local aceita; as lacunas visuais de zoom/alto contraste e a
- integração SharePoint permanecem explicitamente fora do aceite concluído
+**Status:** fase local aceita; zoom/alto contraste real e integração SharePoint
+ permanecem explicitamente fora do aceite concluído
 **Fonte de escopo:** `PROMPT-DESENVOLVIMENTO-MINIJOOMLA.md`
 **Limite:** nenhuma integração real com SharePoint, `Preview.aspx` ou
 `Default.aspx` faz parte desta fase.

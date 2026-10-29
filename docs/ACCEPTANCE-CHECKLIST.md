@@ -97,6 +97,13 @@ aceite visual completo em navegador/SharePoint.
   `fiori.pressKey`; zoom e `forced-colors` continuam sem emulação disponível.
 - [x] `browser.evaluate` foi usado com retorno em envelope serializável para
   confirmar título, foco, idioma, landmarks e overflow nas matrizes locais.
+- [x] Com o binário publicado `FioriAgent.exe` em
+  `fiori-agent-src/FioriAgent/bin/Release/net9.0/win-x64/publish`, uma nova
+  instância isolada confirmou as cinco rotas em 320, 768, 1366 e 1920 px,
+  sem overflow, com foco em `main#main-content`, títulos e estados esperados.
+- [x] A busca foi repetida por `fiori.fillField` + `fiori.pressKey`: `Enter`
+  produziu `#/search?q=arquitetura`, atualizou o resultado e preservou
+  `aria-label` do formulário e `aria-describedby` do campo.
 
 ### Inspeção read-only do endereço SharePoint autorizado
 
