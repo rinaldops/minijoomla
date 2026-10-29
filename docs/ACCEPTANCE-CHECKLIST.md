@@ -55,6 +55,8 @@
   prefixo configurado, evitando remoções acidentais em caminhos semelhantes.
 - [x] Links gerados pelo router normalizam barras, prefixo configurado e
   parâmetros vazios sem produzir rotas ambíguas.
+- [x] A configuração normaliza `basePath`, limita `pageSize` a 1–50 e aplica
+  defaults seguros para overrides ausentes ou inválidos.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais

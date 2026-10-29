@@ -4,5 +4,17 @@ export const defaultConfig = Object.freeze({
 });
 
 export function createConfig(overrides = {}) {
-  return Object.freeze({ ...defaultConfig, ...overrides });
+  const input = overrides && typeof overrides === 'object' ? overrides : {};
+  const pageSize = Number(input.pageSize);
+  const basePath = String(input.basePath ?? defaultConfig.basePath).trim();
+  return Object.freeze({
+    ...defaultConfig,
+    ...input,
+    siteName: String(input.siteName ?? defaultConfig.siteName),
+    siteDescription: String(input.siteDescription ?? defaultConfig.siteDescription),
+    language: String(input.language ?? defaultConfig.language),
+    timezone: String(input.timezone ?? defaultConfig.timezone),
+    basePath: basePath === '/' ? '' : basePath.replace(/^#/, '').replace(/\/+$/, ''),
+    pageSize: Number.isFinite(pageSize) ? Math.min(50, Math.max(1, Math.trunc(pageSize))) : defaultConfig.pageSize
+  });
 }
