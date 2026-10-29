@@ -29,6 +29,8 @@
   depender somente de mudança visual para informar ausência de conteúdo.
 - [x] Links de módulos usam o router injetado, preservando `basePath` e
   query strings; o fallback mantém compatibilidade com hash routing.
+- [x] O fake adapter restringe campos de ordenação a uma allowlist e calcula
+  tags populares somente sobre conteúdo publicado e vigente.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.
