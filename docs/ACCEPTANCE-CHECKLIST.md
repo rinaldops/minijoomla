@@ -70,6 +70,8 @@
   para hosts que montam e desmontam a aplicação.
 - [x] O content service normaliza páginas incompletas do adapter para um
   contrato estável, preservando itens, paginação, busca vazia e breadcrumbs.
+- [x] O content service também aceita adapters parciais ou ausentes, devolvendo
+  estados vazios controlados em vez de lançar por métodos inexistentes.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
