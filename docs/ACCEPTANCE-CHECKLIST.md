@@ -33,6 +33,9 @@
   ausentes ou não-array, mantendo landmarks e estados vazios válidos.
 - [x] O registry de módulos ordena uma cópia das entradas e devolve cópias das
   configurações, sem permitir mutações acidentais pelo host consumidor.
+- [x] A fronteira de URLs rejeita controles ASCII, credenciais embutidas,
+  esquemas executáveis e URLs protocol-relative; links internos do artigo foram
+  verificados no navegador sem destinos `javascript:`/`data:`.
 - [x] Links de módulos usam o router injetado, preservando `basePath` e
   query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
@@ -128,6 +131,9 @@ aceite visual completo em navegador/SharePoint.
 - [x] Nova instância isolada do FIORI-AUTO confirmou as cinco rotas configuradas
   após a correção do parser: títulos, `lang="pt-BR"`, foco em
   `main#main-content`, estados de busca/404 e ausência de overflow.
+- [x] Nova instância isolada confirmou no artigo que os links renderizados são
+  internos/seguros, sem links `javascript:` ou `data:`, mantendo foco e sem
+  overflow horizontal.
 - [x] A mesma instância confirmou que o prefixo não configurado `/mini` não é
   aceito indevidamente: as rotas retornaram 404 acessível, sem overflow.
 
