@@ -7,12 +7,13 @@ const menus = [{ title: 'Início', path: '/' }, { title: 'Notícias', path: '/ca
 
 function visible(article, now = new Date()) { const current = new Date(now).getTime(); const start = new Date(article.publishUp ?? 0).getTime(); const end = article.publishDown ? new Date(article.publishDown).getTime() : Infinity; return article.published === true && start <= current && current < end; }
 function pageOptions({ page = 1, pageSize = 5 } = {}) { return { page: Math.max(1, Number(page) || 1), pageSize: Math.min(50, Math.max(1, Number(pageSize) || 5)) }; }
+const SORT_FIELDS = new Set(['publishUp', 'title', 'alias', 'id']);
 export function createFakeAdapter(seed = {}) {
   const data = { articles: seed.articles ?? articles, categories: seed.categories ?? categories, menus: seed.menus ?? menus };
   return Object.freeze({
     async listArticles({ category, tag, page = 1, pageSize = 5, search = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
-      const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase();
-      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!term || `${a.title} ${a.introtext} ${a.fulltext} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[sort] ?? ''; const right = b[sort] ?? ''; return (left < right ? -1 : left > right ? 1 : 0) * (direction === 'asc' ? 1 : -1); });
+      const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase(); const field = SORT_FIELDS.has(sort) ? sort : 'publishUp'; const multiplier = direction === 'asc' ? 1 : -1;
+      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!term || `${a.title} ${a.introtext} ${a.fulltext} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[field] ?? ''; const right = b[field] ?? ''; return (left < right ? -1 : left > right ? 1 : 0) * multiplier; });
       const start = (paging.page - 1) * paging.pageSize; return { items: items.slice(start, start + paging.pageSize), total: items.length, page: paging.page, pageSize: paging.pageSize, pages: Math.ceil(items.length / paging.pageSize) };
     },
     async getArticle(alias, { now = new Date() } = {}) { return data.articles.find((a) => a.alias === alias && visible(a, now)) ?? null; },
@@ -24,7 +25,7 @@ export function createFakeAdapter(seed = {}) {
     },
     async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId); },
     async listMenus() { return data.menus; },
-    async listTags({ popular = false } = {}) { const counts = data.articles.flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); return popular ? tags.map((name) => ({ name, count: counts[name] })) : tags; },
+    async listTags({ popular = false, now = new Date() } = {}) { const counts = data.articles.filter((article) => visible(article, now)).flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); return popular ? tags.map((name) => ({ name, count: counts[name] })) : tags; },
     async listArticlesByTag(tag, options = {}) { return this.listArticles({ ...options, tag }); }
   });
 }
