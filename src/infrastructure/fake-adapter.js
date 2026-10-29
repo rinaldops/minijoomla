@@ -25,7 +25,7 @@ export function createFakeAdapter(seed = {}) {
     },
     async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId); },
     async listMenus() { return data.menus; },
-    async listTags({ popular = false, now = new Date() } = {}) { const counts = data.articles.filter((article) => visible(article, now)).flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); return popular ? tags.map((name) => ({ name, count: counts[name] })) : tags; },
+    async listTags({ popular = false, now = new Date(), limit = 0 } = {}) { const counts = data.articles.filter((article) => visible(article, now)).flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); const boundedLimit = Math.min(50, Math.max(0, Number(limit) || 0)); const selected = boundedLimit ? tags.slice(0, boundedLimit) : tags; return popular ? selected.map((name) => ({ name, count: counts[name] })) : selected; },
     async listArticlesByTag(tag, options = {}) { return this.listArticles({ ...options, tag }); }
   });
 }
