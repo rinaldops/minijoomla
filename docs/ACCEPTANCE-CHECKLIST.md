@@ -42,6 +42,8 @@
   preservando uma data determinística para a apresentação.
 - [x] O fake adapter restringe campos de ordenação a uma allowlist e calcula
   tags populares somente sobre conteúdo publicado e vigente.
+- [x] Ordenação do fake adapter possui desempate determinístico por alias/id e
+  consultas de tags populares aceitam limite seguro.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.
