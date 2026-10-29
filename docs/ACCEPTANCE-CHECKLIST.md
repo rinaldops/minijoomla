@@ -31,6 +31,8 @@
   query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
   o router injetado, evitando URLs hardcoded quando há `basePath`.
+- [x] A cobertura de integração confirma que links de menus, categorias,
+  artigos e tags preservam `basePath` na aplicação montada.
 - [x] O fake adapter restringe campos de ordenação a uma allowlist e calcula
   tags populares somente sobre conteúdo publicado e vigente.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
