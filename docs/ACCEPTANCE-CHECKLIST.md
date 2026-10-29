@@ -68,6 +68,8 @@
   defaults seguros para overrides ausentes ou inválidos.
 - [x] O EventBus rejeita listeners inválidos e oferece unsubscribe idempotente
   para hosts que montam e desmontam a aplicação.
+- [x] O content service normaliza páginas incompletas do adapter para um
+  contrato estável, preservando itens, paginação, busca vazia e breadcrumbs.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
