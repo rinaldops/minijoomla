@@ -31,6 +31,8 @@
   query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
   o router injetado, evitando URLs hardcoded quando há `basePath`.
+- [x] Fallbacks de componentes e módulos continuam produzindo hashes válidos
+  mesmo quando nenhum router é injetado.
 - [x] A cobertura de integração confirma que links de menus, categorias,
   artigos e tags preservam `basePath` na aplicação montada.
 - [x] Datas exibidas em artigos e listas usam o timezone configurado, com
