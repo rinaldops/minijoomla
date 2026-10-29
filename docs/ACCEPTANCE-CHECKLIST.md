@@ -66,6 +66,8 @@
   preserva `?` adicionais dentro do valor da query.
 - [x] A configuração normaliza `basePath`, limita `pageSize` a 1–50 e aplica
   defaults seguros para overrides ausentes ou inválidos.
+- [x] O EventBus rejeita listeners inválidos e oferece unsubscribe idempotente
+  para hosts que montam e desmontam a aplicação.
 - [x] `git diff --check` passa.
 
 ## Status da validação visual e lacunas residuais
