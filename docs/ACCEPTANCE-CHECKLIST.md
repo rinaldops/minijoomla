@@ -104,6 +104,9 @@ aceite visual completo em navegador/SharePoint.
 - [x] A busca foi repetida por `fiori.fillField` + `fiori.pressKey`: `Enter`
   produziu `#/search?q=arquitetura`, atualizou o resultado e preservou
   `aria-label` do formulário e `aria-describedby` do campo.
+- [x] A verificação complementar de reflow equivalente a viewport estreito
+  confirmou `document.documentElement.scrollWidth <= innerWidth` em 320 e
+  640 px, sem overflow horizontal.
 
 ### Inspeção read-only do endereço SharePoint autorizado
 
