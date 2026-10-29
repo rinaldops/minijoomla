@@ -145,12 +145,30 @@ Coordenador, executores e revisor devem usar modelos diferentes. Arranjo
 possível:
 
 - coordenador: `hub-ai/gpt-5.6-luna`;
-- executores: `hub-ai/gpt-5.2-petrobras` e/ou `hub-ai/kimi-k2.7-code`;
+- executores: `hub-ai/gpt-5-2-petrobras`;
 - revisor: `hub-ai/claude-sonnet-5`.
 
-Modelos disponíveis verificados: `gpt-5-2-petrobras`, `gpt-5.6-luna`,
-`claude-sonnet-5`, `deepseek-v4-pro`, `deepseek-v4-flash`, `kimi-k2.7-code`,
-`kimi-k2.6` e `claude-haiku-4-5`, no provider `hub-ai`.
+#### Disponibilidade homologada
+
+Para este workspace, somente os modelos GPT e Claude Sonnet estão homologados
+para execução por agentes. Os demais modelos que eventualmente apareçam no
+catálogo do provider `hub-ai` — incluindo DeepSeek, Kimi e Claude Haiku — ainda
+não devem ser selecionados, pois não estão homologados.
+
+Assim, as opções homologadas relevantes são:
+
+```text
+hub-ai/gpt-5.6-luna
+hub-ai/gpt-5-2-petrobras
+hub-ai/claude-sonnet-5
+```
+
+O coordenador deve verificar a disponibilidade real antes de delegar. Se forem
+necessários três papéis simultâneos (coordenador, executor e revisor), usar
+variantes/modelos GPT e Claude Sonnet distintos quando a plataforma permitir;
+caso não seja possível manter três identificadores distintos, não simular a
+separação: registrar a limitação e executar somente a coordenação/revisão que
+estiver efetivamente disponível.
 
 Se o Hub rejeitar uma delegação, registrar a indisponibilidade; nunca declarar
 uma revisão ou execução que não ocorreu.
