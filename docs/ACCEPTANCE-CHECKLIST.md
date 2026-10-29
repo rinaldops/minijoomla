@@ -136,6 +136,9 @@ aceite visual completo em navegador/SharePoint.
 - [x] Nova instância isolada confirmou no artigo que os links renderizados são
   internos/seguros, sem links `javascript:` ou `data:`, mantendo foco e sem
   overflow horizontal.
+- [x] A verificação final em 320 px confirmou rota de busca, título, idioma,
+  foco, formulário acessível, remoção de `aria-busy`, links internos e ausência
+  de overflow horizontal.
 - [x] A mesma instância confirmou que o prefixo não configurado `/mini` não é
   aceito indevidamente: as rotas retornaram 404 acessível, sem overflow.
 
