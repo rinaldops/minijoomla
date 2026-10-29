@@ -38,6 +38,8 @@
 - [x] Datas exibidas em artigos e listas usam o timezone configurado, com
   fallback seguro para o timezone padrão do projeto quando a configuração é
   inválida.
+- [x] O fallback de timezone inválido também possui teste de renderização,
+  preservando uma data determinística para a apresentação.
 - [x] O fake adapter restringe campos de ordenação a uma allowlist e calcula
   tags populares somente sobre conteúdo publicado e vigente.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
