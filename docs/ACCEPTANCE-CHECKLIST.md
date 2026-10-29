@@ -44,6 +44,8 @@
   tags populares somente sobre conteúdo publicado e vigente.
 - [x] Ordenação do fake adapter possui desempate determinístico por alias/id e
   consultas de tags populares aceitam limite seguro.
+- [x] O fake adapter captura um snapshot defensivo do seed e devolve cópias
+  defensivas, evitando mutações compartilhadas entre host, adapter e views.
 - [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
   interrompem a renderização segura; hooks observacionais pós-render não
   invalidam uma tela já montada.

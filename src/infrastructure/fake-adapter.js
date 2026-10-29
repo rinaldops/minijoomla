@@ -10,8 +10,13 @@ function pageOptions({ page = 1, pageSize = 5 } = {}) { return { page: Math.max(
 const SORT_FIELDS = new Set(['publishUp', 'title', 'alias', 'id']);
 function cloneArticle(article) { return article ? { ...article, tags: [...(article.tags ?? [])] } : article; }
 function cloneCategory(category) { return category ? { ...category } : category; }
+function cloneMenu(menu) { return menu ? { ...menu } : menu; }
 export function createFakeAdapter(seed = {}) {
-  const data = { articles: seed.articles ?? articles, categories: seed.categories ?? categories, menus: seed.menus ?? menus };
+  const data = {
+    articles: (seed.articles ?? articles).map(cloneArticle),
+    categories: (seed.categories ?? categories).map(cloneCategory),
+    menus: (seed.menus ?? menus).map(cloneMenu)
+  };
   return Object.freeze({
     async listArticles({ category, tag, page = 1, pageSize = 5, search = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
       const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase(); const field = SORT_FIELDS.has(sort) ? sort : 'publishUp'; const multiplier = direction === 'asc' ? 1 : -1;
@@ -26,7 +31,7 @@ export function createFakeAdapter(seed = {}) {
       return path.map(cloneCategory);
     },
     async listCategories({ parentId = undefined } = {}) { return data.categories.filter((c) => parentId === undefined || c.parentId === parentId).map(cloneCategory); },
-    async listMenus() { return data.menus.map((menu) => ({ ...menu })); },
+    async listMenus() { return data.menus.map(cloneMenu); },
     async listTags({ popular = false, now = new Date(), limit = 0 } = {}) { const counts = data.articles.filter((article) => visible(article, now)).flatMap((article) => article.tags ?? []).reduce((result, tag) => ({ ...result, [tag]: (result[tag] ?? 0) + 1 }), {}); const tags = Object.keys(counts).sort((a, b) => popular ? counts[b] - counts[a] || a.localeCompare(b) : a.localeCompare(b)); const boundedLimit = Math.min(50, Math.max(0, Number(limit) || 0)); const selected = boundedLimit ? tags.slice(0, boundedLimit) : tags; return popular ? selected.map((name) => ({ name, count: counts[name] })) : selected; },
     async listArticlesByTag(tag, options = {}) { return this.listArticles({ ...options, tag }); }
   });
