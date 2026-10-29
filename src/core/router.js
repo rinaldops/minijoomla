@@ -2,8 +2,12 @@ export class Router {
   constructor({ base = '', onNavigate = () => {} } = {}) { this.base = base; this.onNavigate = onNavigate; }
   parse(href = globalThis.location?.hash || '#/') {
     const raw = href.replace(/^#/, '') || '/';
-    const [path, query = ''] = raw.split('?');
-    const normalizedPath = this.base && path.startsWith(this.base) ? path.slice(this.base.length) : path;
+    const separator = raw.indexOf('?');
+    const path = separator < 0 ? raw : raw.slice(0, separator);
+    const query = separator < 0 ? '' : raw.slice(separator + 1);
+    const base = String(this.base || '').replace(/\/$/, '');
+    const hasBase = base && (path === base || path.startsWith(`${base}/`));
+    const normalizedPath = hasBase ? path.slice(base.length) : path;
     return { path: normalizedPath || '/', params: Object.fromEntries(new URLSearchParams(query)) };
   }
   match(href, routes) {

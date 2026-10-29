@@ -57,6 +57,8 @@
   prefixo configurado, evitando remoções acidentais em caminhos semelhantes.
 - [x] Links gerados pelo router normalizam barras, prefixo configurado e
   parâmetros vazios sem produzir rotas ambíguas.
+- [x] O parser do router remove `basePath` somente em limites de segmento e
+  preserva `?` adicionais dentro do valor da query.
 - [x] A configuração normaliza `basePath`, limita `pageSize` a 1–50 e aplica
   defaults seguros para overrides ausentes ou inválidos.
 - [x] `git diff --check` passa.
@@ -121,6 +123,11 @@ aceite visual completo em navegador/SharePoint.
 - [x] A verificação complementar de reflow equivalente a viewport estreito
   confirmou `document.documentElement.scrollWidth <= innerWidth` em 320 e
   640 px, sem overflow horizontal.
+- [x] Nova instância isolada do FIORI-AUTO confirmou as cinco rotas configuradas
+  após a correção do parser: títulos, `lang="pt-BR"`, foco em
+  `main#main-content`, estados de busca/404 e ausência de overflow.
+- [x] A mesma instância confirmou que o prefixo não configurado `/mini` não é
+  aceito indevidamente: as rotas retornaram 404 acessível, sem overflow.
 
 ### Inspeção read-only do endereço SharePoint autorizado
 
