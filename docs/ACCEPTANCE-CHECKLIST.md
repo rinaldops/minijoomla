@@ -31,6 +31,8 @@
   seguro, sem lançar exceções quando campos opcionais ou arrays não existem.
 - [x] A view de categoria e os módulos de navegação também toleram entradas
   ausentes ou não-array, mantendo landmarks e estados vazios válidos.
+- [x] O registry de módulos ordena uma cópia das entradas e devolve cópias das
+  configurações, sem permitir mutações acidentais pelo host consumidor.
 - [x] Links de módulos usam o router injetado, preservando `basePath` e
   query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
