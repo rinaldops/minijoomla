@@ -29,6 +29,8 @@
   depender somente de mudança visual para informar ausência de conteúdo.
 - [x] Views de artigos e módulos tratam view models esparsos como estado vazio
   seguro, sem lançar exceções quando campos opcionais ou arrays não existem.
+- [x] A view de categoria e os módulos de navegação também toleram entradas
+  ausentes ou não-array, mantendo landmarks e estados vazios válidos.
 - [x] Links de módulos usam o router injetado, preservando `basePath` e
   query strings; o fallback mantém compatibilidade com hash routing.
 - [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
