@@ -44,7 +44,7 @@ const NATIVE_PLUGINS = Object.freeze({
 });
 const isNative = (row) => NATIVE_PLUGIN_URLS.includes(row.entryPointUrl);
 
-function optionalPluginGroup(value, field) {
+export function optionalPluginGroup(value, field) {
   if (value === undefined || value === null || value === '') return '';
   if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]{0,39}$/.test(value.trim())) throw new ValidationError(`${field} (grupo de plugin) persistido inválido. Nenhum dado foi alterado.`);
   return value.trim();
@@ -122,15 +122,21 @@ export function createExtensionAdministration({ repositories, extensions, module
     },
     // Lista com os plugins nativos sempre presentes; sem registro aparecem desabilitados (id/etag ausentes).
     async catalog() {
-      const rows = (await plugins.list()).map((row) => (isNative(row) && NATIVE_PLUGINS[row.key] ? { ...row, description: row.description || NATIVE_PLUGINS[row.key][1], native: true } : row));
+      const rows = (await plugins.list()).map((row) => (isNative(row) && Object.hasOwn(NATIVE_PLUGINS, row.key) ? { ...row, description: row.description || NATIVE_PLUGINS[row.key][1], native: true } : row));
       const virtual = NATIVE_PLUGIN_KEYS.filter((key) => !rows.some((row) => row.key === key)).map((key) => ({
         id: `native:${key}`, type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], description: NATIVE_PLUGINS[key][1], enabled: false, group: 'content', ordering: 0, version: '', definitions: [], params: {}, native: true, virtual: true
       }));
       return [...rows, ...virtual].sort((a, b) => a.group.localeCompare(b.group) || a.ordering - b.ordering || String(a.title).localeCompare(String(b.title)));
     },
-    async setNative(key, enabled) {
+    async setNative(key, enabled, { etag } = {}) {
       if (!NATIVE_PLUGIN_KEYS.includes(key)) throw new ValidationError('Plugin nativo desconhecido.');
-      return extensions.create({ type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], version: '1.0.0', entryPointUrl: `native:${key}`, enabled });
+      const existing = (await extensionRows()).find((row) => row.key === key);
+      if (existing) {
+        if (existing.type !== 'Plugin' || !isNative(existing)) throw new ValidationError('Esta chave não identifica um plugin nativo registrado.');
+        // Não substitua params/manifest/group ao habilitar registros existentes.
+        return plugins.update(existing.id, { enabled }, { etag });
+      }
+      return extensions.create({ type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], entryPointUrl: `native:${key}`, enabled, manifestJson: '{"version":"1.0.0","group":"content","params":[]}' });
     },
     groups(rows) { return [...new Set(rows.map((row) => row.group))].sort(); },
     async update(id, input = {}, { etag } = {}) {

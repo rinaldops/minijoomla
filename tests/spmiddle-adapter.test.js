@@ -34,7 +34,7 @@ export async function runSPMiddleAdapterTests() {
   assert.equal((await adapter.getArticle('expirado')), null);
   assert.equal((await adapter.getArticle('rascunho')), null);
   assert.deepEqual((await adapter.listArticles({ category: 'noticias', page: 2, pageSize: 1 })).items.map((item) => item.alias), ['artigo']);
-  assert.equal((await adapter.listArticles({ pageSize: 100 })).pageSize, 50);
+  assert.equal((await adapter.listArticles({ pageSize: 100 })).pageSize, 5, 'out-of-range limits fall back instead of coercing');
   assert.equal((await adapter.getCategoryPath('filha')).length, 2);
   assert.equal((await adapter.listArticlesByTag('guia')).total, 2);
   assert.deepEqual(await adapter.listSimilarArticles('artigo'), [(await adapter.getArticle('segundo'))]);
@@ -73,6 +73,15 @@ export async function runSPMiddleAdapterTests() {
     id: 7, title: 'Mapper', alias: 'mapper', introtext: '', fulltext: '', categoryId: undefined, published: true,
     featured: false, publishUp: '2026-01-01', publishDown: null, author: '', tags: ['schema-tag']
   });
+  const metadata = createSPMiddleAdapter({
+    articleRepository: repository([{ id: 1, alias: 'meta', title: 'Metadata', keywords: 'energia, solar', description: 'Editorial', transport: 'discard-me' }]),
+    categoryRepository: repository([]), fields: { article: { metaKeywords: 'keywords', metaDescription: 'description' } }
+  });
+  for (const article of [await metadata.getArticle('meta'), (await metadata.listArticles()).items[0]]) {
+    assert.equal(article.metaKeywords, 'energia, solar');
+    assert.equal(article.metaDescription, 'Editorial');
+    assert.equal(article.transport, undefined);
+  }
 
   // regressão: quando não há override determinístico, o adapter avalia o relógio por chamada
   const withoutOverride = createSPMiddleAdapter({

@@ -27,10 +27,10 @@ async function workflow(root) {
     ? process.env.npm_execpath : join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
   assert.ok(existsSync(npm), 'npm CLI must be available for the contributor command check');
   const tests = command(root, process.execPath, [npm, 'test']);
-  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, 9);
-  assert.match(tests.stdout, /Suites: \d+ passed, 9 skipped, 0 failed/);
+  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, 10);
+  assert.match(tests.stdout, /Suites: \d+ passed, 10 skipped, 0 failed/);
   assert.match(tests.stdout, /ok - suite runner\.test\.js/);
-  console.log(`ok - selected npm test: ${tests.stdout.match(/Suites: \d+ passed, 9 skipped, 0 failed/)[0]}; real runner child also passed`);
+  console.log(`ok - selected npm test: ${tests.stdout.match(/Suites: \d+ passed, 10 skipped, 0 failed/)[0]}; real runner child also passed`);
   const syntax = command(root, process.execPath, [npm, 'run', 'check']);
   assert.match(syntax.stdout, /Syntax OK: \d+ JavaScript files/);
   // check-syntax.js currently checks src/tests/examples, not scripts.
@@ -213,7 +213,7 @@ export async function runContributorStageTests({ commands = false } = {}) {
       await workflow(second.output);
       assert.deepEqual(verifyContributorStage({ output: second.output }), second.manifest, 'Commands leave selected source files intact after test-owned tmp cleanup');
     }
-  } finally { rmSync(base, { recursive: true, force: true }); }
+  } finally { rmSync(base, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 }); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

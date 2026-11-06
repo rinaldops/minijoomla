@@ -66,6 +66,16 @@ async function mountAdmin(root) {
       deleteFile: ({ folderPath, fileName }) => transport.request(`${webUrl}/_api/web/GetFileByServerRelativeUrl('${CONFIG.libraryPath}/${folderPath}/${encodeURIComponent(fileName).replaceAll("'", "''")}')/recycle()`, { method: 'POST' })
     };
   };
+  const [{ loadJoomlaBlogPackage }, { createSampleDataJournal }] = await Promise.all([
+    import('../plugins/sampledata/blog/blog.js'),
+    import('../libraries/minijoomla/infrastructure/sample-data-journal.js')
+  ]);
+  let sampleDataJournalStore;
+  try { sampleDataJournalStore = createSampleDataJournal({ storage: globalThis.localStorage, key: `minijoomla:sampledata:${CONFIG.webUrl}:joomla-blog`, locks: globalThis.navigator?.locks }); }
+  catch { /* A missing durable journal disables installation, not the editor. */ }
+  const releaseBase = new URL('../', import.meta.url).pathname;
+  const sampleDataPackageLoader = async () => loadJoomlaBlogPackage({ releaseBase: CONFIG.sampleData?.releaseBase ?? releaseBase,
+    mediaBase: CONFIG.sampleData?.mediaBase ?? `${releaseBase}media/sampledata/joomla-blog` });
   const app = createMiniJoomlaAdminApp({
     webUrl: CONFIG.webUrl,
     transportFactory: ({ webUrl }) => createSharePointRestClient({ webUrl }),
@@ -77,12 +87,14 @@ async function mountAdmin(root) {
     },
     assertAtomicExtensionKey: createAtomicExtensionKeyGuard({ transport: createSharePointRestClient({ webUrl: CONFIG.webUrl }), webUrl: CONFIG.webUrl, listId: CONFIG.lists.extensions?.listId }),
     mediaFileClientFactory: fileClient,
-    lists: CONFIG.lists
+    lists: CONFIG.lists,
+    sampleDataPackageLoader, sampleDataJournalStore
   });
   createAdminApplication({
     adminService: app.admin,
     discoveryService: app.discovery,
     mediaService: app.media,
+    sampleDataService: app.sampleData,
     documentRef: { body: root, documentElement: null, title: '' },
     richTextEditorFactory: (elementId, options) => attachRichTextEditor(elementId, {
       vendorBaseUrl: new URL('../media/vendor/tinymce', import.meta.url).pathname,

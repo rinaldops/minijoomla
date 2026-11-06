@@ -40,6 +40,7 @@ import { renderArchive } from '../../components/com_content/tmpl/archive/default
 import { renderShell } from '../../templates/cassiopeia/index.js';
 import { renderCamapShell } from '../../templates/camap/index.js';
 import { escapeHtml } from './security/sanitize.js';
+import { normalizePageSize, queryInteger } from './core/contracts.js';
 
 const ROUTES = [
   { name: 'article', pattern: /^\/article\/([^/]+)$/, keys: ['alias'] },
@@ -194,21 +195,22 @@ export function createApplication({
       } else if (location.route?.name === 'category') {
         const { layout: layoutParam, sort: sortParam, dir, filter = '' } = location.params;
         const layout = layoutParam === 'list' ? 'list' : 'blog';
-        const sort = ['title', 'publishUp', 'author'].includes(sortParam) ? sortParam : 'publishUp';
-        const direction = dir === 'asc' || dir === 'desc' ? dir : (sort === 'publishUp' ? 'desc' : 'asc');
+        const { sort, direction } = content.queryOptions({ sort: ['title', 'publishUp', 'author'].includes(sortParam) ? sortParam : undefined, direction: dir });
         const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
+        const pageSize = queryInteger(location.params.pageSize);
         const vm = await content.category(location.params.alias, layout === 'list'
-          ? { page: location.params.page, sort, direction, titleContains: filter }
-          : { page: location.params.page, pageSize: blog.pageSize });
+          ? { page: location.params.page, pageSize, sort, direction, titleContains: filter }
+          : { page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize), sort, direction });
         const categoryPath = await content.categoryPath(location.params.alias);
-        const listParams = { layout: layout === 'list' ? 'list' : undefined, sort: layout === 'list' ? sort : undefined, dir: layout === 'list' ? direction : undefined, filter };
+        const listParams = { layout: layout === 'list' ? 'list' : undefined, sort, dir: direction, filter, pageSize };
+        const blogParams = { ...(sortParam !== undefined || dir !== undefined ? { sort, dir: direction } : {}), filter, pageSize };
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Categoria não encontrada.</p></section>';
         if (vm) {
           const children = await content.subcategories(vm.category);
           renderDeferred = async (prepare) => renderCategory(await prepare(vm), {
             layout, settings: blog, route: location.path, sort, direction, filter,
             children, categoryLink: (alias) => link(`/category/${encodeURIComponent(alias)}`),
-            link: (page) => router.link(location.path, { page }),
+            link: (page) => router.link(location.path, { ...(layout === 'list' ? listParams : blogParams), page }),
             listLink: (changes) => router.link(location.path, { ...listParams, ...changes }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
@@ -225,11 +227,12 @@ export function createApplication({
         crumbs.push({ label: 'Tags' });
       } else if (location.route?.name === 'tag') {
         const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
-        const vm = await content.tag(location.params.alias, { page: location.params.page, pageSize: blog.pageSize });
+        const pageSize = queryInteger(location.params.pageSize);
+        const vm = await content.tag(location.params.alias, { page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize) });
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Tag não encontrada.</p></section>';
         if (vm) {
           renderDeferred = async (prepare) => renderTag(await prepare(vm), {
-            settings: blog, link: (page) => router.link(location.path, { page }),
+            settings: blog, link: (page) => router.link(location.path, { page, pageSize }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
           });
@@ -237,29 +240,32 @@ export function createApplication({
         crumbs.push({ label: 'Tags', href: link('/tags') }, { label: vm ? vm.tag : '404' });
       } else if (location.route?.name === 'search') {
         const query = await plugins.prepareSearchQuery(location.params.q ?? '', {});
-        const found = await content.search(query, { page: location.params.page });
-        renderDeferred = async (prepare) => renderSearch(query, await prepare(found), {
-          link: (page) => link(location.path, { q: query, page }),
+        const searchOptions = content.queryOptions({ pageSize: location.params.pageSize, searchMode: location.params.searchMode ?? location.params.searchphrase }, 'search');
+        const found = await content.search(query, { page: location.params.page, ...searchOptions });
+        renderDeferred = async (prepare) => renderSearch(found.query, await prepare(found), {
+          link: (page) => link(location.path, { q: found.query, page, ...(queryInteger(location.params.pageSize) ? { pageSize: searchOptions.pageSize } : {}), ...(location.params.searchMode !== undefined || location.params.searchphrase !== undefined ? { searchMode: searchOptions.searchMode } : {}) }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams
         });
         crumbs.push({ label: 'Busca' });
       } else if (location.route?.name === 'archive') {
         const { year, month, page } = location.params;
-        const archived = await content.archive({ year, month, page });
+        const pageSize = queryInteger(location.params.pageSize);
+        const archived = await content.archive({ year, month, page, pageSize });
         const months = await content.archiveMonths({ limit: 50 });
         renderDeferred = async (prepare) => renderArchive(await prepare(archived), {
-          year, month, months, link: (nextPage) => link(location.path, { year, month, page: nextPage }),
+          year, month, months, link: (nextPage) => link(location.path, { year, month, page: nextPage, pageSize }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });
         crumbs.push({ label: 'Arquivo' });
       } else if (location.route?.name === 'home') {
         const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
-        const result = await content.home({ page: location.params.page, pageSize: blog.pageSize });
+        const pageSize = queryInteger(location.params.pageSize);
+        const result = await content.home({ page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize) });
         renderDeferred = async (prepare) => renderFeatured(await prepare(result), {
           siteName: siteConfig.siteName, siteDescription: siteConfig.siteDescription, settings: blog,
-          link: (page) => link('/', { page }),
+          link: (page) => link('/', { page, pageSize }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });

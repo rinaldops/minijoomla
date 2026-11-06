@@ -513,9 +513,47 @@ async function runPersistedOptionsRegressionTests() {
   console.log('ok - admin extensions: gravações bem-sucedidas preservam opções de outros componentes e estilos');
 }
 
+async function runNativeGroupStorageServiceTests() {
+  const repositories = extensionFixture();
+  const nativeManifest = `  ${JSON.stringify({ group: 'content', params: [{ name: 'constructor', type: 'number', default: 3 }], ...JSON.parse('{"__proto__":{"keep":true},"futureManifest":{"nested":[1,false]}}') }, null, 2)}\n`;
+  const nativeParams = '  {"constructor":"4","__proto__":{"keep":true},"futureParams":{"nested":[1,false]}}\n';
+  const keys = ['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation'];
+  for (const [index, key] of keys.entries()) repositories.extensions.rows.set(index + 10, { id: index + 10, etag: `W/"native-${index}"`, key, title: key, type: 'Plugin', entryPointUrl: `native:${key}`, enabled: true, ordering: index, manifestJson: nativeManifest, paramsJson: nativeParams });
+  const service = createAdminService(repositories);
+  for (const key of keys) {
+    const row = await service.plugins.get(repositories.extensions.rows.get(keys.indexOf(key) + 10).id);
+    const before = repositorySnapshot(repositories);
+    await assert.rejects(() => service.plugins.setNative(key, false), ValidationError);
+    assert.deepEqual(repositorySnapshot(repositories), before, 'setNative existente não usa ETag fresco automaticamente');
+    await service.plugins.setNative(key, false, { etag: row.etag });
+    assert.deepEqual(repositories.extensions.lastPatch, { enabled: false });
+    const current = await service.plugins.get(row.id);
+    assert.equal(current.group, 'content');
+    assert.equal(current.manifestJson, nativeManifest);
+    assert.equal(current.paramsJson, nativeParams);
+    assert.equal(Object.hasOwn(current, 'folder'), false, 'quatro nativos semFolder não são migrados');
+    const after = repositorySnapshot(repositories);
+    await assert.rejects(() => service.plugins.setNative(key, true, { etag: row.etag }), (error) => error.code === 'concurrency-conflict');
+    assert.deepEqual(repositorySnapshot(repositories), after);
+  }
+  const row = repositories.extensions.rows.get(2);
+  row.manifestJson = nativeManifest;
+  row.paramsJson = nativeParams;
+  await service.extensions.update(2, { folder: 'search' }, { etag: row.etag });
+  assert.equal((await service.plugins.get(2)).group, 'search');
+  assert.deepEqual(JSON.parse(repositories.extensions.lastPatch.manifestJson), { ...JSON.parse(nativeManifest), group: 'search' });
+  assert.equal(repositories.extensions.rows.get(2).paramsJson, nativeParams);
+  assert.ok(Object.hasOwn(JSON.parse(repositories.extensions.lastPatch.manifestJson), '__proto__'));
+  repositories.extensions.rows.set(30, { id: 30, etag: '"1"', type: 'Plugin', key: 'constructor', title: 'Own key', entryPointUrl: 'native:emailcloak' });
+  assert.equal((await service.plugins.catalog()).find((row) => row.id === 30).native, undefined);
+  assert.equal({}.polluted, undefined);
+  console.log('ok - admin extensions: setNative exige ETag existente, preserva quatro manifests/params/grupos semFolder; patch explícito mescla grupo e own keys');
+}
+
 export async function runAdminExtensionsServiceTests() {
   runPublishedParameterCompatTests();
   await runPublishedParameterServiceTests();
+  await runNativeGroupStorageServiceTests();
   // A missing configuration is legitimate; a configured repository failure
   // must not invent the default template/positions or conceal the outage.
   {

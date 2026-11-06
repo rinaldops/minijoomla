@@ -27,6 +27,7 @@ import { createMediaUploadService } from '../application/media-upload-service.js
 import { createTemplateDiscoveryService } from '../application/extension-discovery-service.js';
 import { createJoomlaDiscoveryService } from '../application/joomla-discovery.js';
 import { createJoomlaExtensionInstaller } from '../application/joomla-extension-installer.js';
+import { createSampleDataService } from '../application/sample-data-service.js';
 
 /*
  * `mediaFileClientFactory`, quando informado, segue o MESMO padrão de
@@ -39,7 +40,7 @@ import { createJoomlaExtensionInstaller } from '../application/joomla-extension-
  * imagem na origem (ver src/administrator/components/com_minijoomla/editor.js), nunca insere um
  * `data:` URI inline.
  */
-export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager,
+export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, sampleDataPackageLoader, sampleDataJournalStore,
   joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, ...appOptions } = {}) {
   const app = createMiniJoomlaSharePointApp(appOptions);
   const admin = createAdminService(app.repositories, { pluginManager });
@@ -55,5 +56,6 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
   const media = typeof mediaFileClientFactory === 'function'
     ? createMediaUploadService(mediaFileClientFactory({ webUrl: appOptions.webUrl }))
     : null;
-  return Object.freeze({ ...app, admin, discovery: discoveryWithTemplates, templates, media });
+  const sampleData = createSampleDataService({ adminService: admin, loadPackage: sampleDataPackageLoader, journalStore: sampleDataJournalStore });
+  return Object.freeze({ ...app, admin, discovery: discoveryWithTemplates, templates, media, sampleData });
 }

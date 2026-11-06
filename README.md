@@ -1,5 +1,10 @@
 # MINIJOOMLA
 
+> **Etapa 1 em desenvolvimento isolado:** correções de plugins/consultas e
+> instalação de dados de exemplo em `administrator/modules/mod_sampledata/`,
+> com pacote `plugins/sampledata/blog/`. [Contrato e validação](docs/ETAPA-1-SAMPLE-DATA.md).
+> Não publicado nesta rodada; site aceito 0.8.0 e seus 40 registros preservados.
+
 > **Estado posterior à confirmação de funcionamento:** commit `57ef821`
 > enviado; Joomla Blog Sample Data populado na release 0.8.0: **40 registros
 > em oito listas e 12 imagens originais**, com releitura independente.

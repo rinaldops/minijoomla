@@ -5,6 +5,7 @@ import { extensionFixture, publishedParameterFixture } from './admin-extensions-
 import { PUBLISHED_PARAMETER_VALUES, invalidPublishedParameterValues } from './published-parameter-compat.test.js';
 import { createApplication } from '../src/index.js';
 import { createSPMiddleAdapter } from '../src/libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+import { pluginGroupStorageFixture } from './plugin-group-storage.test.js';
 
 /* DOM mínimo: interpreta input/select/textarea/button/form do HTML renderizado. */
 function attributes(source) {
@@ -364,7 +365,67 @@ async function runPublishedParameterFormTests() {
   console.log('ok - admin extensions DOM: published menu JSON array/object fields render and submit, validate before writes, retain unknown own data and relative/hash/HTTPS URLs with ETags');
 }
 
+async function runPluginStorageFormTests() {
+  const manifest = `  ${JSON.stringify({ group: 'content', version: '1.0.0', params: [{ name: 'constructor', type: 'number', default: 3 }, { name: 'toString', type: 'checkbox', default: true }], ...JSON.parse('{"__proto__":{"keep":true},"futureManifest":{"keep":[1,false]}}') }, null, 2)}\n`;
+  const params = '  {"constructor":"4","toString":false,"__proto__":{"keep":true},"futureParams":{"keep":[1,false]}}\n';
+  const keys = ['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation'];
+  const seed = keys.map((key, index) => ({ Id: index + 1, Title: key, Key: key, Type: 'Plugin', EntryPointUrl: `native:${key}`, Enabled: true, Ordering: index, ManifestJson: manifest, ParamsJson: params, '@odata.etag': `W/"form-native-${index}"` }));
+  const { service, state } = pluginGroupStorageFixture(seed);
+  const doc = extensionDocument();
+  const app = createAdminApplication({ adminService: service, documentRef: doc.documentRef, autoStart: false });
+  try {
+    const before = structuredClone(state.items);
+    await app.router.navigate('#/plugins?group=content');
+    assert.deepEqual(state.items, before, 'tela real não migra nativos');
+    for (const [index, key] of keys.entries()) {
+      const id = index + 1;
+      assert.match(doc.documentRef.body.innerHTML, new RegExp(`<code>${key}</code>`));
+      const etag = (await service.plugins.get(id)).etag;
+      await doc.find(`[data-ext-action="toggle"][data-ext-id="${id}"]`).fire('click');
+      const write = state.requests.filter(({ method }) => method !== 'GET').at(-1);
+      assert.deepEqual(write.body, { Enabled: false });
+      assert.equal(write.etag, etag);
+      assert.equal(state.items.get(id).ManifestJson, manifest);
+      assert.equal(state.items.get(id).ParamsJson, params);
+      assert.equal(Object.hasOwn(state.items.get(id), 'Folder'), false);
+    }
+    await app.router.navigate('#/plugins/1');
+    assert.equal(doc.field('param:constructor').value, '4');
+    assert.equal(doc.field('param:toString').checked, false);
+    const renderedEtag = (await service.plugins.get(1)).etag;
+    doc.field('param:constructor').value = '6';
+    await doc.find('[data-ext-form="plugin"]').fire('submit');
+    const write = state.requests.filter(({ method }) => method !== 'GET').at(-1);
+    assert.equal(write.etag, renderedEtag);
+    const stored = JSON.parse(state.items.get(1).ParamsJson);
+    assert.equal(stored.constructor, 6);
+    assert.deepEqual(stored.__proto__, { keep: true });
+    assert.deepEqual(stored.futureParams, { keep: [1, false] });
+    assert.ok(Object.hasOwn(stored, '__proto__'));
+    assert.equal(state.items.get(1).ManifestJson, manifest);
+    await app.router.navigate('#/plugins/1');
+    const stale = (await service.plugins.get(1)).etag;
+    await service.plugins.update(1, { ordering: 12 }, { etag: stale });
+    const concurrent = structuredClone(state.items);
+    doc.field('param:constructor').value = '8';
+    await doc.find('[data-ext-form="plugin"]').fire('submit');
+    assert.match(doc.report(), /Recarregue/);
+    assert.deepEqual(state.items, concurrent);
+    await app.router.navigate('#/installer');
+    doc.field('manifest').value = JSON.stringify({ type: 'Plugin', title: 'Installed content', key: 'form-content', version: '1.0.0', entryPointUrl: './extensions/content.js', group: 'content' });
+    await doc.find('[data-ext-form="install"]').fire('submit');
+    const installed = (await service.plugins.list()).find((row) => row.key === 'form-content');
+    assert.ok(installed, doc.report());
+    assert.equal(installed.group, 'content');
+    assert.equal(installed.enabled, false);
+    assert.equal(Object.hasOwn(state.items.get(installed.id), 'Folder'), false);
+    assert.equal(state.items.size, 5);
+  } finally { app.stop(); }
+  console.log('ok - admin extensions DOM: transporte estrito real rejeita Folder REST; quatro nativos/formulário/instalador mantêm grupo, JSON próprios e ETag renderizado');
+}
+
 export async function runAdminExtensionsAppTests() {
+  await runPluginStorageFormTests();
   const repositories = extensionFixture();
   const service = createAdminService(repositories);
   const fake = extensionDocument();

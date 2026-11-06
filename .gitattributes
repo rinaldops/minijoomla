@@ -1,2 +1,3 @@
 src/media/vendor/tinymce/** -text
 src/libraries/vendor/parse-xml/** -text
+src/media/sampledata/joomla-blog/** -text

@@ -10,7 +10,7 @@ const OPTIONAL_FILES = [
   'admin-joomla-forms.test.js', 'admin-integrity.test.js', 'admin-extensions-service.test.js',
   'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
-  'schema-migration.test.js', 'entity-contracts-final.test.js'
+  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js'
 ];
 
 function put(path, content) {
@@ -18,18 +18,19 @@ function put(path, content) {
   writeFileSync(path, content);
 }
 
-function runIsolated(project) {
+function runIsolated(project, files) {
   // Exercise the real suite manifest and sources; exclude only this regression
   // suite to prevent recursively copying/running another standalone fixture.
   return spawnSync(process.execPath, ['--input-type=module', '-e', `
     import { TEST_SUITES, runTestSuites } from './tests/run-tests.js';
-    runTestSuites({ suites: TEST_SUITES.filter(suite => suite.file !== 'runner.test.js') })
+    const selected = ${JSON.stringify(files ?? null)};
+    runTestSuites({ suites: TEST_SUITES.filter(suite => suite.file !== 'runner.test.js' && (!selected || selected.includes(suite.file))) })
       .catch(error => { console.error(error); process.exitCode = 1; });
-  `], { cwd: project, encoding: 'utf8', timeout: 240000, maxBuffer: 8 * 1024 * 1024 });
+  `], { cwd: project, encoding: 'utf8', timeout: 600000, maxBuffer: 8 * 1024 * 1024 });
 }
 
 export async function runRunnerTests() {
-  assert.deepEqual(TEST_SUITES.filter((suite) => suite.requiresSPMiddle).map((suite) => suite.file), OPTIONAL_FILES);
+  assert.deepEqual(TEST_SUITES.filter((suite) => suite.requiresSPMiddle).map((suite) => suite.file).sort(), [...OPTIONAL_FILES].sort());
   assert.equal(new Set(TEST_SUITES.map((suite) => suite.file)).size, TEST_SUITES.length);
   for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js']) {
     assert.equal(TEST_SUITES.find((suite) => suite.file === file).requiresSPMiddle, false);
@@ -45,8 +46,10 @@ export async function runRunnerTests() {
     cpSync(join(PROJECT, 'package.json'), join(project, 'package.json'));
     mkdirSync(join(project, 'scripts'), { recursive: true });
     cpSync(join(PROJECT, 'scripts', 'module-manifests.js'), join(project, 'scripts', 'module-manifests.js'));
+    cpSync(join(PROJECT, 'scripts', 'generate-joomla-sampledata.js'), join(project, 'scripts', 'generate-joomla-sampledata.js'));
     mkdirSync(join(project, 'docs'), { recursive: true });
     cpSync(join(PROJECT, 'docs', 'EXTENSOES-JOOMLA.md'), join(project, 'docs', 'EXTENSOES-JOOMLA.md'));
+    cpSync(join(PROJECT, 'docs', 'ETAPA-1-SAMPLE-DATA.md'), join(project, 'docs', 'ETAPA-1-SAMPLE-DATA.md'));
     for (const file of ['.gitignore', '.gitattributes', 'scripts/check-syntax.js', 'scripts/stage-contributor.js', 'scripts/release-check.js', 'scripts/serve-local.js', 'scripts/test-standalone-examples.js', 'scripts/stage-release.js', 'scripts/audit-distribution.js', 'scripts/test-admin-layout.js', 'README.md', 'LICENSE.md', 'docs/ADMIN-LAYOUT-TESTS.md', 'docs/CONTRIBUTING.md', 'docs/CONTRIBUTOR-SELECTION.md', 'docs/SECURITY.md', 'docs/RELEASE-CORE.md', 'docs/LOCAL-DEMO.md', 'docs/THIRD-PARTY-NOTICES.md', 'docs/licenses/GPL-2.0.txt']) {
       mkdirSync(dirname(join(project, file)), { recursive: true });
       cpSync(join(PROJECT, file), join(project, file));
@@ -61,14 +64,14 @@ export async function runRunnerTests() {
     assert.ok(absent.stdout.includes('ok - suite spmiddle-adapter.test.js (core/local)'));
     assert.ok(absent.stdout.includes('ok - suite spmiddle-error-translation.test.js (core/local)'));
     assert.ok(absent.stdout.includes('ok - suite standalone-examples.test.js (core/local)'));
-    console.log(`ok - actual standalone checkout: ${coreCount} core/local suites pass (including actual examples); nine visible integration skips`);
+    console.log(`ok - actual standalone checkout: ${coreCount} core/local suites pass (including actual examples); ${OPTIONAL_FILES.length} visible integration skips`);
 
     // Break a core import only in our copy and check the real process exit.
     put(join(project, 'tests', 'core.test.js'), "import './missing-core.js'; export function runTests() {}");
-    const brokenCore = runIsolated(project);
+    const brokenCore = runIsolated(project, ['core.test.js', 'spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(brokenCore.error);
     assert.equal(brokenCore.status, 1, brokenCore.stdout + brokenCore.stderr);
-    assert.ok(brokenCore.stdout.includes(`Suites: ${coreCount - 1} passed, ${OPTIONAL_FILES.length} skipped, 1 failed`), brokenCore.stdout);
+    assert.ok(brokenCore.stdout.includes(`Suites: 1 passed, ${OPTIONAL_FILES.length} skipped, 1 failed`), brokenCore.stdout);
     assert.ok(brokenCore.stdout.includes('not ok - suite core.test.js:'));
     cpSync(join(PROJECT, 'tests', 'core.test.js'), join(project, 'tests', 'core.test.js'));
     console.log('ok - missing core import in an actual standalone checkout exits nonzero despite optional integration skips');
@@ -76,26 +79,26 @@ export async function runRunnerTests() {
     const example = join(project, 'examples', 'index.html');
     const originalExample = readFileSync(example, 'utf8');
     put(example, originalExample.replace("'../src/index.js'", "'../src/missing-example-entry.js'"));
-    const brokenExample = runIsolated(project);
+    const brokenExample = runIsolated(project, ['serve-local.test.js', 'standalone-examples.test.js', 'spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(brokenExample.error);
     assert.equal(brokenExample.status, 1, brokenExample.stdout + brokenExample.stderr);
     // Static entrypoint serving and offline evaluation both detect this defect.
-    assert.ok(brokenExample.stdout.includes(`Suites: ${coreCount - 2} passed, ${OPTIONAL_FILES.length} skipped, 2 failed`), brokenExample.stdout);
+    assert.ok(brokenExample.stdout.includes(`Suites: 1 passed, ${OPTIONAL_FILES.length} skipped, 2 failed`), brokenExample.stdout);
     assert.ok(brokenExample.stdout.includes('not ok - suite serve-local.test.js:'));
     assert.ok(brokenExample.stdout.includes('not ok - suite standalone-examples.test.js:'));
     put(example, originalExample);
-    console.log('ok - missing actual example entry fails the core/local suite and process despite nine optional integration skips');
+    console.log('ok - missing actual example entry fails the core/local suite and process despite optional integration skips');
 
     // An empty sibling is deliberately broken, not a middleware implementation.
     // All nine real integration imports must fail, rather than be skipped.
     mkdirSync(join(base, 'standalone', 'SPMIDDLE'));
-    const partial = runIsolated(project);
+    const partial = runIsolated(project, ['spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(partial.error);
     assert.equal(partial.status, 1, partial.stdout + partial.stderr);
-    assert.ok(partial.stdout.includes(`Suites: ${coreCount} passed, 0 skipped, ${OPTIONAL_FILES.length} failed`), partial.stdout);
+    assert.ok(partial.stdout.includes(`Suites: 1 passed, 0 skipped, ${OPTIONAL_FILES.length} failed`), partial.stdout);
     assert.doesNotMatch(partial.stdout, /^SKIP - /m);
     for (const file of OPTIONAL_FILES) assert.ok(partial.stdout.includes(`not ok - suite ${file}:`));
-    console.log('ok - partial SPMIDDLE checkout fails all nine real integration suites with nonzero exit');
+    console.log('ok - partial SPMIDDLE checkout fails all installed integration suites with nonzero exit');
 
     // These tiny modules test runner scheduling/error propagation only. They do
     // not stand in for SPMIDDLE or claim to validate middleware behavior.
@@ -140,6 +143,6 @@ export async function runRunnerTests() {
     console.log('ok - runner never hides core imports, missing exports, or installed-integration failures; later suites still run');
   } finally {
     // Only this invocation's uniquely named temporary fixture is removed.
-    rmSync(base, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
   }
 }

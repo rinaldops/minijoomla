@@ -18,6 +18,8 @@
  */
 import { createMapper, createRepository } from '../../../../../SPMIDDLE/packages/data-core/src/index.js';
 import { MINIJOOMLA_SCHEMAS } from './spmiddle-schemas.js';
+import { ValidationError } from '../core/contracts.js';
+import { parseJsonObject } from '../application/declared-params.js';
 
 /*
  * Toda lista SharePoint já tem `Author` (Created By, tipo User), que não
@@ -157,6 +159,71 @@ const MAPPINGS = Object.freeze({
   siteConfig: SITE_CONFIG_MAPPING
 });
 
+function storedGroup(value, field) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]{0,39}$/.test(value.trim())) throw new ValidationError(`${field} (grupo de plugin) inválido. Nenhum dado foi alterado.`);
+  return value.trim();
+}
+
+const LEGACY_FOLDER = Symbol('legacyFolder');
+
+/* Folder é uma navegação SP.Folder no REST, mesmo quando a lista possui
+ * FolderText. Mantenha o mapping legado para leitura; nunca envie Folder.
+ * O grupo lógico usa ManifestJson, sem nova coluna nem migração implícita.
+ * Um patch de folder exige manifesto explícito: só o serviço tem a linha
+ * atual + ETag para mesclá-lo sem substituir metadados por um objeto novo.
+ */
+function extensionStorageMapper(mapper) {
+  function mapWrite(input, partial) {
+    // Preserve as validações reais de campos desconhecidos/readOnly/required.
+    // JSON objeto cru não passa pelo clone do mapper (setter __proto__).
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('input deve ser um objeto.');
+    const safe = { ...input };
+    if (safe.folder !== undefined) storedGroup(safe.folder, 'folder');
+    if (safe.paramsJson && typeof safe.paramsJson === 'object') safe.paramsJson = JSON.stringify(parseJsonObject(safe.paramsJson, { strict: true, field: 'paramsJson' }));
+    if (safe.manifestJson !== undefined && safe.manifestJson !== null && safe.manifestJson !== '') {
+      const manifest = parseJsonObject(safe.manifestJson, { strict: true, field: 'manifestJson' });
+      if (safe.type === 'Plugin') storedGroup(manifest.group, 'manifest.group');
+      if (typeof safe.manifestJson !== 'string') safe.manifestJson = JSON.stringify(manifest);
+    }
+    const wire = partial ? mapper.mapUpdate(safe) : mapper.mapCreate(safe);
+    if (Object.hasOwn(wire, 'Folder')) {
+      const folder = storedGroup(wire.Folder, 'folder');
+      if (partial && !Object.hasOwn(wire, 'ManifestJson')) throw new ValidationError('Alterar folder exige o manifesto atual mesclado e ETag; use extensions.update do serviço administrativo.');
+      const manifest = parseJsonObject(wire.ManifestJson, { strict: true, field: 'manifestJson' });
+      // Empty folder means no override: use the declared manifest group.
+      // Clearing an installed group requires an explicit manifest.group change.
+      if (safe.type !== 'Module' && folder && storedGroup(manifest.group, 'manifest.group') !== folder) wire.ManifestJson = JSON.stringify({ ...manifest, group: folder });
+      delete wire.Folder;
+    }
+    return wire;
+  }
+
+  return Object.freeze({
+    ...mapper,
+    mapCreate: (input) => mapWrite(input, false),
+    mapUpdate: (input) => mapWrite(input, true),
+    mapInput: (input, options = {}) => mapWrite(input, options.partial === true),
+    mapItem(raw) {
+      const item = raw?.d?.results ?? raw?.d ?? raw;
+      if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('item deve ser um objeto.');
+      const safe = { ...item };
+      const manifest = parseJsonObject(safe.ManifestJson, { strict: true, field: 'manifestJson' });
+      const group = safe.Type === 'Plugin' ? storedGroup(manifest.group, 'manifest.group') : '';
+      // Navegação não é grupo. Um Folder string legado, inclusive inválido,
+      // continua visível para validação e tem precedência sobre o manifesto.
+      if (safe.Folder && typeof safe.Folder === 'object' && !Array.isArray(safe.Folder)) delete safe.Folder;
+      storedGroup(safe.Folder, 'folder');
+      if (safe.ManifestJson && typeof safe.ManifestJson === 'object') safe.ManifestJson = JSON.stringify(manifest);
+      if (safe.ParamsJson && typeof safe.ParamsJson === 'object') safe.ParamsJson = JSON.stringify(parseJsonObject(safe.ParamsJson, { strict: true, field: 'paramsJson' }));
+      const row = mapper.mapItem(safe);
+      if (typeof safe.Folder === 'string' && safe.Folder.trim()) Object.defineProperty(row, LEGACY_FOLDER, { value: safe.Folder.trim() });
+      if ((row.folder === undefined || row.folder === null || row.folder === '') && group) row.folder = group;
+      return row;
+    }
+  });
+}
+
 /*
  * `dataSources` é o objeto retornado por `createMiniJoomlaDataSources`
  * (spmiddle-data-sources.js). Apenas domínios presentes em
@@ -172,8 +239,23 @@ export function createMiniJoomlaSPMiddleRepositories(dataSources) {
   for (const domain of dataSources.domains) {
     const client = dataSources.getListClient(domain);
     if (!client) continue;
-    const mapper = createMapper({ mapping: MAPPINGS[domain] });
-    repositories[domain] = createRepository({ source: domain, schema: MINIJOOMLA_SCHEMAS[domain], mapper, client });
+    const baseMapper = createMapper({ mapping: MAPPINGS[domain] });
+    const mapper = domain === 'extensions' ? extensionStorageMapper(baseMapper) : baseMapper;
+    const repository = createRepository({ source: domain, schema: MINIJOOMLA_SCHEMAS[domain], mapper, client });
+    repositories[domain] = domain !== 'extensions' ? repository : Object.freeze({
+      ...repository,
+      async update(id, input, options = {}) {
+        if (Object.hasOwn(input, 'folder') && input.folder !== undefined) {
+          // Valide o patch antes de qualquer I/O. A releitura só verifica a
+          // precedência legada; o ETag original nunca é trocado pelo atual.
+          if (typeof options.etag !== 'string' || !options.etag.trim() || options.etag.trim() === '*') throw new ValidationError('etag específico é obrigatório.');
+          mapper.mapUpdate(input);
+          const current = await repository.findById(id);
+          if (current[LEGACY_FOLDER] && current[LEGACY_FOLDER] !== storedGroup(input.folder, 'folder')) throw new ValidationError('folder textual legado tem precedência e não pode ser alterado pela propriedade REST reservada Folder. Nenhum dado foi alterado.');
+        }
+        return repository.update(id, input, options);
+      }
+    });
   }
   return Object.freeze(repositories);
 }

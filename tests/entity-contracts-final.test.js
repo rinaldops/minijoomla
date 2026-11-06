@@ -38,7 +38,7 @@ const FIXTURES = {
     names: 'Title Path ParentId Published Ordering', added: '', clear: 'parentId'
   },
   extensions: {
-    input: { title: 'Plugin local', key: 'local-plugin', type: 'Plugin', entryPointUrl: 'extensions/local-plugin/index.js', discoveredFrom: 'local-plugin/manifest.json', enabled: false, ordering: 3, folder: 'content', paramsJson: '{"active":false}', manifestJson: '{"version":"1.0.0","params":[]}' },
+    input: { title: 'Plugin local', key: 'local-plugin', type: 'Plugin', entryPointUrl: 'extensions/local-plugin/index.js', discoveredFrom: 'local-plugin/manifest.json', enabled: false, ordering: 3, folder: 'content', paramsJson: '{"active":false}', manifestJson: '{"version":"1.0.0","params":[],"group":"content"}' },
     names: 'Title Key Type EntryPointUrl DiscoveredFrom Enabled Ordering Folder ParamsJson ManifestJson',
     added: 'Ordering Folder ParamsJson ManifestJson', clear: 'paramsJson'
   },
@@ -123,10 +123,11 @@ async function runEntityCrudContracts() {
     const created = ['siteConfig', 'tags'].includes(domain) ? await repository.create(fixture.input) : await admin[domain].create(fixture.input);
     const raw = state.items.get(created.id);
     for (const { field, value, name } of expected) {
-      assert.deepEqual(raw[name], value, `${domain}: payload interno ${name}`);
+      if (domain === 'extensions' && field === 'folder') assert.equal(Object.hasOwn(raw, 'Folder'), false, 'grupo lógico não grava navegação REST Folder');
+      else assert.deepEqual(raw[name], value, `${domain}: payload interno ${name}`);
       assert.deepEqual(created[field], value, `${domain}: round-trip ${field}`);
     }
-    assert.deepEqual(Object.keys(raw).sort(), ['Id', '@odata.etag', ...expected.map(({ name }) => name)].sort());
+    assert.deepEqual(Object.keys(raw).sort(), ['Id', '@odata.etag', ...expected.map(({ name }) => name).filter((name) => domain !== 'extensions' || name !== 'Folder')].sort());
     const listed = (await repository.findMany()).items;
     assert.equal(listed.length, 1);
     assert.equal(listed[0].id, created.id);

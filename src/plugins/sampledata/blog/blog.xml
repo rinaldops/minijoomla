@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="sampledata" method="upgrade">
+  <name>plg_sampledata_blog</name>
+  <version>1.0.0</version>
+  <description>Pacote de dados Joomla Blog adaptado ao perfil JavaScript suportado; não executa PHP.</description>
+  <files><filename plugin="blog">blog.js</filename><filename>data.js</filename></files>
+</extension>

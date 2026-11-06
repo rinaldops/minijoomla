@@ -187,6 +187,24 @@ export async function runComponentOptionsRuntimeTests() {
   const defaultSearch = await searchHtml();
   assert.match(defaultSearch, /<mark>needle<\/mark>/);
   assert.match(defaultSearch, /href="#\/portal\/article\/search-fixture"/);
+  // Query normalization is owned by the service; the route must render that
+  // same value rather than the original whitespace-heavy input.
+  {
+    const documentRef = { body: { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] } };
+    const app = createApplication({
+      autoStart: false, documentRef,
+      config: { ...toSiteConfigOverrides(await admin.siteConfig.get()), basePath: '/portal' },
+      adapter: createSPMiddleAdapter({ articleRepository: repositories.articles, categoryRepository: repositories.categories, tagRepository: repositories.tags, menuRepository: repositories.menu }),
+      getModuleInstances: async () => []
+    });
+    try {
+      await app.start();
+      await app.router.navigate('#/portal/search?q=%20%20needle%09%20');
+      assert.match(documentRef.body.innerHTML, /value="needle"/);
+      assert.match(documentRef.body.innerHTML, /<mark>needle<\/mark>/);
+      assert.doesNotMatch(documentRef.body.innerHTML, /value="  needle/);
+    } finally { app.stop(); }
+  }
   const searchOptions = await admin.componentOptions.get('search');
   await admin.componentOptions.save('search', { ...searchOptions.values, highlightTerms: false }, { etag: searchOptions.etag });
   assert.doesNotMatch(await searchHtml(), /<mark>/, 'persisted highlightTerms=false must reach the search route');

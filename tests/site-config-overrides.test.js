@@ -13,6 +13,18 @@ export async function runSiteConfigOverridesTests() {
   assert.ok('templateStyleId' in empty);
   assert.ok('componentParams' in empty);
   assert.equal(empty.templateStyleId, 'default-default');
+  assert.ok(Object.hasOwn(empty, 'componentParamsJson'));
+  assert.equal(empty.componentParamsJson, undefined);
+  assert.equal(empty.componentParams.content.listLimit, 10, 'display defaults remain declared');
+  assert.deepEqual(empty.queryParams, { content: { orderBy: 'publishUp-desc' }, search: { searchPhrases: 'all' } }, 'missing persisted limits must not become saved 10');
+  const queryJson = '{"content":{"listLimit":10,"orderBy":"title-asc","showTitle":false,"unknown":true},"search":{"resultsLimit":2,"searchPhrases":"any","highlightTerms":false},"custom":{"secret":"not-a-query"}}';
+  const queryOverrides = toSiteConfigOverrides({ componentParamsJson: queryJson });
+  assert.equal(queryOverrides.componentParamsJson, queryJson, 'raw provenance stays exact and is not rewritten');
+  assert.deepEqual(queryOverrides.queryParams, { content: { listLimit: 10, orderBy: 'title-asc' }, search: { resultsLimit: 2, searchPhrases: 'any' } });
+  assert.ok(Object.isFrozen(queryOverrides.queryParams.content));
+  for (const componentParamsJson of [undefined, '', '{bad', '[]', '{"content":{"listLimit":true,"orderBy":["title-asc"]},"search":{"resultsLimit":[2],"searchPhrases":"bad"}}']) {
+    assert.deepEqual(toSiteConfigOverrides({ componentParamsJson }).queryParams, empty.queryParams, 'invalid queries resolve safe filtered defaults without affecting provenance');
+  }
 
   // Test with minimal record
   const minimal = { siteName: 'Test Site' };

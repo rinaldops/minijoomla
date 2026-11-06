@@ -41,6 +41,7 @@ import { analyzeArticleAccessibility } from './article-accessibility.js';
 import { renderConfigPage } from '../com_config/tmpl/application/default.js';
 import { loadExtensionDiscoveryPage } from '../com_installer/src/Controller/discover.js';
 import { loadTemplateDiscoveryPage } from '../com_templates/src/Controller/discover.js';
+import { loadSampleDataPage } from '../../modules/mod_sampledata/mod_sampledata.js';
 import { renderAdminForm, readAdminFormValues } from './render-form.js';
 import { renderArticleAdminForm } from '../com_content/tmpl/article/edit.js';
 import { renderAdminList } from './render-list.js';
@@ -112,6 +113,7 @@ const SIDEBAR_GROUPS = [
   ] },
   { key: 'system', label: 'Sistema', icon: configIcon(), items: [
     { key: 'config', label: 'Configuração', icon: configIcon() },
+    { key: 'sampleData', label: 'Dados de exemplo', icon: articleIcon() },
     { key: 'componentOptions', label: 'Opções dos componentes', icon: configIcon() }
   ] }
 ];
@@ -119,6 +121,7 @@ const SIDEBAR_GROUPS = [
 function sidebarHref(key, link) {
   if (key === 'home') return link('/');
   if (key === 'config') return link('/config');
+  if (key === 'sampleData') return link('/sampledata');
   if (key === 'nativeComponents') return link('/components');
   if (key === 'plugins') return link('/plugins');
   if (key === 'templateStyles') return link('/templates/styles');
@@ -173,7 +176,7 @@ function renderOverviewPage(overview, link) {
   }).join('');
   const extensionItems = EXTENSION_OVERVIEW_ITEMS.map((item) => `<li><a href="${link(item.route)}"><span class="admin-overview-icon">${item.icon()}</span>${item.count ? `<span class="admin-overview-count">${Number(overview?.[item.count]) || 0}</span>` : ''}<span class="admin-overview-label">${escapeHtml(item.label)}</span></a></li>`).join('');
   const extensionSection = `<section class="admin-overview-group"><h2>${pluginIcon()}Extensões</h2><ul class="admin-overview">${extensionItems}</ul></section>`;
-  const systemSection = `<section class="admin-overview-group"><h2>${configIcon()}Sistema</h2><ul class="admin-overview"><li><a href="${link('/config')}"><span class="admin-overview-icon">${configIcon()}</span><span class="admin-overview-label">Configuração</span></a></li></ul></section>`;
+  const systemSection = `<section class="admin-overview-group"><h2>${configIcon()}Sistema</h2><ul class="admin-overview"><li><a href="${link('/config')}"><span class="admin-overview-icon">${configIcon()}</span><span class="admin-overview-label">Configuração</span></a></li><li><a href="${link('/sampledata')}"><span class="admin-overview-icon">${articleIcon()}</span><span class="admin-overview-label">Dados de exemplo</span></a></li></ul></section>`;
   return shell({ activeKey: 'home', pageTitle: 'Painel de controle', breadcrumbItems: [{ label: 'Painel de controle' }], bodyHtml: sections + extensionSection + systemSection, link });
 }
 
@@ -313,7 +316,7 @@ function renderNotFoundPage(link) {
  * Omitido, os campos `data-admin-richtext` continuam só `<textarea>`
  * sem editor rico — nunca lança, nunca bloqueia a tela.
  */
-export function createAdminApplication({ adminService, discoveryService, mediaService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
+export function createAdminApplication({ adminService, discoveryService, mediaService, sampleDataService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
   let latestNavigation = 0;
   let activeRichTextEditors = [];
   let pendingRichTextElementIds = [];
@@ -323,6 +326,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     const link = (path, params) => router.link(path, params);
     if (location.path === '/' || location.path === '') return { html: renderOverviewPage(await adminService.overview(), link) };
     const isCurrent = () => navigationId === latestNavigation;
+    if (location.path === '/sampledata') return loadSampleDataPage({ sampleDataService, documentRef, router, shell, isCurrent });
     const extensionPage = await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(location);
     if (extensionPage) return extensionPage;
     const contentPage = await createContentPages({ adminService, documentRef, router, shell, mediaService, clock, isCurrent }).render(location);

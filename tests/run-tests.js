@@ -6,6 +6,11 @@ import { pathToFileURL } from 'node:url';
 // Adapter-contract and error-translation tests use local implementations only.
 export const TEST_SUITES = Object.freeze([
   ['runner.test.js', 'runRunnerTests'],
+  ['sample-data-service.test.js', 'runSampleDataServiceTests'],
+  ['sample-data-journal.test.js', 'runSampleDataJournalTests'],
+  ['sample-data-package.test.js', 'runSampleDataPackageTests'],
+  ['sample-data-view.test.js', 'runSampleDataViewTests'],
+  ['sample-data-singleton.test.js', 'runSampleDataSingletonTests'],
   ['site-views-core.test.js', 'runSiteViewsCoreTests'],
   ['plugins-native-runtime.test.js', 'runPluginsNativeRuntimeTests'],
   ['plugins-save-events.test.js', 'runPluginsSaveEventsTests'],
@@ -51,6 +56,7 @@ export const TEST_SUITES = Object.freeze([
   ['article-schedule.test.js', 'runArticleScheduleTests'],
   ['admin-integrity.test.js', 'runAdminIntegrityTests', true],
   ['admin-extensions-service.test.js', 'runAdminExtensionsServiceTests', true],
+  ['plugin-group-storage.test.js', 'runPluginGroupStorageTests', true],
   ['admin-extensions-app.test.js', 'runAdminExtensionsAppTests', true],
   ['admin-management.test.js', 'runAdminManagementTests'],
   ['camap-template.test.js', 'runCamapTemplateTests'],
@@ -73,6 +79,7 @@ export const TEST_SUITES = Object.freeze([
   ['site-runtime.test.js', 'runSiteRuntimeTests', true],
   ['module-runtime.test.js', 'runModuleRuntimeTests'],
   ['component-options-runtime.test.js', 'runComponentOptionsRuntimeTests', true],
+  ['query-options.test.js', 'runQueryOptionsTests'],
   ['offline-gate.test.js', 'runOfflineGateTests'],
   ['site-config-overrides.test.js', 'runSiteConfigOverridesTests'],
   ['schema-migration.test.js', 'runSchemaMigrationTests', true],

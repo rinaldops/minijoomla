@@ -26,7 +26,7 @@ import { validateTemplateStyles } from './template-styles.js';
 import { toSiteConfigOverrides } from './site-config-overrides.js';
 import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from './module-catalog.js';
 import { normalizeParamValues, parseJsonObject } from './declared-params.js';
-import { createExtensionAdministration, runBatch } from './admin-extensions-service.js';
+import { createExtensionAdministration, runBatch, optionalPluginGroup } from './admin-extensions-service.js';
 
 function requireRepository(repositories, domain) {
   const repository = repositories?.[domain];
@@ -51,6 +51,7 @@ function requireEtag(etag, label = 'etag') {
 
 async function listAll(repository) {
   const result = await repository.findMany({}, { maxPages: 100, maxItems: 10000 });
+  if (result?.hasNextPage === true) throw new ValidationError('Leitura administrativa incompleta. Nenhum dado foi alterado.');
   if (!Array.isArray(result?.items)) throw new Error('Resposta inválida ao carregar registros administrativos.');
   return result.items;
 }
@@ -164,7 +165,7 @@ function normalizeMenuInput(input = {}, { partial }) {
 
 const EXTENSION_TYPES = new Set(['Module', 'Plugin']);
 
-function normalizeExtensionInput(input = {}, { partial }) {
+function normalizeExtensionInput(input = {}, { partial, type: effectiveType }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.key !== undefined) result.key = extensionKey(input.key);
@@ -178,13 +179,40 @@ function normalizeExtensionInput(input = {}, { partial }) {
   if (input.enabled !== undefined) result.enabled = enabledValue(input.enabled);
   if (input.ordering !== undefined) result.ordering = integerValue(input.ordering, 'ordering');
   if (input.folder !== undefined) {
-    result.folder = optionalText(input.folder).trim();
-    if (result.folder && !/^[a-z][a-z0-9_-]{0,39}$/.test(result.folder)) throw new ValidationError('folder (grupo) inválido.');
+    result.folder = optionalPluginGroup(input.folder, 'folder');
   }
   if (input.params !== undefined) result.paramsJson = input.params === null ? '' : jsonObject(input.params, 'params');
-  if (input.paramsJson !== undefined && input.params === undefined) result.paramsJson = input.paramsJson === '' ? '' : jsonObject(input.paramsJson, 'paramsJson');
-  if (input.manifestJson !== undefined) result.manifestJson = input.manifestJson === '' ? '' : jsonObject(input.manifestJson, 'manifestJson');
+  if (input.paramsJson !== undefined && input.params === undefined) {
+    const params = parseJsonObject(input.paramsJson, { strict: true, field: 'paramsJson' });
+    result.paramsJson = input.paramsJson === '' ? '' : partial && typeof input.paramsJson === 'string' ? input.paramsJson : JSON.stringify(params);
+  }
+  if (input.manifestJson !== undefined) {
+    const manifest = parseJsonObject(input.manifestJson, { strict: true, field: 'manifestJson' });
+    if ((result.type ?? effectiveType) === 'Plugin') optionalPluginGroup(manifest.group, 'manifest.group');
+    result.manifestJson = input.manifestJson === '' ? '' : partial && typeof input.manifestJson === 'string' ? input.manifestJson : JSON.stringify(manifest);
+  }
   return result;
+}
+
+function updateManifestPatch(normalized, record) {
+  if (record.type !== 'Plugin') return normalized;
+  const manifest = parseJsonObject(record.manifestJson, { strict: true, field: 'manifestJson' });
+  const folder = optionalPluginGroup(record.folder, 'folder');
+  const manifestGroup = optionalPluginGroup(manifest.group, 'manifest.group');
+  if (!Object.hasOwn(normalized, 'folder')) return normalized;
+  if (normalized.folder === '') { const { folder: _folder, ...patch } = normalized; return patch; }
+  if (normalized.folder === (folder || manifestGroup) && !Object.hasOwn(normalized, 'manifestJson')) {
+    const { folder: _folder, ...patch } = normalized;
+    return patch;
+  }
+  const next = Object.hasOwn(normalized, 'manifestJson')
+    ? parseJsonObject(normalized.manifestJson, { strict: true, field: 'manifestJson' }) : manifest;
+  const group = normalized.folder;
+  // Estado/ordem/parâmetros nunca passam aqui. Mesmo folder reenviado não
+  // deve reserializar o manifesto se a metadata já expressa o mesmo grupo.
+  return { ...normalized, manifestJson: optionalPluginGroup(next.group, 'manifest.group') === group
+    ? normalized.manifestJson ?? record.manifestJson
+    : JSON.stringify({ ...next, group }) };
 }
 
 function integerValue(value, field) {
@@ -622,6 +650,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     if (!repositories.siteConfig) return null;
     const repository = requireRepository(repositories, 'siteConfig');
     const rows = await listAll(repository);
+    if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
     return rows.length ? repository.findById(rows[0].id) : null;
   }
 
@@ -662,10 +691,12 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     async update(id, input, options = {}) {
       requireEtag(options.etag);
       const record = await extensionCrud.get(id);
+      if (!record) throw new ValidationError('Extensão não encontrada.');
       for (const field of ['key', 'type', 'entryPointUrl']) {
         if (input[field] !== undefined && input[field] !== record[field]) throw new ValidationError(`${field} pertence ao manifesto registrado e não pode ser alterado.`);
       }
-      return requireRepository(repositories, 'extensions').update(id, dropUnprovisionedDefaults(normalizeExtensionInput(input, { partial: true }), record, EXTENSION_V2_DEFAULTS), { etag: options.etag });
+      const normalized = updateManifestPatch(normalizeExtensionInput(input, { partial: true, type: record.type }), record);
+      return requireRepository(repositories, 'extensions').update(id, dropUnprovisionedDefaults(normalized, record, EXTENSION_V2_DEFAULTS), { etag: options.etag });
     },
     async remove(id, options) {
       const record = await extensionCrud.get(id);
@@ -750,6 +781,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       async get() {
         const repository = requireRepository(repositories, 'siteConfig');
         const rows = await listAll(repository);
+        if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (!rows.length) return null;
         return repository.findById(rows[0].id);
       },
@@ -764,6 +796,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
           if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
         }
         const rows = await listAll(repository);
+        if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (rows.length) requireEtag(etag, 'etag da configuração');
         const record = rows.length ? await repository.findById(rows[0].id) : null;
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) {

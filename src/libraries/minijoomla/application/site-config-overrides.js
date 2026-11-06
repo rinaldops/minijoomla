@@ -8,6 +8,8 @@
  */
 import { resolveTemplateParams, resolveTemplateStyleId } from './template-styles.js';
 import { resolveComponentParams } from './component-options.js';
+import { resolveQueryParams } from './content-service.js';
+import { ownEnumerableData } from '../core/contracts.js';
 
 /**
  * Converte a linha única de configuração (ou `null`, se a lista estiver
@@ -17,6 +19,7 @@ import { resolveComponentParams } from './component-options.js';
  */
 export function toSiteConfigOverrides(record) {
   if (!record) return {};
+  record = ownEnumerableData(record);
   const overrides = {
     siteName: record.siteName, templateKey: record.templateKey, siteDescription: record.siteDescription, language: record.language,
     timezone: record.timezone, basePath: record.basePath, pageSize: record.pageSize
@@ -28,5 +31,7 @@ export function toSiteConfigOverrides(record) {
   overrides.templateParams = resolveTemplateParams(record);
   overrides.templateStyleId = resolveTemplateStyleId(record);
   overrides.componentParams = resolveComponentParams(record);
+  overrides.componentParamsJson = record.componentParamsJson;
+  overrides.queryParams = resolveQueryParams({ componentParamsJson: record.componentParamsJson });
   return overrides;
 }
