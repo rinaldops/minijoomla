@@ -1,6 +1,132 @@
 # Plano de continuidade — MINIJOOMLA
 
-> Atualizacao desta frente (worktree03): **0.6.0 publicada** no SharePoint
+> **Estado que prevalece — republicação limpa posterior:** 0.8.0 corporativa,
+> baseada na importação `0bd5de1` (não nos patches 0.7.0), oito listas novas
+> vazias, hh-web excluído, somente release 0.8.0. 79 itens reciclados/16 listas
+> excluídas antes da recriação. [Registro autoritativo](REPUBLICACAO-LIMPA-2026-11-06.md).
+> Rodada 0.7.0 abaixo foi rejeitada/substituída. Seus dados não foram restaurados;
+> deltas de fonte locais ficam preservados, **não publicados na 0.8.0**.
+
+> **Verificação posterior do SPMIDDLE 0.2.0:** atualização aditiva de distribuição/
+> layout MSE, sem alteração nos 11 módulos de dados incorporados à 0.8.0.
+> Testes focalizados e 16 checks reais do painel passaram, sem escrita/publicação.
+> Nenhum ajuste obrigatório identificado; adoção de Contained/FullBleed é
+> integração opcional separada. [Relatório](COMPATIBILIDADE-SPMIDDLE-0.2.0.md).
+
+## Escopo vigente — 06/11/2026
+
+**Steering posterior do responsável:** aderência máxima à arquitetura,
+nomenclatura e funcionalidades Joomla; conferir persistência/contratos atuais
+SPMIDDLE e usar dados de instalação Joomla. Substituição de listas antigas de
+teste do MINIJOOMLA e republicação integral no destino corporativo foram
+autorizadas após o início local. Não assumir que a 0.6.0 pessoal esteja no
+destino corporativo. Inventário/backup/ETags/configuração ficam em tmp privado;
+remover apenas listas identificadas, sem wildcard amplo ou apagar releases.
+Esta decisão posterior prevalece sobre as restrições locais de publicação abaixo.
+
+O [relatório de avaliação e escopo](AVALIACAO-E-ESCOPO-2026-11-06.md) registra
+a baseline atual e os critérios de fechamento e **prevalece sobre filas
+históricas abaixo**. Git próprio `rinaldops/minijoomla`, import `0bd5de1`,
+335 arquivos rastreados/zero tmp na baseline. A 0.6.0 é a última publicação
+documentada, não revalidada nesta retomada; deltas locais não são deploy.
+
+**Incluídos expressamente:** adoção dos outros dez módulos externos após o
+piloto; descoberta XML de plugins/templates com contratos próprios; migração
+assistida JSON → XML e de parâmetros incompatíveis. **Fora do escopo agora:**
+i18n, SEO integrado ao host, histórico de alterações do artigo e
+check-in/check-out do artigo. Preservar dados/campos existentes; rollback de
+extensão e ETags continuam incluídos. Temas corporativos permanecem opcionais.
+
+Execução local inicial em paralelo: T1/T2 tooling, F1/F2 opções de consulta e
+metadados públicos, F3 conexão de plugins administrativos; coordenador integra
+documentos/testes/seleção e define contratos X2–X5. A1/X1 modularização e demais
+manifestos seguem após estabilização; aceites e publicação são filas separadas.
+Nenhuma migração automática, escrita no tenant ou publicação nesta rodada.
+
+**Baseline de testes reavaliada:** sintaxe 244 JS e 10 scripts separadamente;
+70 suítes delimitadas aprovadas, contributor padrão separado aprovado
+(304 arquivos/4.234.501 bytes). `npm test` completo falhou inicialmente no
+cleanup isolado (`ENOTEMPTY`) e depois excedeu 900 s; não é 72/0/0 atual.
+Core 143 arquivos com hashes aprovados, mas auditor ainda rejeita os três
+arquivos legítimos do parser. Correções em desenvolvimento; conclusão só
+registrada com nova execução posterior à integração.
+
+### Execução desta rodada — estado local
+
+| ID | Entrega / estado | Próximo gate |
+| --- | --- | --- |
+| D1 | Relatório completo e critérios registrados; README/backlog/planos identificam históricos | Conferir links e manter resultados da integração abaixo |
+| T1 | Auditor alinhado aos três arquivos exatos do parser; core real conferido, sem `outside-core-scope` | Candidatos remanescentes continuam bloqueantes de revisão, não aprovação pública |
+| T2 | Check inclui scripts JS/MJS; cleanup limitado e negativos runner focalizados, sem perder standalone completo | Nova execução integrada e workflow contributor; não inferir eliminação de toda instabilidade Windows |
+| F1/F2 | Consultas/limites/ordem/matching e metadados implementados; revisão independente/focais aprovados | Regressão integrada; aceite no host separado |
+| F3 | Runtime administrativo próprio e host conectados; snapshot por gravação, observers isolados e composição parcial corrigidos/revisados; suíte focal aprovada | Regressão integrada e aceites do host; nenhum save remoto executado |
+| X2 | Onze keys/elementos e gates individuais inventariados; dez futuros incluídos, limites de forum/videoteca/documentation registrados | Pacotes por módulo e aceite piloto; nenhum módulo externo migrado |
+| X3/X4 | Contratos próprios de plugins/templates documentados | Implementar parser/discovery/inventário/lifecycle específicos; nenhum novo perfil liberado |
+| X5 | Prévia pura de módulos implementada e revisada, snapshots/ETags/mapeamentos/defaults/recusas, sem executor | UI/diário/recuperação/concorrência do futuro executor; nada aplicado remotamente |
+| A1/X1 | Separação de controllers e manifestos nativos restantes seguem pendentes | Após estabilizar recursos existentes |
+
+As decisões de exclusão acima continuam valendo. Prévia `ready` não é pacote
+aprovado, completude remota comprovada ou migração realizada. As publicações
+históricas não foram reexecutadas. Ver [contratos XML](CONTRATOS-EVOLUCAO-XML.md).
+
+### Fechamento da rodada e republicação corporativa
+
+**Diretriz Joomla mantida:** contratos canônicos de oito domínios e tradução
+SharePoint explícita, sem restaurar overlays/hosts históricos. `Author0: Text`
+declarado deliberadamente para evitar colisão com `Author` de sistema; campos
+excluídos de funcionalidades novas continuam preservados no schema. SPMIDDLE
+atual integrado ao pacote, sem editar o projeto irmão nesta rodada.
+
+- **Regressão final integrada:** 77 suítes aprovadas, zero skips/falhas;
+  child standalone 65 locais/11 skips esperados, cerca de 248 s. Timeout antigo
+  de 240 s era inferior ao custo observado: orçamento completo agora 600 s,
+  negativos 60 s, duração por fase registrada. Falhas/timeouts anteriores ficam
+  como histórico, não passes. Checker final inclui scripts JS/MJS; **261 arquivos
+  aprovados**, incluindo a nova suíte de provisionamento.
+- **Estrutura corporativa:** sete listas canônicas novas provisionadas com
+  releitura de tipo/required/Choices/defaults/índices; catálogo de templates
+  existente preservado sem alterar seus constraints. Lista de templates
+  preservada não foi certificada como schema integralmente novo.
+- **0.7.0 integral publicada** nas duas páginas MINIJOOMLA do destino
+  corporativo autorizado. 222 arquivos/3.221.714 bytes, host/loader/CSS cobertos
+  por manifesto operacional e hashes congelados; releitura independente de
+  bytes/SHA-256/MIME concluída. O pacote representa snapshot de fontes locais
+  integradas, não apenas HEAD de importação. Nenhuma release antiga sobrescrita.
+- Timeout inicial ocorreu somente na fase de pastas; inventário confirmou zero
+  arquivos antes da continuação única controlada, sem repetir assets/deploy.
+- Prévia via FIORI-AUTO em sete larguras passou rotas/contratos sobre novas
+  listas sem gravar na prévia. Ativação usou canvas/ETags atuais, patch seletivo
+  de `script/scriptCode`, preservando outras propriedades/webparts; comparação
+  semântica e estados publicados/sem checkout conferidos. Atomicidade Publish
+  continua não comprovada. Rollback preparado, não executado.
+- Reload: uma raiz por app, 84/94 recursos no admin/público, sem HTTP >=400 ou
+  releases antigas na janela observada. Auditoria efetiva corrigida confirmou
+  editor TinyMCE único, abas, cleanup, seis módulos e configuração. Primeira
+  fixture consultava API TinyMCE antiga/aguardava rota insuficientemente;
+  contraprova diagnóstica e reexecução corrigida passaram, sem alterar runtime.
+- **Joomla Blog Sample Data**, subconjunto suportado: 11 artigos, quatro
+  categorias, quatro tags (quarta filha da terceira), oito menus, seis instâncias
+  e configuração. Fonte/INI Joomla fixados, IDs materializados pelos creates.
+  Textos/referências relidos; string vazia em campo Note retorna null no
+  SharePoint, sem perda de conteúdo. Verificação inicial estrita e leitor local
+  com encoding implícito falharam; UTF-8 explícito/semântica vazio-null passaram
+  sem regravar o seed. Mídia NASA/banner pendente de origem/licença/publicação;
+  não é instalação integral do sampledata nem novo suporte a workflow/ACL.
+- **Retirada de legado não concluída:** oito listas iniciais identificadas e
+  backup privado de 44 itens/zero anexos, sem sobreposição com novos IDs ativos.
+  Tentativa recuperável de reciclagem retornou HTTP 500; releitura confirmou
+  oito listas/44 itens ainda presentes. Não executar DELETE permanente ou retry
+  cego. Após resolver o bloqueio, restaurar listas pelos recibos da lixeira antes
+  de reativar pointers históricos, se rollback for necessário.
+
+Configuração, GUIDs, snapshots, dados, portas e recibos corporativos somente em
+`tmp/joomla-corporate-20261106/` ignorado; seed genérico/evidências em tmp próprio.
+Nenhum push de evidências, limpeza de Git ou mudança de visibilidade. Pendências
+ativas: retirada segura das oito listas, mídia/aceites reais, outros dez módulos,
+XML plugins/templates, UI/executor assistido, controllers/manifestos restantes
+e gates de privacidade/direitos. Esta rodada não conclui integralmente o plano.
+
+> Registro histórico desta frente (worktree03): **0.6.0 publicada** no SharePoint
 > pessoal, com piloto XML corpmessage 0.1.1 pronto para Registrar. Ver
 > [publicacao e limites de aceite](PUBLICACAO-JOOMLA-XML-0.6.0.md).
 > Referencias anteriores a 0.5.1 abaixo ficam como historico; melhorias locais

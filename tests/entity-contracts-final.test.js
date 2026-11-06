@@ -70,11 +70,9 @@ function inventory(domain, { legacy = false } = {}) {
   const fields = MINIJOOMLA_SCHEMAS[domain].fields
     .filter((field) => !legacy || !added.has(field.internalName))
     .map((field) => ({ InternalName: field.internalName, TypeAsString: field.type === 'MultilineText' ? 'Note' : field.type, Required: field.required, ...(field.choices ? { Choices: [...field.choices] } : {}) }));
-  // Restrição documentada: Author é o User de sistema; texto editorial vai
-  // para Author0. Não fingir que inspect resolve/valida essa colisão.
+  // Author de sistema não substitui o Author0 Text declarado no schema.
   if (domain === 'articles') {
-    fields.find((field) => field.InternalName === 'Author').TypeAsString = 'User';
-    fields.push({ InternalName: 'Author0', TypeAsString: 'Text', Required: false });
+    fields.push({ InternalName: 'Author', TypeAsString: 'User', Required: false });
   }
   return fields;
 }
@@ -103,7 +101,7 @@ async function runEntityCrudContracts() {
     const repository = app.repositories[domain];
     const state = transports.get(domain).state;
     const expected = pairs(fixture);
-    const schemaNames = MINIJOOMLA_SCHEMAS[domain].fields.map((field) => field.internalName === 'Author' && domain === 'articles' ? 'Author0' : field.internalName);
+    const schemaNames = MINIJOOMLA_SCHEMAS[domain].fields.map((field) => field.internalName);
     assert.deepEqual(new Set(schemaNames), new Set(expected.map(({ name }) => name)), `${domain}: schema e fixture devem concordar`);
     assert.deepEqual(new Set(Object.keys(MINIJOOMLA_FIELD_MAPPINGS[domain])), new Set(['id', ...(fixture.readOnly ?? []), ...Object.keys(fixture.input)]));
     for (const { field, name } of expected) {

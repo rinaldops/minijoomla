@@ -1,5 +1,12 @@
 # MINIJOOMLA
 
+> **Publicação vigente após reset autorizado:** **0.8.0**, snapshot da importação
+> `0bd5de1`, oito listas canônicas novas **vazias**, sem dados/patches da 0.7.0.
+> 79 itens reciclados, 16 listas antigas e as duas pastas solicitadas excluídas
+> antes da recriação. [Resultado e limites](docs/REPUBLICACAO-LIMPA-2026-11-06.md).
+> O trabalho local da rodada anterior permanece separado; não representa o
+> runtime agora publicado nem réplica comprovada da configuração pessoal.
+
 Projeto JavaScript minimalista, modular e independente de transporte, inspirado
 na organização e nos comportamentos do Joomla, com painel administrativo próprio
 (`src/administrator/components/com_minijoomla/`). O objetivo é uma distribuição open source independente, aberta
@@ -10,7 +17,28 @@ Não é uma distribuição oficial do Joomla nem implementa sua equivalência in
 > obrigatória. Integrações e temas corporativos são opcionais, não requisitos
 > da distribuição independente. A preparação open source **não está concluída**;
 > veja os [bloqueios atuais](docs/OPEN-SOURCE-READINESS.md) e a
-> [estado autoritativo do plano](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md#estado-atual-autoritativo--05112026).
+> [estado autoritativo do plano](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md#escopo-vigente--06112026).
+
+**Continuidade — 06/11/2026:** [avaliação completa e escopo aprovado](docs/AVALIACAO-E-ESCOPO-2026-11-06.md).
+Inclui adoção dos outros dez módulos externos, XML de plugins/templates e
+migração assistida; [contratos e gates](docs/CONTRATOS-EVOLUCAO-XML.md).
+i18n, SEO integrado ao host, histórico e check-in/check-out de artigos estão
+fora do escopo atual. Git próprio `rinaldops/minijoomla`; números e worktrees
+do agregador abaixo são históricos, não o estado do índice atual.
+
+**Delta local desta rodada:** opções de consulta/limites/matching e metadados
+públicos corrigidos, auditor core alinhado ao parser, sintaxe incluindo scripts
+JS/MJS, plugins administrativos conectados com snapshot por gravação e prévia
+pura de migração com ETags/snapshots. Novos perfis XML de
+plugins/templates ainda são evolução planejada; prévia de migração não executa
+escritas. [Execução e próximos gates](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md#execução-desta-rodada--estado-local).
+
+**Republicação posterior autorizada:** 0.7.0 integral nas duas páginas
+corporativas MINIJOOMLA, com sete listas canônicas novas e template existente
+preservado. 222 arquivos verificados; 77 suítes passaram/zero skips/falhas.
+Seed Joomla Blog suportado relido, sem assets de mídia ainda aprovados.
+Retirada das oito listas de teste antigas bloqueada por HTTP 500 na reciclagem;
+nenhuma exclusão permanente. [Registro e limites](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md#fechamento-da-rodada-e-republicação-corporativa).
 
 **Estado em 05/11/2026 (producao pessoal):**
 
@@ -404,14 +432,16 @@ em [`docs/INTEGRATION-SPMIDDLE.md`](docs/INTEGRATION-SPMIDDLE.md).
 ## Próximas lacunas conhecidas
 
 - Completar a separação do painel em diretórios `administrator/components/com_*`.
-- Gerar manifestos XML a partir do catálogo; os manifestos atuais são estáticos.
-- Não há implementação de i18n, `com_contact`, `com_banners` e outros
-  componentes Joomla ainda listados como lacunas no plano.
+- Os 15 manifestos de módulos **já são gerados**; geração de plugins/templates
+  e descritores de componentes continua pendente.
+- i18n, SEO do host, histórico e check-in/check-out de artigos estão excluídos
+  desta etapa. Novos componentes como `com_contact`/`com_banners` não são
+  requisitos implícitos do fechamento.
 - Aceites reais de zoom/reflow, `forced-colors`, `reduced-motion` e leitor de
   tela continuam pendentes; checks de DOM/CSS não os substituem.
-- Save hooks `onContentBeforeSave`/`onContentAfterSave`: existem na API de
-  plugins, mas a chamada pelo fluxo de gravação do painel ainda não foi
-  confirmada. Não anunciar integração concluída.
+- Save hooks `onContentBeforeSave`/`onContentAfterSave` já são chamados pelo
+  serviço quando um manager é injetado; conexão de plugins persistidos pelo
+  host administrativo é a pendência da baseline (em desenvolvimento).
 
 ## Rotas de exemplo
 

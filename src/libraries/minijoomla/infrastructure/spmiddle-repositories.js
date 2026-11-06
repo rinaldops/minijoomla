@@ -20,23 +20,13 @@ import { createMapper, createRepository } from '../../../../../SPMIDDLE/packages
 import { MINIJOOMLA_SCHEMAS } from './spmiddle-schemas.js';
 
 /*
- * Achado real (confirmado contra o tenant real): toda lista do SharePoint
- * já tem um campo de sistema nativo `Author` ("Created By", tipo `User`,
- * não texto). Ao provisionar o campo customizado declarado no schema como
- * `internalName: 'Author'` (spmiddle-schemas.js), o SharePoint aceita a
- * criação (HTTP 201) mas resolve a colisão de nome silenciosamente,
- * renomeando o `InternalName` real do campo customizado para `Author0`
- * (mantendo `Title`/rótulo exibido = "Author") — o mesmo fenômeno já
- * documentado para `Title`->`Title0` abaixo, só que invertido: ali o
- * campo nativo é reaproveitável (aceita texto livre), então o órfão
- * `Title0` nunca é lido; aqui o campo nativo NÃO é reaproveitável (tipo
- * incompatível, grava HTTP 400 "PrimitiveValue... StartObject... was
- * expected" ao enviar uma string), então é o órfão `Author0` que precisa
- * ser usado. O schema continua declarando `internalName: 'Author'`
- * (é o que de fato é enviado no POST de criação de campo, e é isso que o
- * tenant sempre vai renomear de novo para Author0 em qualquer lista nova,
- * incluindo a futura lista de produção) — só o mapeamento do repositório
- * (abaixo) aponta para o nome real resultante.
+ * Toda lista SharePoint já tem `Author` (Created By, tipo User), que não
+ * aceita o texto editorial. Listas existentes usam `Author0` (Text,
+ * rótulo Author), nome antes obtido por colisão na criação. O schema agora
+ * declara Author0 explicitamente: listas novas usam o mesmo contrato sem
+ * depender de renomeação automática, e listas existentes não precisam de
+ * migração de dados. `Title`, ao contrário, reutiliza o campo Text nativo;
+ * eventuais Title0 legados não são lidos nem gravados por este mapper.
  */
 const ARTICLE_MAPPING = {
   id: { internalName: 'Id', readOnly: true },

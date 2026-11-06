@@ -2,8 +2,9 @@
  * Schemas SPMIDDLE próprios do MINIJOOMLA (locais, sem rede).
  *
  * Usa `defineListSchema` do pacote `sharepoint-schema` do SPMIDDLE para
- * declarar o formato das listas que o MINIJOOMLA precisa: artigos,
- * categorias, tags e menu. Os nomes lógicos (`key`/`internalName`/
+ * declarar as oito listas atuais do MINIJOOMLA: artigos, categorias,
+ * tags, menu, extensões, templates, instâncias de módulo e configuração.
+ * Os nomes lógicos (`key`/`internalName`/
  * `displayName`) pertencem ao MINIJOOMLA — não reaproveitam `MSEContent`,
  * `MSECategories` ou qualquer outro nome de outro consumidor do SPMIDDLE.
  *
@@ -32,7 +33,9 @@ export const MiniJoomlaArticles = defineListSchema({
     { internalName: 'Featured', displayName: 'Featured', type: 'Boolean', defaultValue: false },
     { internalName: 'PublishUp', displayName: 'PublishUp', type: 'DateTime' },
     { internalName: 'PublishDown', displayName: 'PublishDown', type: 'DateTime' },
-    { internalName: 'Author', displayName: 'Author', type: 'Text' },
+    // Author nativo é User (Created By). Author0 preserva o texto editorial
+    // e o mapper/listas existentes sem depender de colisão na criação.
+    { internalName: 'Author0', displayName: 'Author', type: 'Text' },
     { internalName: 'AuthorAlias', displayName: 'AuthorAlias', type: 'Text' },
     { internalName: 'Language', displayName: 'Language', type: 'Text' },
     { internalName: 'Note', displayName: 'Note', type: 'MultilineText' },
