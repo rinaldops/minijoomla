@@ -1,5 +1,12 @@
 # MINIJOOMLA
 
+> **Estado posterior à confirmação de funcionamento:** commit `57ef821`
+> enviado; Joomla Blog Sample Data populado na release 0.8.0: **40 registros
+> em oito listas e 12 imagens originais**, com releitura independente.
+> [Resultado, adaptações e limites](docs/JOOMLA-SAMPLE-DATA-2026-11-06.md).
+> A carga foi feita pelo serviço administrativo, não por um instalador de dados
+> de exemplo no painel (ainda pendente). A instalação vazia abaixo é histórica.
+
 > **Publicação vigente após reset autorizado:** **0.8.0**, snapshot da importação
 > `0bd5de1`, oito listas canônicas novas **vazias**, sem dados/patches da 0.7.0.
 > 79 itens reciclados, 16 listas antigas e as duas pastas solicitadas excluídas

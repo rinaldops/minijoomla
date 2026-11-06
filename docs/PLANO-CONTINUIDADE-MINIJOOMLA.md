@@ -1,5 +1,13 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **População posterior autorizada:** funcionamento confirmado pelo responsável,
+> commit/push `57ef821` e carga fonte Joomla original sobre listas vazias da 0.8.0.
+> 40 registros/12 imagens, 101 verificações de releitura aprovadas; frontpage e
+> formulário de artigo conferidos. [Registro vigente](JOOMLA-SAMPLE-DATA-2026-11-06.md).
+> Sem restauração de dados antigos. Colisão REST `Folder` contornada nesta carga
+> mantendo group no manifesto; fluxo genérico e instalador Sample Data do painel
+> continuam pendentes. Estados de listas vazias abaixo descrevem o reset anterior.
+
 > **Estado que prevalece — republicação limpa posterior:** 0.8.0 corporativa,
 > baseada na importação `0bd5de1` (não nos patches 0.7.0), oito listas novas
 > vazias, hh-web excluído, somente release 0.8.0. 79 itens reciclados/16 listas
