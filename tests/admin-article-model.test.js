@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { ARTICLE_IMAGE_FIELDS, ARTICLE_OPTION_FIELDS } from '../src/administrator/components/com_minijoomla/field-schemas.js';
+import { READMORE_MARKER } from '../src/administrator/components/com_minijoomla/editor.js';
+import { ValidationError } from '../src/libraries/minijoomla/core/contracts.js';
+import { ARTICLE_URL_PATTERN, fromArticleFormValues, prepareArticleFormValues, toArticleFormValues } from '../src/administrator/components/com_content/src/Model/article.js';
+
+export function runAdminArticleModelTests() {
+  assert.deepEqual(fromArticleFormValues({ articletext: 'intro' }), { introtext: 'intro', fulltext: '' });
+  assert.deepEqual(fromArticleFormValues({ articletext: `i${READMORE_MARKER}a${READMORE_MARKER}b` }), { introtext: 'i', fulltext: `a${READMORE_MARKER}b` });
+  const timezoneRecord = { introtext: 'i', fulltext: 'f', publishUp: '2026-01-05T10:30:45.123Z' };
+  const local = toArticleFormValues(timezoneRecord);
+  assert.equal(local.articletext, `i${READMORE_MARKER}f`);
+  const localExpected = new Date(timezoneRecord.publishUp);
+  const pad = (value) => String(value).padStart(2, '0');
+  assert.equal(local.publishUp, `${localExpected.getFullYear()}-${pad(localExpected.getMonth() + 1)}-${pad(localExpected.getDate())}T${pad(localExpected.getHours())}:${pad(localExpected.getMinutes())}`);
+  assert.equal('publishUp' in prepareArticleFormValues({ publishUp: local.publishUp }, { record: timezoneRecord }), false, 'unchanged local input must not truncate persisted seconds or milliseconds');
+  assert.equal(prepareArticleFormValues({ publishUp: '2026-01-06T12:15' }, { record: timezoneRecord }).publishUp, new Date('2026-01-06T12:15').toISOString());
+  const frozen = Object.freeze(Object.defineProperty({ title: 'T', introtext: 'I', fulltext: '', publishUp: 'invalid', tags: Object.freeze(['a']) }, 'etag', { value: 'private', enumerable: false }));
+  const frozenForm = toArticleFormValues(frozen);
+  assert.equal(frozenForm.etag, undefined);
+  assert.equal(frozenForm.publishUp, 'invalid');
+  const raw = Object.freeze({ articletext: 'changed', tags: Object.freeze(['x']), publishUp: '2026-02-01T00:00' });
+  const prepared = prepareArticleFormValues(raw, { record: frozen, isNew: false });
+  assert.equal(prepared.introtext, 'changed');
+  assert.deepEqual(prepared.tags, ['x']);
+  assert.equal(raw.articletext, 'changed');
+  assert.equal(frozen.introtext, 'I');
+  const attribs = { unknown: { keep: true }, images: ['legacy-array'], show_title: 'legacy' };
+  const image = ARTICLE_IMAGE_FIELDS.find((field) => field.key === 'image_intro_alt');
+  const option = ARTICLE_OPTION_FIELDS[0];
+  const merged = prepareArticleFormValues({}, { record: { attribsJson: JSON.stringify(attribs) }, groupValues: { [image.name]: 'alt' }, optionValues: { [option.name]: '1' } });
+  assert.deepEqual(JSON.parse(merged.attribsJson), { unknown: { keep: true }, images: { image_intro_alt: 'alt' }, show_title: '1' });
+  const omitted = prepareArticleFormValues({}, { record: { attribsJson: JSON.stringify(attribs) }, groupValues: { 'images:image_intro': undefined }, optionValues: {} });
+  assert.equal(omitted.attribsJson, undefined);
+  assert.equal(prepareArticleFormValues({}, { record: { attribsJson: '{bad' } }).attribsJson, undefined);
+  assert.throws(() => prepareArticleFormValues({}, { record: { attribsJson: '{bad' }, optionValues: { [option.name]: '1' } }), ValidationError);
+  assert.equal(ARTICLE_URL_PATTERN.test('/safe/path'), true);
+  assert.throws(() => prepareArticleFormValues({}, { record: { attribsJson: '{"images":{"image_intro":"bad legacy"}}' }, groupValues: { 'images:image_intro': 'https://bad\\\\url' } }), ValidationError);
+  assert.equal(prepareArticleFormValues({}, { record: { attribsJson: '{"images":{"image_intro":"bad legacy"}}' }, groupValues: { 'images:image_intro': 'bad legacy' } }).attribsJson, undefined);
+  assert.throws(() => prepareArticleFormValues({ publishUp: 'not-a-date' }, { isNew: true }), ValidationError);
+  assert.equal(prepareArticleFormValues({}, { record: { publishUp: 'bad persisted date' } }).publishUp, undefined);
+  assert.equal('publishUp' in prepareArticleFormValues({ publishUp: 'bad persisted date' }, { record: { publishUp: 'bad persisted date' } }), false, 'unchanged invalid legacy dates remain untouched');
+  assert.equal(prepareArticleFormValues({ publishUp: '' }, { record: timezoneRecord }).publishUp, '', 'explicit clearing of an existing date is preserved');
+  console.log('ok - com_content model: readmore, opt-in attribs patches, immutable snapshots and unchanged local dates');
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="content" method="upgrade">
+  <name>plg_content_pagebreak</name>
+  <version>1.0.0</version>
+  <description>Divide conteúdo em páginas a partir de marcadores Joomla.</description>
+  <files>
+    <filename plugin="pagebreak">pagebreak.js</filename>
+  </files>
+</extension>

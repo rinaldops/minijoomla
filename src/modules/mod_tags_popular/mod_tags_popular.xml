@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_tags_popular</name><version>1.0.0</version>
+  <description>Lista tags populares e suas contagens.</description>
+  <files><filename module="mod_tags_popular">mod_tags_popular.js</filename><folder>tmpl</folder></files>
+</extension>

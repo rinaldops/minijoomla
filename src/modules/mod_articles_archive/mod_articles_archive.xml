@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_articles_archive</name><version>1.0.0</version>
+  <description>Lista os meses com artigos arquivados.</description>
+  <files><filename module="mod_articles_archive">mod_articles_archive.js</filename><folder>tmpl</folder></files>
+</extension>

@@ -1,0 +1,19 @@
+/* web-devs/MINIJOOMLA/theme/tokens.css
+ *
+ * Variáveis CSS específicas deste site (decisão D9 do plano do Site
+ * Kernel — mse-platform/docs/PLANO-SITE-KERNEL-MSE.md, seção 10): o
+ * mse-platform só fornece o template-base neutro
+ * (templates/minijoomla-classic/css/template.css, que já consome estas
+ * variáveis via var(--minijoomla-*, <fallback>)); cor/identidade do site
+ * fica só aqui. Paleta inicial inspirada no Joomla! Cassiopeia — ajustar
+ * livremente, nenhum destes valores é lido por código algum.
+ */
+:root {
+  --minijoomla-bg: #ffffff;
+  --minijoomla-text: #212529;
+  --minijoomla-muted: #6c757d;
+  --minijoomla-border: #e0e0e0;
+  --minijoomla-header-bg: #1b1f22;
+  --minijoomla-header-text: #ffffff;
+  --minijoomla-accent: #f0ad4e;
+}

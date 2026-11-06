@@ -1,0 +1,2 @@
+src/media/vendor/tinymce/** -text
+src/libraries/vendor/parse-xml/** -text

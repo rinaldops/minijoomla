@@ -1,0 +1,297 @@
+/*
+ * MINIJOOMLA — painel próprio com a paleta e a hierarquia Joomla/Atum.
+ * Referência: templates/administrator/atum/scss/_variables.scss e blocks
+ * (header/sidebar/toolbar/icons) do Joomla. Não é uma cópia de PHP/SCSS.
+ * A apresentação padrão não depende de identidade corporativa; temas são
+ * extensões futuras. Header/sidebar pertencem à mesma família darkblue.
+ * Roboto é usada quando disponível localmente, com fallback de sistema;
+ * este arquivo não baixa nem hospeda fontes. A skin TinyMCE fica intacta.
+ * Mantemos os ajustes funcionais de foco, reflow e preferências acessíveis.
+ * Contornos funcionais/pictogramas neutros usam o cinza de texto do Atum
+ * para contraste, em vez do cinza decorativo claro. Raízes/cards retos;
+ * somente indicadores internos de estado usam o círculo típico do Atum.
+ */
+:root{
+  --atum-dark-blue:#001b4c;--atum-base:#132f53;--atum-base-light:hsl(214,40%,30%);--atum-base-lighter:hsl(214,40%,40%);
+  --atum-sidebar-bg:hsl(214,40%,20%);--atum-sidebar-hover:hsl(214,40%,35%);--atum-sidebar-active:var(--atum-base-light);--atum-sidebar-submenu:hsl(214,40%,16%);
+  --atum-link:#2a69b7;--atum-link-dark:#1f5090;
+  --atum-success:#457d54;--atum-success-bg:#f2f8f4;--atum-warning:#ffb514;--atum-warning-text:#996901;
+  --atum-danger:#c52827;--atum-danger-bg:#f3d4d4;--atum-info:#2a69b8;--atum-featured:#c78800;
+  --atum-border-soft:#dee2e6;--atum-control-border:var(--atum-gray-600);--atum-list-hover:var(--atum-gray-100);
+  --atum-gray-100:#f8f9fa;--atum-gray-300:var(--atum-border-soft);--atum-gray-400:#cdcdcd;--atum-gray-600:#666e76;
+  --atum-gray-700:#495057;--atum-gray-900:#212529;--atum-border:var(--atum-border-soft);--atum-bg-light:#f0f4fb;
+  --atum-radius:0;--atum-shadow:0 2px 10px -8px rgba(0,27,76,.5);
+  font-family:Roboto,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--atum-gray-700)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--atum-bg-light)}
+/*
+ * Achado real confirmado por captura de tela: sem esta regra, o texto
+ * reservado a leitor de tela (<span class="visually-hidden">, usado por
+ * admin-state-icon em render-list.js) aparecia sobreposto visualmente
+ * aos ícones de estado — este arquivo nunca definiu a classe
+ * .visually-hidden (só existe em src/templates/default.css, do site
+ * público, nunca carregado dentro do painel admin). Mesma definição
+ * real do WCAG/Bootstrap já usada em default.css.
+ */
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---------- Casca: header + sidebar + área de conteúdo ---------- */
+.admin-shell{position:relative;min-height:100vh;display:flex;flex-direction:column;font-size:1rem;line-height:1.5}
+.admin-header{background:var(--atum-base);color:#fff;display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem;min-height:54px}
+.admin-sidebar-toggle{display:none;flex-shrink:0;border:1px solid #fff;background:var(--atum-base);color:#fff;padding:.3rem;cursor:pointer;border-radius:var(--atum-radius)}
+.admin-header-brand{display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.1rem;color:#fff;text-decoration:none;margin-inline-end:auto;min-width:0;overflow-wrap:anywhere}
+.admin-header-brand svg{flex-shrink:0}
+.admin-header-meta{font-size:.85rem;color:#fff;min-width:0;overflow-wrap:anywhere}
+.admin-body{position:relative;display:flex;flex:1;min-height:0}
+
+.admin-sidebar{flex:0 0 18rem;background:var(--atum-sidebar-bg);color:#fff;padding:.5rem 0}
+.admin-sidebar-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+.admin-sidebar-list .item{position:relative}
+/*
+ * O seletor descendente alcança também os links de nível 2 dentro de
+ * .mm-collapse; não deixa o estado/contraste depender da cor do navegador.
+ */
+.admin-sidebar-list a{display:flex;align-items:center;gap:.85rem;padding:.6rem 1rem;min-height:40px;color:#fff;text-decoration:none;overflow-wrap:anywhere}
+.admin-sidebar-list a:hover{background:var(--atum-sidebar-hover);color:#fff}
+.admin-sidebar-list a[aria-current="page"]{background:var(--atum-sidebar-active);color:#fff;font-weight:500}
+.admin-sidebar-list svg{flex-shrink:0}
+/* Árvore de 2 níveis (estrutura real do mod_menu/Atum: has-arrow + mm-collapse/mm-show + item-level-2 recuado) */
+.admin-sidebar-list .has-arrow{cursor:pointer}
+.admin-sidebar-list .has-arrow .sidebar-item-title{margin-inline-end:auto;min-width:0}
+.admin-sidebar-list .has-arrow svg:last-child{transition:transform .15s ease;flex-shrink:0}
+.admin-sidebar-list .has-arrow[aria-expanded="true"] svg:last-child{transform:rotate(90deg)}
+.admin-sidebar-list .mm-collapse{display:none;list-style:none;margin:0;padding:0;background:var(--atum-sidebar-submenu)}
+.admin-sidebar-list .mm-collapse.mm-show{display:block}
+.admin-sidebar-list .mm-collapse li a{padding-inline-start:3rem}
+.admin-sidebar-list .item.parent.mm-active>a{background:var(--atum-sidebar-active);color:#fff}
+
+.admin-main{flex:1;min-width:0;background:var(--atum-bg-light)}
+.admin-toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--atum-border);box-shadow:var(--atum-shadow);padding:.5rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.admin-toolbar h1{margin:0;font-size:1.2rem;color:var(--atum-base);display:flex;align-items:center;gap:.5rem;min-width:0;overflow-wrap:anywhere}
+.admin-toolbar h1 svg{flex-shrink:0}
+.admin-toolbar-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.admin-breadcrumb{font-size:.8rem;margin:0;color:var(--atum-gray-600)}
+.admin-breadcrumb a{color:var(--atum-link);text-decoration:none}
+.admin-breadcrumb a:hover{color:var(--atum-link-dark);text-decoration:underline}
+
+.admin-page{padding:1.25rem}
+.admin-page-inner{max-width:72rem;min-width:0;overflow-wrap:anywhere;container-type:inline-size}
+
+/* ---------- Botões (estilo subhead/toolbar real do Atum: fundo claro, cor no ícone/texto, inverte só no hover) ---------- */
+.admin-btn{display:inline-flex;align-items:center;gap:.4rem;min-height:2.45rem;max-width:100%;border:1px solid var(--atum-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);padding:.4rem 1rem;font:inherit;font-weight:400;cursor:pointer;text-decoration:none;white-space:normal;overflow-wrap:anywhere}
+.admin-btn svg{flex-shrink:0}
+.admin-btn:hover,.admin-btn:focus-visible{background:var(--atum-gray-700);color:#fff;border-color:var(--atum-gray-700)}
+.admin-btn-primary{color:var(--atum-link)}
+.admin-btn-primary:hover,.admin-btn-primary:focus-visible{background:var(--atum-link);color:#fff;border-color:var(--atum-link)}
+.admin-btn-success{color:var(--atum-success)}
+.admin-btn-success:hover,.admin-btn-success:focus-visible{background:var(--atum-success);color:#fff;border-color:var(--atum-success)}
+.admin-btn-danger{color:var(--atum-danger)}
+.admin-btn-danger:hover,.admin-btn-danger:focus-visible{background:var(--atum-danger);color:#fff;border-color:var(--atum-danger)}
+.admin-btn-ghost{color:var(--atum-link)}
+.admin-btn-ghost:hover,.admin-btn-ghost:focus-visible{background:var(--atum-gray-100);color:var(--atum-link-dark);border-color:var(--atum-gray-400)}
+
+/* ---------- Painel de controle (com_cpanel real: cards ícone-acima/texto-abaixo, agrupados sob "Site"/"Sistema", estilo .quickicon/.card real) ---------- */
+.admin-overview-group{margin:0 0 1.5rem}
+.admin-overview-group h2{display:flex;align-items:center;gap:.5rem;margin:0 0 .75rem;font-size:1rem;color:var(--atum-base)}
+.admin-overview-group h2 svg{flex-shrink:0;color:var(--atum-gray-600)}
+.admin-overview{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,12rem),1fr));gap:1rem}
+.admin-overview li{display:flex;border:1px solid var(--atum-border);background:#fff;min-height:6rem;min-width:0}
+/* Faixa de ícone/contador seguida pelo nome, sem exigir mudanças no DOM. */
+.admin-overview a{display:grid;grid-template-columns:2rem minmax(0,1fr);align-items:end;align-content:end;gap:.5rem;flex:1;min-width:0;padding:.75rem 1rem;color:var(--atum-gray-700);text-decoration:none}
+.admin-overview a:is(:hover,:focus-visible){background:var(--atum-sidebar-bg);color:#fff}
+.admin-overview a:is(:hover,:focus-visible) :is(.admin-overview-label,.admin-overview-icon){color:#fff}
+.admin-overview .admin-overview-icon{width:2rem;height:2rem;display:flex;align-items:center;margin:0;color:var(--atum-link)}
+.admin-overview-icon>svg{width:2rem;height:2rem}
+.admin-overview .admin-overview-count{justify-self:start;padding:.25rem .5rem;font-size:1rem;line-height:1rem;font-weight:700;background:var(--atum-gray-100);color:var(--atum-gray-700)}
+.admin-overview .admin-overview-label{grid-column:1/-1;color:var(--atum-gray-700);font-size:1rem;font-weight:700}
+.admin-overview a:is(:hover,:focus-visible) .admin-overview-count{background:#fff;color:var(--atum-sidebar-bg)}
+
+/* ---------- Busca/filtro ("js-stools" real) ---------- */
+.admin-searchbar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 0 .75rem}
+.admin-searchbar label{font-size:.85rem;color:var(--atum-gray-700)}
+.admin-searchbar input[type="search"]{flex:1 1 16rem;min-width:0;max-width:100%;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem .6rem;font:inherit;background:#fff;color:var(--atum-gray-700)}
+.admin-searchbar select{min-width:0;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem;font:inherit;background:#fff;color:var(--atum-gray-700)}
+
+/* ---------- Tabela de listagem (estilo real .table/thead do Atum: cabeçalho claro, link azul, hover sutil) ---------- */
+.admin-list{width:100%;border-collapse:collapse;margin:0;background:#fff;box-shadow:var(--atum-shadow)}
+.admin-list th,.admin-list td{border-bottom:1px solid var(--atum-gray-300);padding:.75rem 1rem;text-align:left;vertical-align:middle}
+.admin-list thead th{background:var(--atum-gray-100);color:var(--atum-gray-900);font-weight:500;font-size:.85rem}
+.admin-list tbody tr:hover{background:var(--atum-list-hover)}
+.admin-list tbody a:not(.admin-btn){color:var(--atum-link);font-weight:500;text-decoration:underline}
+.admin-list tbody a:not(.admin-btn):hover{color:var(--atum-link-dark)}
+.admin-list .admin-col-check{width:2.5rem;text-align:center}
+.admin-list .admin-col-nowrap{white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
+.admin-list .admin-col-title{min-width:12rem;overflow-wrap:anywhere}
+.admin-list .admin-col-action{width:1%;white-space:nowrap;text-align:right}
+.admin-empty{border:1px solid var(--atum-border);padding:1.5rem;background:#fff;text-align:center;color:var(--atum-gray-600)}
+
+/* ---------- Paginação ---------- */
+.admin-pagination{margin:1rem 0 0}
+.admin-pagination ul{list-style:none;display:flex;gap:.25rem;padding:0;margin:0;flex-wrap:wrap}
+.admin-pagination a,.admin-pagination span{display:inline-flex;align-items:center;justify-content:center;min-width:2.25rem;min-height:2.25rem;border:1px solid var(--atum-gray-300);text-decoration:none;color:var(--atum-link);background:#fff}
+.admin-pagination a:hover{background:var(--atum-gray-100)}
+.admin-pagination span[aria-current="page"]{background:var(--atum-base);color:#fff;border-color:var(--atum-base);font-weight:500}
+
+/* ---------- Indicadores de estado: 26px, pictograma e rótulo de leitor de tela ---------- */
+.admin-state-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:2px solid var(--atum-gray-600);border-radius:50%;color:var(--atum-gray-600);background:#fff}
+.admin-state-icon svg{width:12px;height:12px;flex-shrink:0}
+.admin-state-icon.is-active{color:var(--atum-success);border-color:var(--atum-success)}
+.admin-state-icon.is-featured{color:var(--atum-featured);border-color:var(--atum-featured)}
+
+/* ---------- Formulário: fundo branco, contorno funcional cinza e foco azul ---------- */
+.admin-form{display:grid;gap:1rem;max-width:40rem;min-width:0}
+.admin-form-article{max-width:none}
+.admin-field{display:grid;gap:.25rem;min-width:0}
+.admin-field label{font-weight:500;font-size:.9rem;color:var(--atum-gray-700)}
+.admin-field input,.admin-field select,.admin-field textarea{min-width:0;max-width:100%;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem .6rem;font:inherit;background:#fff;color:var(--atum-gray-700)}
+.admin-field input:focus,.admin-field select:focus,.admin-field textarea:focus{outline:2px solid var(--atum-link);outline-offset:2px;border-color:var(--atum-link)}
+.admin-field input::placeholder,.admin-field textarea::placeholder,.admin-searchbar input::placeholder{color:var(--atum-gray-600);opacity:1}
+.admin-field textarea{min-height:6rem}
+.admin-field-checkbox{display:flex;align-items:center;gap:.5rem;flex-direction:row}
+.admin-field-checkbox label{font-weight:400}
+.admin-tabs{display:flex;gap:0;border-bottom:1px solid var(--atum-gray-300);flex-wrap:wrap}
+.admin-tabs button{min-width:0;max-width:100%;background:none;border:none;border-bottom:2px solid transparent;border-radius:var(--atum-radius);padding:.6rem 1rem;font:inherit;font-weight:500;color:var(--atum-gray-600);cursor:pointer;white-space:normal;overflow-wrap:anywhere}
+.admin-tabs button[aria-selected="true"]{color:var(--atum-base);border-bottom-color:var(--atum-link)}
+.admin-tabs button:hover{color:var(--atum-base)}
+[data-admin-tab-panel]{display:grid;gap:1rem;padding-top:1rem}
+[data-admin-tab-panel][hidden]{display:none}
+
+/* ---------- Editor de artigo (Fase 1) ---------- */
+.admin-article-header{display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:1rem;align-items:start;margin:0 0 .5rem}
+.admin-article-header .admin-field textarea{min-height:2.45rem}
+.admin-article-grid{display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:1rem;align-items:start}
+.admin-article-main{min-width:0}
+.admin-article-sidebar{min-width:0;border:1px solid var(--atum-border);background:#fff;padding:1rem;box-shadow:var(--atum-shadow)}
+.admin-article-sidebar .admin-field textarea{min-height:4.5rem}
+/* O editor responde à largura disponível, não só à janela do host. */
+@container(max-width:50rem){
+  .admin-article-header,.admin-article-grid{grid-template-columns:1fr}
+  .admin-article-sidebar{order:2}
+}
+.admin-article-empty{margin:0;padding:1rem;border:1px dashed var(--atum-gray-300);background:var(--atum-gray-100);color:var(--atum-gray-600)}
+.admin-form-actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+.admin-form-cancel{align-self:center;color:var(--atum-link)}
+.admin-form-status{min-height:1.5rem;font-weight:500;margin:0 0 .75rem;color:var(--atum-gray-900);background:var(--atum-danger-bg)}
+.admin-form-status:empty{min-height:0;margin:0;background:transparent}
+.admin-discovery-list{list-style:none;padding:0;display:grid;gap:.5rem;margin:0}
+.admin-discovery-list li{border:1px solid var(--atum-border);padding:.75rem 1rem;background:#fff}
+.admin-discovery-list li.admin-discovery-error{color:var(--atum-gray-900);background:var(--atum-danger-bg);border-color:var(--atum-danger);border-inline-start-width:.25rem}
+
+/* Foco sólido: azul no claro, branco no menu e nas ações preenchidas. */
+.admin-shell :focus-visible{outline:2px solid var(--atum-link);outline-offset:2px}
+.admin-header :focus-visible{outline-color:#fff;outline-offset:-4px}
+.admin-sidebar-list a:focus-visible{outline-color:#fff;outline-offset:-4px}
+.admin-btn:not(.admin-btn-ghost):focus-visible{outline-color:#fff;outline-offset:-4px}
+.admin-overview a:focus-visible{outline-color:#fff;outline-offset:-4px}
+.admin-shell :is(input[type="checkbox"],input[type="radio"]){accent-color:var(--atum-success)}
+.admin-shell .admin-btn:disabled{cursor:not-allowed;border-style:dashed}
+
+@media(max-width:768px){
+  .admin-sidebar-toggle{display:inline-flex;align-items:center;justify-content:center}
+  /* Ancorar ao corpo do painel: o cabeçalho pode quebrar e o host fica acima. */
+  .admin-sidebar{position:absolute;inset-inline-start:-18rem;top:0;bottom:auto;z-index:10;width:18rem;max-width:100%;max-height:calc(100dvh - 54px);overflow-y:auto;visibility:hidden;transition:inset-inline-start .2s ease;box-shadow:var(--atum-shadow)}
+  .admin-sidebar.admin-sidebar-open{inset-inline-start:0;visibility:visible}
+  .admin-toolbar{position:static}
+  .admin-list thead th{position:static}
+
+  .admin-article-header{grid-template-columns:1fr}
+  .admin-article-grid{grid-template-columns:1fr}
+  .admin-article-sidebar{order:2}
+}
+@media(max-width:480px){
+  .admin-page{padding:1rem .75rem}
+  .admin-list{display:block;overflow-x:auto}
+  .admin-toolbar{flex-direction:column;align-items:stretch}
+}
+.admin-capabilities {
+  margin-block-end: 1rem;
+  padding: .75rem;
+  border: 1px solid var(--atum-border);
+  background: #FFFFFF;
+}
+.admin-capabilities summary { cursor: pointer; font-weight: 700; }
+.admin-capabilities p { margin-block: .5rem; }
+.admin-component-catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+.admin-component-catalog > li {
+  border: 1px solid var(--atum-border);
+  padding: 1rem;
+  background: #FFFFFF;
+}
+.admin-component-catalog h2 { margin-block-start: 0; font-size: 1.1rem; }
+.admin-template-default { display: inline-block; padding: .5rem; font-weight: 700; }
+.admin-management-status:not(:empty),.admin-form-status:not(:empty) { padding: .75rem; border-inline-start: .25rem solid var(--atum-danger); color: var(--atum-gray-900); background: var(--atum-danger-bg); }
+.admin-searchbar { flex-wrap: wrap; }
+.admin-searchbar select { max-width: 100%; padding: .5rem; }
+/* A coluna é estreita por padrão, mas uma ação curta não quebra letra a letra.
+ * O reflow continua no contêiner da tabela, sem esmagar o botão de edição. */
+.admin-col-action .admin-btn { margin: .125rem; max-width: none; white-space: nowrap; overflow-wrap: normal; }
+
+/* Extensões: módulos, plugins, estilos, opções e instalador (extension-pages.js). */
+.admin-table-wrap{overflow-x:auto}
+.admin-batch{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:0 0 .75rem;padding:.5rem .75rem;background:#fff;border:1px solid var(--atum-border)}
+.admin-batch label{font-size:.85rem}
+.admin-batch select{min-width:0;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem;font:inherit;background:#fff;color:var(--atum-gray-700);max-width:100%}
+.admin-badge{display:inline-block;padding:.1rem .45rem;border-radius:var(--atum-radius);background:var(--atum-base);color:#fff;font-size:.75rem}
+.admin-badge.is-muted{background:var(--atum-gray-600);color:#fff}
+.admin-list-note,.admin-help{font-size:.8rem;color:var(--atum-gray-600)}
+.admin-state-icon.is-trashed{color:var(--atum-danger);border-color:var(--atum-danger)}
+.admin-default-star{color:var(--atum-featured)}
+.admin-section-title{font-size:1rem;color:var(--atum-base);margin:1.25rem 0 .5rem}
+.admin-meta{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:.25rem .75rem;font-size:.85rem}
+.admin-meta dt{font-weight:500}
+.admin-meta dd{margin:0}
+.admin-assignment{border:1px solid var(--atum-border);margin:0 0 .75rem;padding:.5rem .75rem}
+.admin-assignment ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr));gap:.25rem .75rem}
+.admin-assignment li{display:flex;gap:.4rem;align-items:center}
+.admin-position-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr));gap:.75rem}
+.admin-position-box{background:#fff;border:2px dashed var(--atum-link);padding:.75rem}
+.admin-position-box h2{margin:0 0 .4rem;font-size:.9rem;color:var(--atum-link)}
+.admin-position-box ul{margin:0;padding-left:1rem}
+.admin-install{background:#fff;border:1px solid var(--atum-border);padding:1rem;margin:0 0 1rem}
+.admin-install textarea{width:100%;box-sizing:border-box;font-family:Consolas,monospace}
+@media (max-width:480px){.admin-batch,.admin-searchbar{flex-direction:column;align-items:stretch}.admin-position-grid,.admin-assignment ul{grid-template-columns:1fr}.admin-meta{grid-template-columns:1fr}}
+
+/* Quebra de rótulos/abas a 320px e sob zoom; tabelas rolam só no contêiner. */
+.admin-shell :is(.admin-field label,.admin-searchbar label,.admin-batch label,.admin-assignment label,.admin-help,.admin-list-note){min-width:0;overflow-wrap:anywhere}
+.admin-shell :is(.admin-toolbar-actions,.admin-tabs,.admin-batch,.admin-searchbar,.admin-assignment li){min-width:0;max-width:100%}
+.admin-toolbar>div,.admin-header-brand span,.sidebar-item-title{min-width:0;overflow-wrap:anywhere}
+.admin-shell :is(.admin-table-wrap,.admin-component-catalog>li,.admin-position-box,.admin-install){min-width:0;max-width:100%}
+.admin-field-checkbox input,.admin-assignment input[type="checkbox"]{flex-shrink:0}
+.admin-field textarea,.admin-install textarea{resize:vertical}
+@media(max-width:480px){
+  .admin-header{gap:.5rem;padding-inline:.75rem}
+  .admin-header-brand{font-size:1rem}
+  .admin-header-meta{font-size:.75rem}
+  .admin-searchbar input[type="search"]{flex-basis:auto;width:100%}
+  .admin-toolbar-actions .admin-btn{flex:1 1 8rem;justify-content:center}
+  .admin-tabs button{flex:1 1 8rem;padding-inline:.5rem}
+}
+@media (prefers-reduced-motion: reduce){
+  .admin-shell,.admin-shell *,.admin-shell *::before,.admin-shell *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+/* Cores do sistema são uma adaptação de acessibilidade, não outra paleta. */
+@media (forced-colors: active){
+  .admin-shell{--atum-base:CanvasText;--atum-link:LinkText;--atum-link-dark:LinkText;--atum-sidebar-bg:Canvas;--atum-sidebar-hover:Highlight;--atum-sidebar-active:Highlight;--atum-sidebar-submenu:Canvas;--atum-bg-light:Canvas;--atum-gray-100:Canvas;--atum-gray-300:CanvasText;--atum-gray-400:CanvasText;--atum-gray-600:CanvasText;--atum-gray-700:CanvasText;--atum-gray-900:CanvasText;--atum-border:CanvasText;--atum-border-soft:CanvasText;--atum-control-border:ButtonText;--atum-list-hover:Canvas;--atum-success:CanvasText;--atum-featured:CanvasText;--atum-warning:CanvasText;--atum-danger:CanvasText;--atum-danger-bg:Canvas;--atum-shadow:none;color:CanvasText;background:Canvas}
+  .admin-shell :is(.admin-header,.admin-sidebar,.admin-toolbar,.admin-list,.admin-overview li,.admin-article-sidebar,.admin-capabilities,.admin-component-catalog>li,.admin-empty,.admin-install,.admin-assignment,.admin-batch,.admin-position-box,.admin-badge){background:Canvas;color:CanvasText;border:1px solid CanvasText}
+  .admin-shell :is(input,select,textarea,.admin-btn,.admin-tabs button,.admin-sidebar-toggle){border:2px solid ButtonText;background:ButtonFace;color:ButtonText}
+  .admin-shell a:not(.admin-btn){color:LinkText}
+  .admin-shell .admin-state-icon{background:Canvas}
+  .admin-shell :is(.admin-state-icon,.admin-btn svg){color:CanvasText;border-color:CanvasText}
+  .admin-shell :is(.admin-sidebar-list a[aria-current="page"],.admin-sidebar-list .item.parent.mm-active>a,.admin-sidebar-list a:hover,.admin-pagination span[aria-current="page"],.admin-overview a:is(:hover,:focus-visible)){background:Highlight;color:HighlightText}
+  .admin-shell .admin-overview a:is(:hover,:focus-visible) :is(.admin-overview-label,.admin-overview-icon){color:HighlightText}
+  .admin-shell .admin-overview .admin-overview-count{background:Canvas;color:CanvasText}
+  .admin-shell .admin-overview a:is(:hover,:focus-visible) .admin-overview-count{background:HighlightText;color:Highlight}
+  .admin-shell .admin-tabs button[aria-selected="true"]{border-bottom-color:Highlight;font-weight:700}
+  .admin-shell .admin-btn:hover{background:Highlight;color:HighlightText}
+  .admin-shell .admin-btn:is(:hover,:focus-visible) svg{color:inherit}
+  .admin-shell :focus-visible{outline:3px solid Highlight!important;outline-offset:2px!important}
+  .admin-shell :is(.admin-sidebar-list a,.admin-overview a):focus-visible{outline-offset:-4px!important}
+  .admin-shell :is(.admin-sidebar-list a[aria-current="page"],.admin-sidebar-list .item.parent.mm-active>a,.admin-sidebar-list a:hover,.admin-overview a):focus-visible{outline-color:HighlightText!important}
+}

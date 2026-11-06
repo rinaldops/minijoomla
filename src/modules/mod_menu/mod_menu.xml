@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_menu</name>
+  <version>1.0.0</version>
+  <description>Renderiza menus hierárquicos e navegação por teclado do MINIJOOMLA.</description>
+  <files>
+    <filename module="mod_menu">mod_menu.js</filename>
+    <folder>tmpl</folder>
+  </files>
+  <config>
+    <fields name="params">
+      <fieldset name="basic">
+        <field name="startLevel" type="number" default="1" />
+        <field name="endLevel" type="number" default="0" />
+        <field name="showAllChildren" type="radio" default="1" />
+      </fieldset>
+    </fields>
+  </config>
+</extension>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_articles_latest</name><version>1.0.0</version>
+  <description>Lista artigos publicados mais recentes.</description>
+  <files><filename module="mod_articles_latest">mod_articles_latest.js</filename><folder>tmpl</folder></files>
+</extension>

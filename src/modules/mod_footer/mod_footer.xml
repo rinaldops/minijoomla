@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade"><name>mod_footer</name><version>1.0.0</version><description>Exibe copyright e nome do site.</description><files><filename module="mod_footer">mod_footer.js</filename><folder>tmpl</folder></files></extension>

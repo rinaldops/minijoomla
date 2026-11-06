@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade"><name>mod_search</name><version>1.0.0</version><description>Renderiza o formulário de busca do site.</description><files><filename module="mod_search">mod_search.js</filename><folder>tmpl</folder></files></extension>

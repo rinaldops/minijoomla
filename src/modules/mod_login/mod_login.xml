@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade"><name>mod_login</name><version>1.0.0</version><description>Exibe o usuário da sessão do host sem autenticar.</description><files><filename module="mod_login">mod_login.js</filename><folder>tmpl</folder></files></extension>

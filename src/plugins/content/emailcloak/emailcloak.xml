@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="content" method="upgrade">
+  <name>plg_content_emailcloak</name>
+  <version>1.0.0</version>
+  <description>Codifica endereços de e-mail em conteúdo renderizado.</description>
+  <files>
+    <filename plugin="emailcloak">emailcloak.js</filename>
+  </files>
+</extension>

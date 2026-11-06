@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="template" client="site" method="upgrade">
+  <name>cassiopeia</name>
+  <version>1.0.0</version>
+  <description>Template público padrão compatível com o shell Joomla-like.</description>
+  <files><filename>index.js</filename></files>
+</extension>

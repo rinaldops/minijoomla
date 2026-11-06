@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MINIJOOMLA</title>
+  <style>body { margin: 0; }</style>
+</head>
+<body>
+  <noscript>Ative JavaScript para visualizar o MINIJOOMLA.</noscript>
+  <script type="module">
+    import { createApplication } from '../src/index.js';
+    import { createSPMiddleAdapter } from '../src/libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+    import { createDemoRepositories } from './demo-repositories.js';
+    import { toSiteConfigOverrides } from '../src/libraries/minijoomla/application/site-config-overrides.js';
+
+    try {
+      const repositories = createDemoRepositories();
+      const config = await repositories.siteConfig.findById(1);
+      const previewTemplate = new URLSearchParams(location.search).get('template');
+      if (previewTemplate && !['default', 'cassiopeia', 'camap'].includes(previewTemplate)) throw new TypeError('Template de demonstração desconhecido.');
+      // Preview selects its own saved style/defaults without changing demo storage.
+      const siteConfig = toSiteConfigOverrides(previewTemplate ? { ...config, templateKey: previewTemplate } : config);
+      const adapter = createSPMiddleAdapter({
+        articleRepository: repositories.articles, categoryRepository: repositories.categories,
+        tagRepository: repositories.tags, menuRepository: repositories.menu
+      });
+      await createApplication({
+        adapter, config: siteConfig,
+        autoStart: false,
+        getModuleInstances: async () => (await repositories.moduleInstances.findMany()).items,
+        getExtensions: async () => (await repositories.extensions.findMany()).items,
+        getTemplate: async () => (await repositories.templates.findMany()).items
+      }).start();
+    } catch {
+      document.body.textContent = 'Não foi possível iniciar a demonstração local. Verifique a disponibilidade do armazenamento do navegador.';
+      document.body.setAttribute('role', 'alert');
+      console.error('MINIJOOMLA: falha ao iniciar a demonstração local.');
+    }
+  </script>
+</body>
+</html>

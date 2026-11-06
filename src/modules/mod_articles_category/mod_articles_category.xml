@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_articles_category</name><version>1.0.0</version>
+  <description>Lista artigos publicados de uma categoria.</description>
+  <files><filename module="mod_articles_category">mod_articles_category.js</filename><folder>tmpl</folder></files>
+</extension>

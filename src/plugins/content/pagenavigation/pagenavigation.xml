@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="content" method="upgrade">
+  <name>plg_content_pagenavigation</name>
+  <version>1.0.0</version>
+  <description>Renderiza navegação anterior/próximo entre artigos relacionados.</description>
+  <files>
+    <filename plugin="pagenavigation">pagenavigation.js</filename>
+  </files>
+</extension>

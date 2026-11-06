@@ -1,0 +1,272 @@
+# Checklist de aceite local — MINIJOOMLA
+
+## Validado automaticamente
+
+- [x] Testes unitários e de integração locais passam sem rede.
+- [x] Sintaxe de todos os arquivos JavaScript em `src/` e `tests/` é verificada.
+- [x] Shell possui skip link, landmarks e foco no conteúdo após navegação.
+- [x] Menu e breadcrumbs expõem o item atual com `aria-current`; a trilha de
+  breadcrumbs também expõe "Início" e cada categoria ancestral como link
+  real navegável, nunca como texto morto (política de item raiz/fallback,
+  igual ao Joomla real).
+- [x] Busca possui label associado, nome acessível no formulário, instrução
+  associada por `aria-describedby`, `role="search"` e status `role="status"`
+  com `aria-live`/`aria-atomic`.
+- [x] CSS contém breakpoints para 768 e 480 px.
+- [x] CSS contém foco visível, redução de movimento, `forced-colors` e impressão.
+- [x] O router sincroniza navegação programática, `hashchange` e
+  voltar/avançar via `popstate`.
+- [x] Estados de carregamento, erro e rota inexistente possuem anúncio
+  semântico para tecnologias assistivas.
+- [x] O shell exibe o estado de carregamento imediatamente, antes da conclusão
+  de operações assíncronas do adapter, sem permitir que renders obsoletos o
+  sobrescrevam.
+- [x] O estado de carregamento também aparece antes de listeners assíncronos
+  registrados em `onBeforeRender`.
+- [x] `main[aria-busy="true"]` identifica o período de carregamento e é
+  removido após a navegação concluir.
+- [x] A matriz de equivalência Joomla foi reconciliada com a implementação
+  atual: busca, artigos recentes e tags populares consumidos pelo shell estão
+  marcados como incluídos; indexação avançada permanece futura.
+- [x] Estados vazios de listas, módulos e tags possuem `role="status"`, sem
+  depender somente de mudança visual para informar ausência de conteúdo.
+- [x] Views de artigos e módulos tratam view models esparsos como estado vazio
+  seguro, sem lançar exceções quando campos opcionais ou arrays não existem.
+- [x] A view de categoria e os módulos de navegação também toleram entradas
+  ausentes ou não-array, mantendo landmarks e estados vazios válidos.
+- [x] O registry de módulos ordena uma cópia das entradas e devolve cópias das
+  configurações, sem permitir mutações acidentais pelo host consumidor.
+- [x] A fronteira de URLs rejeita controles ASCII, credenciais embutidas,
+  esquemas executáveis e URLs protocol-relative; links internos do artigo foram
+  verificados no navegador sem destinos `javascript:`/`data:`.
+- [x] Links de módulos usam o router injetado, preservando `basePath` e
+  query strings; o fallback mantém compatibilidade com hash routing.
+- [x] Links de tags em artigos, cards de conteúdo e paginação também aceitam
+  o router injetado, evitando URLs hardcoded quando há `basePath`.
+- [x] Fallbacks de componentes e módulos continuam produzindo hashes válidos
+  mesmo quando nenhum router é injetado.
+- [x] A cobertura de integração confirma que links de menus, categorias,
+  artigos e tags preservam `basePath` na aplicação montada.
+- [x] Datas exibidas em artigos e listas usam o timezone configurado, com
+  fallback seguro para o timezone padrão do projeto quando a configuração é
+  inválida.
+- [x] O fallback de timezone inválido também possui teste de renderização,
+  preservando uma data determinística para a apresentação.
+- [x] O fake adapter restringe campos de ordenação a uma allowlist e calcula
+  tags populares somente sobre conteúdo publicado e vigente.
+- [x] Ordenação do fake adapter possui desempate determinístico por alias/id e
+  consultas de tags populares aceitam limite seguro.
+- [x] O fake adapter captura um snapshot defensivo do seed e devolve cópias
+  defensivas, evitando mutações compartilhadas entre host, adapter e views.
+- [x] Falhas de listeners de ciclo de vida não expõem detalhes internos nem
+  interrompem a renderização segura; hooks observacionais pós-render não
+  invalidam uma tela já montada.
+- [x] O router aplica `base` somente quando o caminho realmente começa pelo
+  prefixo configurado, evitando remoções acidentais em caminhos semelhantes.
+- [x] Links gerados pelo router normalizam barras, prefixo configurado e
+  parâmetros vazios sem produzir rotas ambíguas.
+- [x] O parser do router remove `basePath` somente em limites de segmento e
+  preserva `?` adicionais dentro do valor da query.
+- [x] A configuração normaliza `basePath`, limita `pageSize` a 1–50 e aplica
+  defaults seguros para overrides ausentes ou inválidos.
+- [x] O EventBus rejeita listeners inválidos e oferece unsubscribe idempotente
+  para hosts que montam e desmontam a aplicação.
+- [x] O content service normaliza páginas incompletas do adapter para um
+  contrato estável, preservando itens, paginação, busca vazia e breadcrumbs.
+- [x] O content service também aceita adapters parciais ou ausentes, devolvendo
+  estados vazios controlados em vez de lançar por métodos inexistentes.
+- [x] O módulo `mod_tags_similar` (artigos relacionados) consulta artigos
+  publicados e vigentes com ao menos uma tag em comum, ordena por número de
+  tags compartilhadas e data, exclui o próprio artigo e respeita limite
+  seguro; artigos sem tag em comum ou inexistentes recebem lista vazia sem
+  lançar exceção.
+- [x] O content service expõe `similarArticles` como passthrough tolerante,
+  devolvendo lista vazia quando o adapter não implementa o método.
+- [x] A rota de artigo exibe "Artigos relacionados" com estado vazio
+  acessível (`role="status"`) quando não há artigo relacionado, e o módulo
+  reporta `loading`/`error` como os demais módulos de conteúdo.
+- [x] O filtro `featured` em `listArticles` restringe aos artigos com
+  `featured === true`, respeitando visibilidade (publicado/vigente) e
+  paginação; sem o filtro, o comportamento de `listArticles` não muda.
+- [x] O módulo `mod_articles_news` ("Destaques") expõe estados
+  `loading`/`error`/vazio (`role="status"`) e lista itens com escaping e
+  link via `link()` injetado, consumido no sidebar de todas as rotas sem
+  exigir alteração em `content-service.js`.
+- [x] O contrato de leitura dos adapters de conteúdo (`ref` como string,
+  leitura singular resolvendo `null`, forma fixa de `Page`, listas não
+  paginadas sempre como array) está congelado em
+  `docs/CONTRACTS-MINIJOOMLA.md` e verificado por uma suíte de conformidade
+  reutilizável (`tests/adapter-contract.test.js`), executada com sucesso
+  contra o `FakeAdapter` de referência (9 verificações).
+- [x] O módulo `mod_articles_archive` agrupa artigos publicados por ano/mês
+  (mais recente primeiro) em ambos os adapters (`FakeAdapter`/
+  `SPMiddleAdapter`), com `listArticles({year, month})` filtrando
+  corretamente; a rota `#/archive` renderiza a lista filtrada com o
+  cabeçalho de mês/ano localizado (`formatMonthYear`), e o módulo de
+  sidebar tolera um adapter sem `listArchive`.
+- [x] O módulo de HTML personalizado (`mod_custom`/`customHtmlModule`) só
+  aparece quando `config.customHtml` é fornecido com HTML não vazio,
+  escapa o título e sanitiza o HTML pela mesma fronteira de segurança já
+  usada por `renderArticle` (`sanitizeHtml`), removendo `<script>` e
+  atributos de evento inline (`onclick` etc.) em teste real.
+- [x] A API de plugins (`src/libraries/minijoomla/plugins/manager.js`) rejeita handlers que não
+  sejam funções (nunca executa string/script de configuração), encadeia
+  filtros `onContentPrepare`/`onSearchPrepare` em ordem de registro
+  preservando o valor anterior quando um handler lança ou retorna
+  `undefined`, ignora plugins desabilitados, e dispara `onAppInit`/
+  `onAppFinalize` exatamente uma vez por `start()`/`stop()` sem alterar o
+  registro síncrono dos listeners `hashchange`/`popstate` do router.
+- [x] `git diff --check` passa.
+
+## Status da validação visual e lacunas residuais
+
+O aceite local da fase 1 está concluído. Os itens abaixo são limitações
+residuais que não bloqueiam a composição fake local, mas impedem declarar um
+aceite visual completo em navegador/SharePoint.
+
+- [x] Navegação por teclado em 320, 768, 1366 e 1920 px, incluindo `Tab`,
+  `Shift+Tab`, skip link, `Enter` na busca e foco pós-navegação.
+- [ ] Zoom de 200% e 400%, incluindo reflow sem rolagem horizontal indevida.
+- [ ] Alto contraste/`forced-colors` em navegador.
+- [x] Contraste WCAG calculado para as combinações usadas e leitura estrutural
+  das rotas principais concluída; a emulação de alto contraste permanece
+  pendente.
+- [ ] Inspeção visual no site de testes SharePoint informado pelo usuário.
+
+### Evidência local parcial — FIORI-AUTO
+
+- [x] As rotas `#/`, `#/article/boas-vindas`, `#/category/noticias`,
+  `#/search?q=energia` e `#/rota-inexistente` montaram o shell no navegador.
+- [x] Em 320 px, cada rota apresentou `header`, `main#main-content`, `aside`
+  e `footer`; a busca apresentou `form[role="search"]` e região `[aria-live]`.
+- [x] Foram geradas capturas read-only nas quatro larguras configuradas pelo
+  probe: 320, 768, 1366 e 1920 px, para as cinco rotas.
+- [x] A matriz DOM nas cinco rotas e quatro larguras confirmou `scrollWidth`
+  igual à largura do viewport, sem overflow horizontal, além de `lang="pt-BR"`,
+  título específico por rota e `main#main-content`.
+- [x] Após cada navegação, o foco foi confirmado em `main#main-content`; os
+  menus/breadcrumbs também expuseram elementos com `aria-current`.
+- [x] O formulário de busca foi testado por teclado: `Enter` no campo preserva
+  a navegação no hash (`#/search?q=arquitetura`) e renderiza o resultado.
+- [x] A sequência `Tab`/`Shift+Tab` foi exercitada no shell, incluindo skip
+  link, título, itens de menu, links de módulos e retorno ao item anterior.
+- [x] A matriz pós-correção repetida nas cinco rotas e quatro larguras confirmou
+  novamente foco em `main#main-content`, ausência de overflow horizontal,
+  títulos por rota e idioma `pt-BR`; a busca manteve `role="search"` e
+  `aria-live`.
+- [x] O shell também expõe nomes acessíveis para os landmarks estruturais:
+  `main[aria-label="Conteúdo principal"]` e
+  `aside[aria-label="Navegação secundária"]`.
+- [x] O cálculo WCAG das combinações usadas confirmou branco sobre verde em
+  `4,74:1`, branco sobre azul em `6,56:1`, preto sobre amarelo em `13,48:1`,
+  preto sobre verde-água em `7,94:1` e preto sobre branco em `21:1`. O cinza
+  `#75787B` permanece restrito a bordas (`4,44:1` sobre branco), conforme a
+  identidade Petrobras.
+- [x] As cores estruturais observadas correspondem à paleta autorizada:
+  verde `#008542`, azul `#006298`, amarelo `#FDC82F` e branco.
+- [x] A API desta versão do FIORI-AUTO permitiu a operação de teclado via
+  `fiori.pressKey`; zoom e `forced-colors` continuam sem emulação disponível.
+- [x] `browser.evaluate` foi usado com retorno em envelope serializável para
+  confirmar título, foco, idioma, landmarks e overflow nas matrizes locais.
+- [x] Com o binário publicado `FioriAgent.exe` em
+  `fiori-agent-src/FioriAgent/bin/Release/net9.0/win-x64/publish`, uma nova
+  instância isolada confirmou as cinco rotas em 320, 768, 1366 e 1920 px,
+  sem overflow, com foco em `main#main-content`, títulos e estados esperados.
+- [x] A busca foi repetida por `fiori.fillField` + `fiori.pressKey`: `Enter`
+  produziu `#/search?q=arquitetura`, atualizou o resultado e preservou
+  `aria-label` do formulário e `aria-describedby` do campo.
+- [x] A verificação complementar de reflow equivalente a viewport estreito
+  confirmou `document.documentElement.scrollWidth <= innerWidth` em 320 e
+  640 px, sem overflow horizontal.
+- [x] Nova instância isolada do FIORI-AUTO confirmou as cinco rotas configuradas
+  após a correção do parser: títulos, `lang="pt-BR"`, foco em
+  `main#main-content`, estados de busca/404 e ausência de overflow.
+- [x] Nova instância isolada confirmou no artigo que os links renderizados são
+  internos/seguros, sem links `javascript:` ou `data:`, mantendo foco e sem
+  overflow horizontal.
+- [x] A verificação final em 320 px confirmou rota de busca, título, idioma,
+  foco, formulário acessível, remoção de `aria-busy`, links internos e ausência
+  de overflow horizontal.
+- [x] A mesma instância confirmou que o prefixo não configurado `/mini` não é
+  aceito indevidamente: as rotas retornaram 404 acessível, sem overflow.
+- [x] Nova instância isolada do FIORI-AUTO (`RPC 47180`, `CDP 9230`, perfil
+  `claude-minijoomla` exclusivo desta sessão) confirmou o módulo
+  `mod_tags_similar`: em `#/article/boas-vindas`, "Artigos relacionados"
+  mostrou o link para `#/article/conteudo-modular`; em
+  `#/article/conteudo-modular`, o link voltou para `boas-vindas` (relação
+  simétrica via tag `guia` compartilhada na fixture do exemplo). Foco em
+  `main-content` e título por rota confirmados nas duas páginas.
+- [x] Reflow sem overflow horizontal confirmado em 320×640 e 1366×768 px
+  (`scrollWidth <= innerWidth` nas duas larguras), com o módulo de artigos
+  relacionados visível (`offsetParent` não nulo) em ambas. A instância
+  isolada foi encerrada ao final da verificação.
+- [x] Em 01/11/2026, instância isolada do FIORI-AUTO (`RPC 47177`, perfil
+  `minijoomla` já existente desta frente, reaproveitada sem tocar na aba
+  `SitePages/MiniJoomla.aspx` já aberta nela, restaurada ao final sem
+  nenhuma escrita remota) confirmou as três capacidades mais recentes no
+  navegador real, contra `examples/index.html` servido localmente:
+  - `#/archive` lista "Fevereiro de 2026 (1)" e "Janeiro de 2026 (1)" no
+    módulo de sidebar, com links funcionais;
+  - `#/archive?year=2026&month=1` filtra corretamente para só o artigo de
+    janeiro (título "Janeiro de 2026", foco em `#main-content`);
+  - um documento ad hoc com `config.customHtml` mostrou o título escapado
+    (`&lt;importante&gt;`) e o HTML sanitizado (sem `onclick`, sem
+    `<script>`, preservando `<strong>`);
+  - um plugin registrado (`onContentPrepare`/`onSearchPrepare`) transformou
+    o `introtext` do artigo para maiúsculas e normalizou o termo de busca
+    (trim + lowercase) de ponta a ponta.
+  Evidência visual (320/768/1366/1920 px) salva em
+  `tmp/visual-evidence-local/` (`archive-list-*`, `archive-filtered-*`,
+  `custom-html-plugins-*`); o documento HTML ad hoc usado para exercitar
+  `customHtml`/`plugins` foi removido após a captura, por não ser parte
+  permanente de `examples/`.
+
+### Inspeção read-only do endereço SharePoint autorizado
+
+- [x] A URL informada foi aberta em uma instância própria do FIORI-AUTO, sem
+  publicação ou alteração: `RPC 47176`, perfil isolado da sessão.
+- [x] O shell SharePoint respondeu com título `SAP Scripting`, sem overflow
+  horizontal no viewport observado.
+- [x] A página expôs o shell SharePoint/Office com iframes, mas não expôs
+  `main` nem controles identificáveis do MINIJOOMLA; portanto, não há evidência
+  para validar visualmente o aplicativo nesse endereço.
+- [x] A inspeção estrutural encontrou apenas webparts/Canvas genéricos; não
+  encontrou identificadores semânticos `minijoomla`, `modern-script-editor` ou
+  `script-editor`. O único falso sinal `mse` veio de uma classe CSS ofuscada,
+  sem id semântico, e não caracteriza um webpart MSE.
+- [x] A página não ofereceu outra página de conteúdo interna além dela própria;
+  a tentativa read-only de abrir a listagem `SitePages/Forms/AllItems.aspx`
+  retornou um documento sem título, links ou estrutura utilizável. Nenhuma
+  permissão foi contornada e nenhuma API alternativa foi usada.
+- [ ] O aceite visual SharePoint permanece pendente: a página autorizada não
+  disponibilizou o conteúdo MINIJOOMLA nesta sessão. Uma navegação adicional
+  também excedeu o timeout de `networkidle`, embora o DOM do shell tenha
+  continuado acessível para inspeção read-only.
+
+A validação visual deve usar uma instância própria do FIORI-AUTO, conforme as
+instruções do workspace. Nenhuma publicação ou acesso SharePoint faz parte dos
+testes locais acima.
+
+## Roteiro FIORI-AUTO para aceite visual
+
+Quando a instância isolada estiver disponível, executar este roteiro no
+documento local servido por HTTP e, somente se autorizado, no MSE da página de
+teste informada pelo responsável:
+
+1. Iniciar uma instância própria do `FioriAgent`, com porta RPC/CDP e perfil
+   exclusivos da sessão; não reutilizar instância de outra LLM.
+2. Abrir as rotas `#/`, `#/article/boas-vindas`, `#/category/noticias`,
+   `#/search?q=energia` e `#/rota-inexistente`.
+3. Repetir cada rota em 320, 768, 1366 e 1920 px e registrar overflow horizontal,
+   cortes, sobreposição, foco e legibilidade.
+4. Testar teclado: skip link, menu, busca com `Enter`, resultados, `Tab`,
+   `Shift+Tab` e foco em `#main-content` após cada troca de rota.
+5. Repetir em zoom 200% e 400%, incluindo reflow equivalente a 320 CSS px.
+6. Ativar `forced-colors`/alto contraste e confirmar que foco, links, campos,
+   estados e bordas continuam distinguíveis sem depender somente de cor.
+7. Conferir título, `lang`, landmarks, breadcrumbs, `aria-current`, região
+   `aria-live` e ausência de documento HTML aninhado no `body`.
+8. Se o MSE for usado, validar primeiro somente leitura no endereço autorizado;
+   qualquer publicação deve usar versão imutável, evidência de rollback e o
+   procedimento oficial do workspace. Não registrar cookies, tokens ou dados
+   corporativos nas evidências.

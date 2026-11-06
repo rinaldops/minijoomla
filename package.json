@@ -1,0 +1,17 @@
+{
+  "name": "minijoomla",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "description": "Camada Joomla-like modular e independente de adapters de dados.",
+  "scripts": {
+    "test": "node tests/run-tests.js",
+    "check": "node scripts/check-syntax.js",
+    "release:check": "node scripts/release-check.js",
+    "release:stage": "node scripts/stage-release.js",
+    "test:release-stage": "node tests/release-stage.test.js",
+    "test:standalone-examples": "node scripts/test-standalone-examples.js",
+    "test:admin-layout": "node scripts/test-admin-layout.js"
+  }
+}

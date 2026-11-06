@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="content" method="upgrade">
+  <name>plg_content_loadmodule</name>
+  <version>1.0.0</version>
+  <description>Substitui placeholders de módulo e posição com conteúdo sanitizado.</description>
+  <files>
+    <filename plugin="loadmodule">loadmodule.js</filename>
+  </files>
+</extension>

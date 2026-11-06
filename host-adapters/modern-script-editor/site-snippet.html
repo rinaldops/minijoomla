@@ -1,0 +1,40 @@
+<!--
+  web-devs/MINIJOOMLA/host-adapters/modern-script-editor/site-snippet.html
+
+  Entrada independente do MINIJOOMLA para a página pública.
+  Substitua os placeholders apenas pelo destino autorizado. RELEASE_BASE
+  aponta para uma versão imutável que contém app/ e vendor/, não para
+  mse-platform/current. As listas já devem existir: este snippet não
+  provisiona nem modifica conteúdo. Configure os domínios opcionais tags,
+  menu, extensions, templates, moduleInstances e siteConfig no mapa lists
+  para disponibilizar os dados e as configurações administrativas salvas.
+  Não use este snippet na página administrativa.
+-->
+<div id="minijoomla-site" data-minijoomla-site></div>
+<script type="application/json" id="minijoomla-site-options">
+{
+  "webUrl": "__WEB_URL__",
+  "lists": {
+    "articles": { "listPath": "__ARTICLES_LIST_PATH__" },
+    "categories": { "listPath": "__CATEGORIES_LIST_PATH__" }
+  }
+}
+</script>
+<script type="module">
+  const root = document.getElementById('minijoomla-site');
+  try {
+    const releaseBase = '__RELEASE_BASE__';
+    const optionsText = document.getElementById('minijoomla-site-options').textContent;
+    if (/__[A-Z_]+__/.test(releaseBase + optionsText)) {
+      throw new TypeError('Preencha os placeholders da versão e das listas.');
+    }
+    const entry = new URL(`${releaseBase.replace(/\/$/, '')}/app/composition/mountMiniJoomlaSite.js`, document.baseURI);
+    if (entry.origin !== location.origin) throw new TypeError('A versão deve pertencer ao mesmo host da página.');
+    const { mountMiniJoomlaSite } = await import(entry.href);
+    await mountMiniJoomlaSite({ ...JSON.parse(optionsText), root });
+  } catch {
+    root.textContent = 'Não foi possível iniciar o MINIJOOMLA. Verifique os placeholders, as listas e a versão publicada.';
+    root.setAttribute('role', 'alert');
+    console.error('MINIJOOMLA: configuração ou carregamento do host indisponível.');
+  }
+</script>

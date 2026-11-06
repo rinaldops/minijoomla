@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade"><name>mod_related_items</name><version>1.0.0</version><description>Exibe artigos relacionados por tags ou palavras-chave.</description><files><filename module="mod_related_items">mod_related_items.js</filename><folder>tmpl</folder></files></extension>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MINIJOOMLA — Administração local</title>
+  <link rel="stylesheet" href="../src/media/templates/administrator/atum/css/template.css">
+  <style>body { margin: 0; }</style>
+</head>
+<body>
+  <div data-admin-root></div>
+  <script type="module">
+    import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
+    import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+    import { attachRichTextEditor } from '../src/administrator/components/com_minijoomla/editor.js';
+    import { createDemoRepositories } from './demo-repositories.js';
+
+    const root = document.querySelector('[data-admin-root]');
+    try {
+      const repositories = createDemoRepositories();
+      const application = createAdminApplication({
+        adminService: createAdminService(repositories), documentRef: { body: root }, autoStart: false,
+        richTextEditorFactory: (elementId, options) => attachRichTextEditor(elementId, {
+          vendorBaseUrl: '../src/media/vendor/tinymce', ...options
+        })
+      });
+      await application.start();
+    } catch {
+      root.textContent = 'Não foi possível iniciar o painel local. Verifique a disponibilidade do armazenamento do navegador.';
+      root.setAttribute('role', 'alert');
+      console.error('MINIJOOMLA: falha ao iniciar o painel demonstrativo.');
+    }
+  </script>
+</body>
+</html>

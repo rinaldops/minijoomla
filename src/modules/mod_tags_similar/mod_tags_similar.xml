@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_tags_similar</name><version>1.0.0</version>
+  <description>Lista artigos relacionados por tags em comum.</description>
+  <files><filename module="mod_tags_similar">mod_tags_similar.js</filename><folder>tmpl</folder></files>
+</extension>
