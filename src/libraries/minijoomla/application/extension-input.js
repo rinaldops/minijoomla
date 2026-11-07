@@ -1,4 +1,5 @@
 import { ValidationError } from '../core/contracts.js';
+import { parseJsonObject } from './declared-params.js';
 
 export const TEMPLATE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer', 'component']);
 export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
@@ -49,18 +50,10 @@ export function enabledValue(value, field = 'enabled') {
 }
 
 export function jsonObject(value, field = 'settings') {
-  let parsed = value;
-  if (typeof parsed === 'string') {
-    try { parsed = JSON.parse(parsed); } catch { throw new ValidationError(`${field} deve ser JSON válido.`); }
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || ![Object.prototype, null].includes(Object.getPrototypeOf(parsed))) throw new ValidationError(`${field} deve ser um objeto JSON.`);
-  try {
-    const serialized = JSON.stringify(parsed, (key, entry) => {
-      if (typeof entry === 'number' && !Number.isFinite(entry) || ['function', 'undefined', 'symbol', 'bigint'].includes(typeof entry)) throw new Error();
-      return entry;
-    });
-    return serialized;
-  } catch { throw new ValidationError(`${field} deve ser um objeto JSON serializável.`); }
+  // Callers handle historical absent/null/empty fields explicitly. This
+  // serialization boundary accepts data only, never getters or toJSON hooks.
+  if (value === undefined || value === null || value === '') throw new ValidationError(`${field} deve ser um objeto JSON.`);
+  return JSON.stringify(parseJsonObject(value, { strict: true, field }));
 }
 
 export function templatePositions(value) {

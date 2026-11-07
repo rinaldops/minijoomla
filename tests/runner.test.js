@@ -10,7 +10,7 @@ const OPTIONAL_FILES = [
   'admin-joomla-forms.test.js', 'admin-integrity.test.js', 'admin-extensions-service.test.js',
   'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
-  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js'
+  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js'
 ];
 
 function put(path, content) {
@@ -47,6 +47,7 @@ export async function runRunnerTests() {
     mkdirSync(join(project, 'scripts'), { recursive: true });
     cpSync(join(PROJECT, 'scripts', 'module-manifests.js'), join(project, 'scripts', 'module-manifests.js'));
     cpSync(join(PROJECT, 'scripts', 'generate-joomla-sampledata.js'), join(project, 'scripts', 'generate-joomla-sampledata.js'));
+    cpSync(join(PROJECT, 'scripts', 'prepare-module-adoption.js'), join(project, 'scripts', 'prepare-module-adoption.js'));
     mkdirSync(join(project, 'docs'), { recursive: true });
     cpSync(join(PROJECT, 'docs', 'EXTENSOES-JOOMLA.md'), join(project, 'docs', 'EXTENSOES-JOOMLA.md'));
     cpSync(join(PROJECT, 'docs', 'ETAPA-1-SAMPLE-DATA.md'), join(project, 'docs', 'ETAPA-1-SAMPLE-DATA.md'));

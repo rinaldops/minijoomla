@@ -19,6 +19,7 @@ import { createJoomlaDiscoveryService } from '../src/libraries/minijoomla/applic
 import { packageAsset } from '../src/libraries/minijoomla/application/package-path.js';
 import { createSharePointFileClient } from '../../SPMIDDLE/packages/sharepoint-files/src/files.js';
 import { createAtomicExtensionKeyGuard } from '../src/libraries/minijoomla/infrastructure/spmiddle-extension-guard.js';
+import { assertJoomlaPackageAssets } from '../src/libraries/minijoomla/application/joomla-package-assets.js';
 
 const PROJECT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const PAGES = { 'MiniJoomla.aspx': 'data-minijoomla-site', 'Administrator.aspx': 'data-minijoomla-admin-root' };
@@ -131,7 +132,9 @@ async function verifyExtensionPackages() {
     const service = createJoomlaDiscoveryService({ roots: [{ ...root, discover: true, files }] });
     const report = await service.scanReport();
     if (!report.complete || !report.entries.length || report.entries.some((entry) => entry.error)) throw new Error(`Preflight XML falhou: ${root.id}.`);
-    for (const candidate of report.entries) await service.verify(candidate);
+    const descriptors = [];
+    for (const candidate of report.entries) descriptors.push(await service.verify(candidate));
+    assertJoomlaPackageAssets(extensionConfig, descriptors);
     console.log(`pacote XML verificado sem executar codigo: ${root.id}`);
   }
 }

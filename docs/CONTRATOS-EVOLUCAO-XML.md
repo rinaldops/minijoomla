@@ -10,8 +10,10 @@ a módulos JavaScript de site; os novos perfis abaixo exigem código e testes.
 Inventário consultado somente em leitura no gerador do projeto externo
 `CAMAP2/tools/prepare-joomla-modules.js`; não foram alterados fontes/pacotes desse
 projeto. O gerador já lista onze módulos e aceita seleção `all` ou piloto.
-Preparar cada pacote individualmente requer evolução coordenada do gerador;
-o suporte a `all` não constitui aceite individual nem instalação de dez módulos.
+O preparador `scripts/prepare-module-adoption.js` agora produz pacotes individuais
+usando o gerador em snapshot isolado e selecionando o fechamento real do módulo,
+sem alterar CAMAP2. O suporte a `all` não constitui aceite individual nem instalação
+de dez módulos. [Etapa 2 e limites](ETAPA-2-PILOTO-XML.md).
 
 | Ordem sugerida | Elemento | Key a preservar |
 | --- | --- | --- |

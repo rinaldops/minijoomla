@@ -1,5 +1,17 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Estado autoritativo — etapa 2:** 0.10.0 ativada/relida, 242 assets;
+> piloto XML 0.2.0/0.2.1 com instalação desabilitada, instância/edit via UI,
+> ETag 412, upgrade/rollback, enable/disable e remoção protegida exercitados.
+> Os 40 registros originais/ETags intactos, dois registros novos do piloto.
+> Dez módulos preparados individualmente, **não instalados**. Fonte isolada
+> `feat/joomla-finalization-step2`, sem merge na principal suja.
+> **Bloqueios:** confirmação nativa e ciclo integral de UI não aceitos; pública
+> tornou-se rascunho após ativação com ETag nova/canvas idêntico, não republicada
+> automaticamente. Administrador publicado. [Resultado e próximos gates](ETAPA-2-PILOTO-XML.md).
+> Concluir esses gates antes da adoção real dos dez; depois perfis XML próprios
+> de plugins/templates e migração assistida. Blocos anteriores abaixo são histórico.
+
 > **Atualização autoritativa — etapa 1:** 0.9.0 publicada nas duas páginas,
 > fonte `34f0a6e`, 241 assets/79 suítes e 40 registros/ETags preservados.
 > Correção Folder, opções de consulta e Sample Data no painel; installed

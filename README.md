@@ -1,5 +1,13 @@
 # MINIJOOMLA
 
+> **Etapa 2 — runtime 0.10.0:** piloto XML com ciclo real de serviço e criação/
+> edição de instância pelo painel; 242 assets e 40 registros originais/ETags
+> preservados, dois recursos novos de demonstração. Dez módulos preparados
+> offline, não instalados. [Evidências e bloqueios](docs/ETAPA-2-PILOTO-XML.md):
+> confirmação nativa/ciclo completo pela UI pendentes; pública com rascunho
+> concorrente após ativação, não republicado automaticamente. Admin publicado.
+> Principal preservada sem merge; distribuição pública ainda não pronta.
+
 > **Etapa 1 publicada — 0.9.0:** correções de plugins/consultas e
 > instalação de dados de exemplo em `administrator/modules/mod_sampledata/`,
 > com pacote `plugins/sampledata/blog/`. [Contrato e validação](docs/ETAPA-1-SAMPLE-DATA.md).
