@@ -1,9 +1,11 @@
 # MINIJOOMLA
 
-> **Etapa 1 em desenvolvimento isolado:** correções de plugins/consultas e
+> **Etapa 1 publicada — 0.9.0:** correções de plugins/consultas e
 > instalação de dados de exemplo em `administrator/modules/mod_sampledata/`,
 > com pacote `plugins/sampledata/blog/`. [Contrato e validação](docs/ETAPA-1-SAMPLE-DATA.md).
-> Não publicado nesta rodada; site aceito 0.8.0 e seus 40 registros preservados.
+> 241 assets conferidos, 79 suítes aprovadas e 40 registros/ETags preservados.
+> Tela instalada reconhecida após reload; não houve reinstalação da amostra.
+> A instalação aceita 0.8.0 permanece para rollback. Estado antigo abaixo é histórico.
 
 > **Estado posterior à confirmação de funcionamento:** commit `57ef821`
 > enviado; Joomla Blog Sample Data populado na release 0.8.0: **40 registros

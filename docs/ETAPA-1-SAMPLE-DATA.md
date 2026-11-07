@@ -8,9 +8,10 @@ aceita 0.8.0. A árvore principal com patches anteriores não foi sobrescrita ne
 usada como release. Esta entrega não implementa novos perfis XML, executor de
 migração, i18n, SEO do host, histórico editorial ou check-in/check-out.
 
-**Estado: implementação local, não publicada nesta etapa.** A carga atual de
-40 registros e suas imagens continuam preservadas. O roteiro de publicação
-deve apontar para a worktree/commit desta frente, não a árvore principal suja.
+**Estado atualizado: release 0.9.0 publicada e verificada** nas duas páginas
+MINIJOOMLA do destino corporativo autorizado. A carga atual de 40 registros e
+suas imagens continua preservada. Fonte executável `34f0a6e`, da worktree/branch
+desta frente, não da árvore principal com patches anteriores.
 
 ## Correções existentes
 
@@ -119,8 +120,52 @@ em streaming cancela corpo que ultrapassa o tamanho declarado antes do hash.
 Browser e servidor de fixture próprios encerrados após o teste; relatório em
 `tmp/step1-native/report.json`. Nenhuma escrita no tenant nesta frente.
 
-Próximos gates: revisão final dos deltas e confirmação nativa real,
-preparação de release nova congelada e validação no host existente sem gravar
-os 40 registros novamente. Instalação real em domínio vazio não está aprovada
-por Node. Não limpar o site para testar o botão; usar teste isolado autorizado.
-Publicação, commit/push e integração na principal seguem ações separadas.
+## Publicação 0.9.0 e retomada após restart
+
+- Fonte executável commitada em `34f0a6e`; 79 suítes completas passaram, zero
+  skips/falhas, novamente antes do empacotamento. Fonte da worktree limpa
+  congelada com o manifesto operacional, incluindo host/loader/CSS e configuração.
+- **241 assets / 4.133.943 bytes**. O upload foi interrompido pelo restart após
+  186 arquivos. Retomada conferiu os 186 por bytes/SHA-256 e identificou somente
+  55 ausentes; envio limitado aos ausentes com overwrite=false. Nenhum asset
+  existente foi regravado. Releitura independente de todos os 241 assets
+  conferiu tamanho/hash/MIME antes da ativação.
+- Raízes originais de Sample Data preservadas na configuração privada do host:
+  o novo painel não muda o entrypoint do template ou URLs das imagens salvas.
+- Inventário atual dos 40 registros reconhecido como installed pelo serviço/
+  mapper reais, sem gravação de dados nem adoção no diário. Prévia nativa do
+  pacote no host em 320/768/769/900/1366/1920/2560 passou rotas públicas/admin,
+  estado installed/botão desabilitado e preservação do app original da página.
+- Ativação das duas páginas com canvas/ETags frescos, patch somente em
+  script/scriptCode da webpart MINIJOOMLA e comparação semântica. Páginas
+  publicadas/sem checkout; rollback para 0.8.0 preparado, não executado. Assets
+  da 0.8.0 permanecem intactos. Atomicidade Publish continua não comprovada.
+- Reload efetivo: raiz única, tela Dados de exemplo reconhece instalação e
+  mantém botão desabilitado, TinyMCE único/abas/referência da imagem, cleanup e
+  quatro plugins carregados. Frontpage conserva textos, menu hierárquico e
+  imagens originais. Nenhum erro HTTP ou outra release de código nos recursos
+  MINIJOOMLA observados (165 recursos durante navegações admin, 99 no público).
+- A primeira auditoria efetiva teve timeout aguardando decode de imagens lazy
+  fora da viewport. Fixture passou a solicitar eager somente durante o check
+  e limitar a espera; reexecução completa passou. Nenhum runtime/asset foi
+  alterado por essa correção do teste, e o timeout não conta como aceite.
+- Releitura pré e pós-ativação conferiu os 40 registros completos, IDs,
+  contagens/datas das listas e ETags: **nenhuma modificação**. O instalador não
+  foi acionado sobre o site populado; não houve nova carga, exclusão ou update
+  de conteúdo/configuração.
+
+Evidências/configuração/IDs/canvas/portas somente em `tmp/step1-publish/`,
+ignorado pelo Git; não copiar esses arquivos para documentação/distribuição.
+Commit/push desta frente usa a branch `feat/joomla-finalization-step1`;
+integração na principal ainda é separada, pois ela contém trabalho anterior.
+
+### Gates que ainda não são considerados concluídos
+
+Instalação **real** de dados pelo botão em domínio vazio, confirmação nativa
+com consentimento e recuperação de falha real não são provadas pelo teste em
+memória nem pela tela installed no site atual. Não limpar o site para testar
+o botão; usar cenário isolado autorizado. A correção Folder foi testada com
+mapper/REST em memória que rejeita esse campo; não criar plugin extra no tenant
+como efeito do deploy. Zoom/leitor de tela/aceite integral e etapas XML/migração
+posteriores continuam separados. Esta publicação fecha a entrega funcional da
+etapa 1 no site existente, não todo o plano de finalização.

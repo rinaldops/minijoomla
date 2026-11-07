@@ -1,5 +1,15 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Atualização autoritativa — etapa 1:** 0.9.0 publicada nas duas páginas,
+> fonte `34f0a6e`, 241 assets/79 suítes e 40 registros/ETags preservados.
+> Correção Folder, opções de consulta e Sample Data no painel; installed
+> reconhecido sem novas escritas. [Publicação e limites](ETAPA-1-SAMPLE-DATA.md).
+> Desenvolvimento isolado na branch `feat/joomla-finalization-step1`, sem
+> absorver patches antigos da árvore principal. Próxima frente funcional:
+> ciclo completo do piloto XML e preparação dos outros dez módulos, depois
+> plugins/templates XML e migração assistida. Aceites reais ainda descritos
+> como abertos no contrato não são fechados pelo deploy.
+
 > **População posterior autorizada:** funcionamento confirmado pelo responsável,
 > commit/push `57ef821` e carga fonte Joomla original sobre listas vazias da 0.8.0.
 > 40 registros/12 imagens, 101 verificações de releitura aprovadas; frontpage e
