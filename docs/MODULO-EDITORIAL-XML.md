@@ -1,5 +1,11 @@
 # Editorial CAMAP: preparação XML individual
 
+> **Evolução posterior:** adaptação restrita corrigiu links/itens e preservou
+> aviso MIT herdado/GPL das alterações; editorial 0.3.0 adotado individualmente
+> na 0.13.0. [Resultado real](ETAPA-2C-EDITORIAL-ADOTADO.md).
+> Bytes/bloqueios deste relatório permanecem válidos para a fonte original
+> não alterada e os pacotes históricos 0.2.x, não para a adaptação nova.
+
 **Preparado offline; não instalado, não migrado e não aprovado para publicação.**
 A chave é `camap.mod_camap_editorial`. Esta extensão não piloto depende do
 gate completo do piloto e de autorização individual do coordenador. A preparação

@@ -1,5 +1,10 @@
 # Etapa 2B — conciliação de publicação e aceite XML pelo painel
 
+> **Atualização posterior:** foco corrigido/aceito na 0.12.0 e primeiro editorial
+> corrigido/adotado na 0.13.0. [Estado vigente e limites](ETAPA-2C-EDITORIAL-ADOTADO.md).
+> O cadastro inicial pelo novo diálogo foi exercitado no editorial, sem apagar
+> ou reinstalar o piloto/amostra; outros nove módulos continuam pendentes.
+
 Atualização de 07/11/2026, posterior ao commit `b94b1bd` da etapa 2.
 Frente mantida na branch isolada `feat/joomla-finalization-step2`.
 Este registro prevalece sobre os bloqueios históricos de publicação e revisão

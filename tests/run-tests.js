@@ -43,6 +43,7 @@ export const TEST_SUITES = Object.freeze([
   ['joomla-pilot-lifecycle.test.js', 'runJoomlaPilotLifecycleTests', true],
   ['module-adoption.test.js', 'runModuleAdoptionTests'],
   ['camap-editorial-adoption.test.js', 'runCamapEditorialAdoptionTests'],
+  ['editorial-adaptation.test.js', 'runEditorialAdaptationTests'],
   ['plugins-builtin.test.js', 'runPluginsBuiltinTests'],
   ['release-check.test.js', 'runReleaseCheckTests'],
   ['serve-local.test.js', 'runServeLocalTests'],

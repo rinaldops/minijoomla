@@ -1,5 +1,14 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Estado vigente — etapa 2C (07/11/2026):** 0.13.0 ativa nas duas páginas
+> publicadas, foco corrigido/aceito na 0.12.0 e editorial externo 0.3.0 adotado
+> individualmente com pacote corrigido e avisos MIT/GPL. Registrar pelo diálogo
+> real, instância/edit/toggles pelo painel e revisões pelo serviço comprovados.
+> Os 42 itens anteriores/ETags intactos, 44 totais; 243 assets/85 suítes aprovadas.
+> [Evidências/fila restante](ETAPA-2C-EDITORIAL-ADOTADO.md).
+> Nove módulos, XML plugins/templates e migração assistida seguem pendentes.
+> Não alterar pacotes/fontes externos ou dados automaticamente. Histórico abaixo.
+
 > **Estado vigente — etapa 2B (07/11/2026):** 0.11.0 ativa, ambas páginas
 > publicadas/sem checkout; rascunho conciliado por histórico de restauração e
 > conteúdo, sem regravar canvas. Confirmação modal real e Cancelar/Escape,

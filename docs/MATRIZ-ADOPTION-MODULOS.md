@@ -1,5 +1,11 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Posterior à auditoria:** primeiro editorial corrigido/adotado com pacote
+> isolado 0.3.0, na release 0.13.0. [Evidências](ETAPA-2C-EDITORIAL-ADOTADO.md).
+> Nove módulos continuam pendentes; helper/arquivos originais não modificados.
+> Proveniência MIT da raiz comprovada apenas para o grafo mínimo editorial/
+> helper/CSS; a falta de LICENSE em CAMAP2 não significa falta de licença.
+
 Auditoria independente local, 07/11/2026. **Pacotes preparados não são módulos
 instalados.** A expansão após o piloto está no escopo do coordenador; esta frente
 somente inspecionou fontes/pacotes e produziu este documento. Nenhuma alteração

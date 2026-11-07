@@ -1,5 +1,12 @@
 # MINIJOOMLA
 
+> **Vigente — 0.13.0:** primeiro editorial externo corrigido e adotado
+> individualmente; confirmação inicial pelo painel, revisões/rollback e
+> preservação dos 42 registros anteriores comprovados. 44 itens totais,
+> ambas páginas publicadas, 243 assets e 85 suítes aprovadas.
+> [Resultado e limites](docs/ETAPA-2C-EDITORIAL-ADOTADO.md). Nove módulos ainda
+> pendentes; principal preservada sem merge e distribuição pública não pronta.
+
 > **Vigente — 0.11.0:** ambas páginas publicadas; confirmação modal real,
 > atualização/reversão e conflito do piloto aceitos pelo painel. 243 assets,
 > 84 suítes aprovadas, 40 registros originais/ETags preservados e 42 itens totais.
