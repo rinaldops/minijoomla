@@ -37,6 +37,9 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+// Confirmation now yields even with the explicitly mocked native fallback.
+const flushConfirmation = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
 function discovered(key = 'sample-plugin', extra = {}) {
   return { key, title: `Title ${key}`, type: 'Plugin', entryPointUrl: `./extensions/${key}.js`, discoveredFrom: `extensions/${key}.manifest.json`, error: null, ...extra };
 }
@@ -383,6 +386,7 @@ async function confirmationAndBusyTests(confirmMessages) {
     await busy.app.router.navigate('#/extensions/discover');
     const button = busy.doc.button('sample-plugin');
     const first = button.fire('click');
+    await flushConfirmation();
     assert.equal(button.disabled, true);
     await button.fire('click');
     assert.equal(busy.writes.length, 1, 'a pending create cannot be sent twice');
@@ -452,6 +456,7 @@ async function staleNavigationTests(confirmMessages, alerts) {
       await f.app.router.navigate('#/extensions/discover');
       const button = f.doc.button('sample-plugin');
       const click = button.fire('click');
+      await flushConfirmation();
       assert.equal(f.writes.length, 1, 'already initiated writes cannot be undone by navigation');
       await f.app.router.navigate('#/extensions/discover');
       const currentStatus = f.doc.status();

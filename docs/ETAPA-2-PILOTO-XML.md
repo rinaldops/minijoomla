@@ -1,5 +1,11 @@
 # Etapa 2 — piloto XML e preparação individual de módulos
 
+> **Atualização posterior:** 0.11.0 com ambas páginas publicadas, rascunho
+> conciliado e diálogo modal real/upgrade/rollback/conflito/toggles aceitos pela
+> UI. [Estado vigente e limites](ETAPA-2B-CONFIRMACAO-E-ACEITE-XML.md).
+> O bloqueio de publicação descrito abaixo é histórico; preparação dos dez
+> continua sem instalação, com bloqueios de fontes/contratos próprios.
+
 > **Resultado vigente:** runtime 0.10.0 ativado e relido, 242 assets conferidos,
 > piloto com ciclo real de serviço/instância aprovado e dez módulos preparados
 > offline. Os 40 registros originais/ETags permanecem intactos; há dois registros

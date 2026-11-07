@@ -1,5 +1,12 @@
 # MINIJOOMLA
 
+> **Vigente — 0.11.0:** ambas páginas publicadas; confirmação modal real,
+> atualização/reversão e conflito do piloto aceitos pelo painel. 243 assets,
+> 84 suítes aprovadas, 40 registros originais/ETags preservados e 42 itens totais.
+> Dez módulos preparados, ainda não instalados; defeitos/contratos e proveniência
+> precisam ser resolvidos antes de exposição. [Resultado e limites](docs/ETAPA-2B-CONFIRMACAO-E-ACEITE-XML.md).
+> Principal preservada sem merge; distribuição pública ainda não pronta.
+
 > **Etapa 2 — runtime 0.10.0:** piloto XML com ciclo real de serviço e criação/
 > edição de instância pelo painel; 242 assets e 40 registros originais/ETags
 > preservados, dois recursos novos de demonstração. Dez módulos preparados

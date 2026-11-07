@@ -1,5 +1,16 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Estado vigente — etapa 2B (07/11/2026):** 0.11.0 ativa, ambas páginas
+> publicadas/sem checkout; rascunho conciliado por histórico de restauração e
+> conteúdo, sem regravar canvas. Confirmação modal real e Cancelar/Escape,
+> upgrade/rollback/Enter, conflito visível e toggles aceitos pelo painel.
+> 243 assets, 84 suítes/zero skips/falhas, 40 registros originais/ETags intactos
+> e 42 itens totais. [Evidências e próximos gates](ETAPA-2B-CONFIRMACAO-E-ACEITE-XML.md).
+> Dez módulos permanecem preparados, **não instalados**: [bloqueios por módulo](MATRIZ-ADOPTION-MODULOS.md).
+> Cadastro inicial pelo diálogo novo e aceites integrais continuam pendentes;
+> hardening posterior de foco corrigido localmente, ainda não na 0.11.0.
+> não reinstalar amostra/piloto para testá-los. Blocos anteriores são histórico.
+
 > **Estado autoritativo — etapa 2:** 0.10.0 ativada/relida, 242 assets;
 > piloto XML 0.2.0/0.2.1 com instalação desabilitada, instância/edit via UI,
 > ETag 412, upgrade/rollback, enable/disable e remoção protegida exercitados.
