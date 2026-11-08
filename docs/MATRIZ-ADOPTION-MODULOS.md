@@ -1,5 +1,10 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **08/11/2026:** Highlights também corrigido/adotado individualmente, incluindo
+> classes CSS e título horizontal em linha própria. [Ciclo real](CICLO-HIGHLIGHTS.md).
+> Oito módulos continuam pendentes; riscos da fonte original abaixo não foram
+> alterados globalmente. Auto sem width permanece vertical na instância gerenciada.
+
 > **Posterior à auditoria:** primeiro editorial corrigido/adotado com pacote
 > isolado 0.3.0, na release 0.13.0. [Evidências](ETAPA-2C-EDITORIAL-ADOTADO.md).
 > Nove módulos continuam pendentes; helper/arquivos originais não modificados.

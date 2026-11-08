@@ -1,5 +1,13 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Estado vigente — ciclo Highlights (08/11/2026):** 0.14.0 ativa nas duas
+> páginas publicadas, Highlights 0.3.0/horizontal em `top-a`, seis raízes aprovadas.
+> Ciclo **Desenvolvimento → Teste no site → Análise → Validação → Documentação**
+> executado com correções/contraprovas; 243 assets, 86 suítes aprovadas, 46 itens
+> totais e os 44 anteriores/ETags preservados. [Resultado/limites](CICLO-HIGHLIGHTS.md).
+> Próximo ciclo individual: Topsections. Oito módulos, XML plugins/templates e
+> migração assistida pendentes. Histórico anterior abaixo não substitui o estado vigente.
+
 > **Estado vigente — etapa 2C (07/11/2026):** 0.13.0 ativa nas duas páginas
 > publicadas, foco corrigido/aceito na 0.12.0 e editorial externo 0.3.0 adotado
 > individualmente com pacote corrigido e avisos MIT/GPL. Registrar pelo diálogo

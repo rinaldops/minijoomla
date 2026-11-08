@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Vigente — 0.14.0:** Highlights corrigido/adotado após ciclos de desenvolvimento,
+> teste no site, análise, validação e documentação. 46 itens totais, os 44
+> anteriores/ETags intactos, ambas páginas publicadas; 243 assets/86 suítes
+> aprovadas. [Ciclo e limites](docs/CICLO-HIGHLIGHTS.md). Restam oito módulos,
+> XML plugins/templates e migração assistida; distribuição pública não pronta.
+
 > **Vigente — 0.13.0:** primeiro editorial externo corrigido e adotado
 > individualmente; confirmação inicial pelo painel, revisões/rollback e
 > preservação dos 42 registros anteriores comprovados. 44 itens totais,

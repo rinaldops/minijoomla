@@ -49,6 +49,7 @@ export async function runRunnerTests() {
     cpSync(join(PROJECT, 'scripts', 'generate-joomla-sampledata.js'), join(project, 'scripts', 'generate-joomla-sampledata.js'));
     cpSync(join(PROJECT, 'scripts', 'prepare-module-adoption.js'), join(project, 'scripts', 'prepare-module-adoption.js'));
     cpSync(join(PROJECT, 'scripts', 'prepare-editorial-adaptation.js'), join(project, 'scripts', 'prepare-editorial-adaptation.js'));
+    cpSync(join(PROJECT, 'scripts', 'prepare-highlights-adaptation.js'), join(project, 'scripts', 'prepare-highlights-adaptation.js'));
     mkdirSync(join(project, 'docs'), { recursive: true });
     cpSync(join(PROJECT, 'docs', 'EXTENSOES-JOOMLA.md'), join(project, 'docs', 'EXTENSOES-JOOMLA.md'));
     cpSync(join(PROJECT, 'docs', 'ETAPA-1-SAMPLE-DATA.md'), join(project, 'docs', 'ETAPA-1-SAMPLE-DATA.md'));

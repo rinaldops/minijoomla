@@ -434,6 +434,20 @@ export function parseEditorialAdaptationArgs(argv = process.argv.slice(2)) {
   return planOptions(args).args;
 }
 
+// Additive bounded primitives for subsequent independent adaptation builders.
+// Editorial options, overlay, metadata and all existing exports are unchanged.
+export {
+  collector as createAdaptationCollector, collectDependencies as collectAdaptationDependencies,
+  writeNewFiles as writeAdaptationFiles, diskFiles as readAdaptationFiles,
+  mustBeNew as assertNewAdaptationOutput, text as adaptationText,
+  replaceOnce as replaceAdaptationAnchor, ORIGIN_COMMIT as ADAPTATION_ORIGIN_COMMIT
+};
+// Copies prevent a new consumer from mutating editorial's private allowlists.
+export const ADAPTATION_GENERATOR_HASHES = Object.freeze([...GENERATOR_HASHES]);
+export const ADAPTATION_MIT_HASHES = Object.freeze([...MIT_HASHES]);
+export const ADAPTATION_API_FILES = Object.freeze([...API_FILES]);
+export const ADAPTATION_LICENSE_NAMES = Object.freeze([...LICENSE_NAMES]);
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = parseEditorialAdaptationArgs();
