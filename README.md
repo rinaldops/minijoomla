@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Vigente — 0.15.0:** Topsections corrigido/adotado pelo ciclo desenvolvimento
+> → site → análise → validação → documentação. 48 itens totais, os 46 anteriores/
+> ETags intactos; ambas páginas publicadas, 243 assets e 87 suítes aprovadas.
+> [Ciclo e limites](docs/CICLO-TOPSECTIONS.md). Sete módulos pendentes; próximo
+> gate é a capacidade das oito raízes atuais, sem instalação em lote ou limpeza.
+
 > **Vigente — 0.14.0:** Highlights corrigido/adotado após ciclos de desenvolvimento,
 > teste no site, análise, validação e documentação. 46 itens totais, os 44
 > anteriores/ETags intactos, ambas páginas publicadas; 243 assets/86 suítes

@@ -1,5 +1,10 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Posterior — 08/11/2026:** Topsections também corrigido/adotado na 0.15.0,
+> incluindo reflow de raiz estreita/texto longo. [Ciclo real](CICLO-TOPSECTIONS.md).
+> Sete módulos pendentes; [capacidade](CAPACIDADE-RAIZES-XML.md) é o próximo gate.
+> Fontes/pacotes antigos não foram modificados globalmente.
+
 > **08/11/2026:** Highlights também corrigido/adotado individualmente, incluindo
 > classes CSS e título horizontal em linha própria. [Ciclo real](CICLO-HIGHLIGHTS.md).
 > Oito módulos continuam pendentes; riscos da fonte original abaixo não foram

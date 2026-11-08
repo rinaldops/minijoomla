@@ -45,6 +45,7 @@ export const TEST_SUITES = Object.freeze([
   ['camap-editorial-adoption.test.js', 'runCamapEditorialAdoptionTests'],
   ['editorial-adaptation.test.js', 'runEditorialAdaptationTests'],
   ['highlights-adaptation.test.js', 'runHighlightsAdaptationTests'],
+  ['topsections-adaptation.test.js', 'runTopsectionsAdaptationTests'],
   ['plugins-builtin.test.js', 'runPluginsBuiltinTests'],
   ['release-check.test.js', 'runReleaseCheckTests'],
   ['serve-local.test.js', 'runServeLocalTests'],

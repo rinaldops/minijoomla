@@ -1,5 +1,13 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Estado vigente — Topsections (08/11/2026):** 0.15.0 ativa/publicada nas duas
+> páginas, Topsections 0.3.0 em `bottom-a`, itemLimit 2, oito raízes aprovadas.
+> Ciclo desenvolvimento/site/análise/validação/documentação executado; 243 assets,
+> 87 suítes aprovadas, 48 itens totais e os 46 anteriores/ETags intactos.
+> [Resultado e limites](CICLO-TOPSECTIONS.md). Sete módulos restantes; próximo gate
+> [capacidade das raízes](CAPACIDADE-RAIZES-XML.md), antes de consumir últimas vagas.
+> XML plugins/templates, migração assistida e aceites integrais continuam pendentes.
+
 > **Estado vigente — ciclo Highlights (08/11/2026):** 0.14.0 ativa nas duas
 > páginas publicadas, Highlights 0.3.0/horizontal em `top-a`, seis raízes aprovadas.
 > Ciclo **Desenvolvimento → Teste no site → Análise → Validação → Documentação**
