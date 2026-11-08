@@ -1,5 +1,12 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Ciclo de capacidade (08/11/2026):** agrupamento finito validado com dois
+> módulos neutros/revisões no site, sem configurar/instalar. Oito raízes/48 itens
+> da 0.15.0 preservados. [Provas/contraprovas e fila](CICLO-CAPACIDADE-XML.md).
+> Próximo desenvolvimento: Hero em ensaio isolado, sem consumir última capacidade
+> antes de comprovar o conjunto finito. Sete módulos, XML plugins/templates,
+> migração assistida e aceites integrais pendentes; não há expansão automática.
+
 > **Estado vigente — Topsections (08/11/2026):** 0.15.0 ativa/publicada nas duas
 > páginas, Topsections 0.3.0 em `bottom-a`, itemLimit 2, oito raízes aprovadas.
 > Ciclo desenvolvimento/site/análise/validação/documentação executado; 243 assets,

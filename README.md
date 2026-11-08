@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Ciclo de capacidade XML:** agrupador finito desenvolvido e testado no site
+> com dois módulos de prova, sem instalação. 0.15.0 permanece ativa, oito raízes/
+> 48 itens intactos. [Resultados e limites](docs/CICLO-CAPACIDADE-XML.md).
+> Sete módulos externos continuam pendentes; agrupamento não permite inclusão
+> posterior em raiz imutável nem dispensa ciclos individuais.
+
 > **Vigente — 0.15.0:** Topsections corrigido/adotado pelo ciclo desenvolvimento
 > → site → análise → validação → documentação. 48 itens totais, os 46 anteriores/
 > ETags intactos; ambas páginas publicadas, 243 assets e 87 suítes aprovadas.

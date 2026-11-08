@@ -1,5 +1,11 @@
 # Capacidade de raízes XML — decisão antes da próxima expansão
 
+> **Prova posterior (08/11/2026):** empacotador finito desenvolvido e testado
+> no site com dois módulos neutros e duas revisões, sem instalação/migração ou
+> alteração dos oito roots/48 itens. [Ciclo e contraprovas](CICLO-CAPACIDADE-XML.md).
+> Isso prova o mecanismo, não a viabilidade dos sete módulos futuros ou capacidade
+> ilimitada. As duas vagas continuam livres no host publicado 0.15.0.
+
 > **Atualização posterior do coordenador:** Topsections adotado/validado na
 > 0.15.0; **oito raízes atuais**, 48 itens e os 46 anteriores/ETags preservados.
 > [Resultado do ciclo](CICLO-TOPSECTIONS.md). As projeções abaixo agora orientam
