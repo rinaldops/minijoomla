@@ -1,5 +1,13 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Showcase (09/11/2026) — ensaio isolado validado:** 0.5.x passou nos cinco modos
+> público/admin, formulário em memória e sequência contínua de Tab/Shift+Tab/Enter.
+> Sphere estático por escolha do usuário; versões .3/.4 imutáveis mantidas sem
+> promover suas falhas de teclado a aprovação. [Ciclo/limites](CICLO-SHOWCASE-ISOLADO.md).
+> 0.15.0/Cassiopeia/três estilos/oito raízes/48 itens preservados, 92 suítes aprovadas.
+> Não instalado. Próximo ciclo: Documentation; três inputs reais restantes antes
+> do grupo definitivo, sete módulos ainda aguardam lifecycle/adoção persistida.
+
 > **Recursos (09/11/2026) — ensaio isolado validado:** 0.4.x passou no público/
 > admin, ranges de conteúdo e formulário/teclado em memória. Usuário confirmou
 > experiência de layout; Cassiopeia reativada por patch único com ETag, três

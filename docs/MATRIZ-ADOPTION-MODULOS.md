@@ -1,5 +1,11 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Showcase — atualização (09/11/2026):** 0.5.x passou no ensaio isolado público/
+> admin, incluindo cinco modos, imagens e teclado contínuo. Sphere é a lista estática
+> autorizada, masonry adaptativo e carousel empilhado enquanto focado; diferenças
+> documentadas. [Ciclo/limites](CICLO-SHOWCASE-ISOLADO.md). Não adotado; sete módulos
+> pendentes. Próximo input isolado: Documentation.
+
 > **Recursos — atualização (09/11/2026):** 0.4.x passou no ensaio público/admin
 > após falha de compacta longa em 0.3.x e reconciliação do template pelo usuário.
 > UI estática honesta, aliases e formulário em memória validados. [Ciclo/limites](CICLO-RECURSOS-ISOLADO.md).

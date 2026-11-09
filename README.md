@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Showcase — ensaio isolado validado:** 0.5.x retestada nos cinco modos, público/
+> admin, após correções de texto e sequência de teclado. Sphere usa a lista estática
+> escolhida pelo usuário. **Não instalado**; 0.15.0/Cassiopeia/três estilos/oito
+> raízes/48 registros preservados. 92 suítes aprovadas. [Ciclo/limites](docs/CICLO-SHOWCASE-ISOLADO.md).
+> Próximo ciclo: Documentation isolado; sete módulos ainda pendentes de adoção.
+
 > **Recursos — ensaio isolado validado:** 0.4.x passou no público/admin após
 > correção da compacta e reconciliação com o usuário. Cassiopeia ativa, três
 > estilos conservados; 0.15.0/oito raízes/48 itens íntegros desde essa referência.
