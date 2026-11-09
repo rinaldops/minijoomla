@@ -1,5 +1,12 @@
 # MINIJOOMLA
 
+> **Recursos — validação bloqueada:** correção 0.4.x passou localmente; o teste
+> final no site aguarda reconciliação de alterações concorrentes no template/
+> ETags. **Não instalado**, sem novas raízes aprovadas. Dos 48 registros atuais,
+> 46 correspondem integralmente ao baseline e dois mudaram.
+> [Evidências e retomada](docs/CICLO-RECURSOS-ISOLADO.md). Não restaurar trabalho
+> concorrente nem avançar a Showcase sem resolver este gate.
+
 > **Ciclo Home isolado:** corrigido e retestado no site público/admin, inclusive
 > reflow por contêiner a 180 px e formulário/teclado em memória. **Home não
 > instalado**; 0.15.0, oito raízes e 48 itens/ETags preservados. 90 suítes aprovadas.

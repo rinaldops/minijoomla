@@ -80,7 +80,7 @@ const mapGet = mapPrototype.get;
 const mapSet = mapPrototype.set;
 const mapEntries = mapPrototype.entries;
 const mapIteratorNext = getOwnPropertyDescriptor(getPrototypeOf(applyIntrinsic(mapEntries, new NativeMap(), [])), 'next').value;
-function copyNativeMap(value, label) {
+export function copyNativeMap(value, label) {
   if (!value || typeof value !== 'object' || getPrototypeOf(value) !== mapPrototype || ownKeys(value).length !== 0) throw new Error(`${label}: exact native Map without own properties required.`);
   let size;
   try { size = applyIntrinsic(mapSize, value, []); }
