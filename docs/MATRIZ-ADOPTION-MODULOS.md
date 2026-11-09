@@ -1,5 +1,11 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Home — evolução posterior (09/11/2026):** renderer/URLs/IDs corrigidos e
+> reflow CSS por contêiner retestado com 0.4.0/0.4.1 nas duas páginas. 0.3.x não
+> aprovada no público estreito e mantida imutável. [Ciclo/limites](CICLO-HOME-ISOLADO.md).
+> Formulário/teclado em memória; Home não adotado. Sete módulos ainda pendentes;
+> próximo input: Recursos, sem consumir novas raízes no host publicado.
+
 > **Hero — evolução posterior:** pacote isolado corrigiu URLs/objetos, IDs fixos,
 > textos longos e mídia ausente; ensaio no site/memória passou sem adoção ou root
 > configurado. [Ciclo real e limites](CICLO-HERO-ISOLADO.md). Fonte original abaixo

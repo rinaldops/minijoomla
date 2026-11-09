@@ -1,5 +1,13 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Ciclo Home isolado (09/11/2026):** 0.4.0/0.4.1 testadas no público/admin após
+> descoberta/correção do defeito de stats a 180 px. Formulário e teclado em memória;
+> **não instalado**, nenhuma nova raiz publicada. 0.15.0/oito raízes/48 registros
+> íntegros, 90 suítes aprovadas. [Evidências e limites](CICLO-HOME-ISOLADO.md).
+> Próximo desenvolvimento: Recursos em ensaio isolado. Sete módulos ainda não
+> adotados; congelar o grupo exige os ciclos dos cinco inputs restantes, sem
+> fabricar capacidade, limpar dados ou absorver a principal antiga indiscriminadamente.
+
 > **Ciclo Hero isolado (08/11/2026):** três patches delimitados, testes reais de
 > imagem/ações/layout e formulário em memória, sem cadastro/root novo. 0.15.0,
 > oito raízes/48 itens íntegros; 89 suítes aprovadas. [Evidências](CICLO-HERO-ISOLADO.md).

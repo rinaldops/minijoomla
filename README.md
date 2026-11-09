@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Ciclo Home isolado:** corrigido e retestado no site público/admin, inclusive
+> reflow por contêiner a 180 px e formulário/teclado em memória. **Home não
+> instalado**; 0.15.0, oito raízes e 48 itens/ETags preservados. 90 suítes aprovadas.
+> [Resultado e limites](docs/CICLO-HOME-ISOLADO.md). Próximo ciclo: Recursos isolado;
+> os sete módulos continuam pendentes de adoção, sem configuração do grupo definitivo.
+
 > **Ciclo Hero isolado:** adaptação testada no site com/sem imagem, textos longos,
 > parâmetros/teclado em memória e finalizador endurecido. **Hero não instalado**;
 > 0.15.0, oito raízes e 48 itens/ETags preservados. 89 suítes aprovadas.

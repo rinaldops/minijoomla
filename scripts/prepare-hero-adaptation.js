@@ -174,6 +174,8 @@ function metadata(bytes, name) {
   if (!Buffer.isBuffer(bytes) || bytes.length > 64 * 1024) throw new Error(`Missing/oversized ${name}.`);
   return inert(JSON.parse(adaptationText(bytes, name)));
 }
+// Additive reuse only: no hero behavior, allowlist or valid package bytes change.
+export { copyInertBuffer, inert as inertAdaptationMetadata, shape as closedAdaptationShape, metadata as parseAdaptationMetadata };
 function planOptions(input = {}) {
   const clean = inert(input);
   if (!clean || Array.isArray(clean) || Buffer.isBuffer(clean) || typeof clean !== 'object' || Object.keys(clean).some(key => !['module', 'version', 'base', 'output', 'sourceRoot', 'dependenciesRoot', 'inheritedLicense'].includes(key) || typeof clean[key] !== 'string')) throw new Error('Unknown or non-string adaptation option refused.');
