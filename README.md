@@ -1,5 +1,14 @@
 # MINIJOOMLA
 
+> **Documentation — preparação local validada, publicação bloqueada:** 24 campos,
+> URLs/dados/árvores e reflow até vinte níveis testados localmente. Ainda faltam
+> atribuições/licença/fonte upstream Phoca/Joomla e o aceite dos pacotes finais
+> no site. **Não instalado nem enviado**; 0.15.0/Cassiopeia/três estilos/oito raízes/
+> 48 itens fora do escopo de escrita. [Gate e retomada](docs/CICLO-DOCUMENTATION-ISOLADO.md).
+> Última leitura: uma edição de artigo e página pública em rascunho; preservadas
+> sem rollback/publicação automática. Checkpoint documental para commit/push;
+> código/fixtures e integração permanecem locais até resolver o gate upstream.
+
 > **Showcase — ensaio isolado validado:** 0.5.x retestada nos cinco modos, público/
 > admin, após correções de texto e sequência de teclado. Sphere usa a lista estática
 > escolhida pelo usuário. **Não instalado**; 0.15.0/Cassiopeia/três estilos/oito

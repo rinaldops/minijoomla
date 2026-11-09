@@ -1,5 +1,18 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Documentation — gate local / bloqueio upstream (09/11/2026):** preparação
+> técnica com 24 campos, árvores/ciclos/URLs seguros e reflow profundo validada;
+> publicação, pacote final no site e adoção ainda não liberados. Atribuições e
+> obrigações Phoca/Joomla precisam ser mapeadas, sem inferir MIT do derivado por
+> licença do agregador. [Estado e critérios](CICLO-DOCUMENTATION-ISOLADO.md).
+> Sem envio de assets, módulo/raiz nova ou writes nas listas. Videoteca não iniciada;
+> sete módulos ainda aguardam adoção persistida, grupo definitivo não congelado.
+> Regressão local 93/93; último snapshot observou 47/48 itens exatos e página
+> pública em rascunho após alterações não feitas por este ciclo. Preservar trabalho
+> e reconciliar referência antes do aceite final, sem rollback/publicação automática.
+> Checkpoint Git somente documental; builder, fixtures e integrações preservados
+> localmente, sem envio do código pendente de revisão upstream.
+
 > **Showcase (09/11/2026) — ensaio isolado validado:** 0.5.x passou nos cinco modos
 > público/admin, formulário em memória e sequência contínua de Tab/Shift+Tab/Enter.
 > Sphere estático por escolha do usuário; versões .3/.4 imutáveis mantidas sem

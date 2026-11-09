@@ -1,5 +1,10 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Documentation — evolução local (09/11/2026):** 24 campos e adaptação segura/
+> reflow profundo passaram localmente, mas o gate Phoca/Joomla upstream permanece
+> aberto. Não enviado ao site ou adotado. [Evidências e bloqueio](CICLO-DOCUMENTATION-ISOLADO.md).
+> As contraprovas CSS não são o aceite final de pacote; sete módulos pendentes.
+
 > **Showcase — atualização (09/11/2026):** 0.5.x passou no ensaio isolado público/
 > admin, incluindo cinco modos, imagens e teclado contínuo. Sphere é a lista estática
 > autorizada, masonry adaptativo e carousel empilhado enquanto focado; diferenças
