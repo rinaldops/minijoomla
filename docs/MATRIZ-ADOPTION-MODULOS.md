@@ -1,9 +1,9 @@
 # Matriz de adoção dos dez módulos CAMAP
 
-> **Recursos — atualização (09/11/2026):** URLs/dados/UI estática e reflow
-> adaptados; 0.3.x reprovou coluna compacta longa. 0.4.x passou auditorias locais,
-> sem aceite/upload final no site devido a configuração/ETags concorrentes.
-> [Estado e bloqueio](CICLO-RECURSOS-ISOLADO.md). Não adotado; sete módulos pendentes.
+> **Recursos — atualização (09/11/2026):** 0.4.x passou no ensaio público/admin
+> após falha de compacta longa em 0.3.x e reconciliação do template pelo usuário.
+> UI estática honesta, aliases e formulário em memória validados. [Ciclo/limites](CICLO-RECURSOS-ISOLADO.md).
+> Não adotado; sete módulos pendentes. Próximo input isolado: Showcase.
 
 > **Home — evolução posterior (09/11/2026):** renderer/URLs/IDs corrigidos e
 > reflow CSS por contêiner retestado com 0.4.0/0.4.1 nas duas páginas. 0.3.x não

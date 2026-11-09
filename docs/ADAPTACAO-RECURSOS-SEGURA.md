@@ -1,9 +1,11 @@
 # Adaptação Recursos segura — perfil offline fechado
 
-> **Gate do coordenador:** pacotes 0.4.x auditados somente localmente; teste final
-> do site bloqueado por alterações concorrentes na configuração/ETags. 0.3.x
-> permanece íntegra mas reprovada na coluna compacta. Recursos não instalado.
-> [Estado, evidências e critério de retomada](CICLO-RECURSOS-ISOLADO.md).
+> **Resultado posterior do coordenador:** referência reconciliada com o usuário,
+> Cassiopeia reativada mantendo três estilos. Pacotes 0.4.x passaram no ensaio
+> público/admin, ranges individuais, formulário em memória e teclado; Recursos
+> não instalado. 0.3.x permanece íntegra mas reprovada na coluna compacta.
+> [Resultado e limites](CICLO-RECURSOS-ISOLADO.md). A seção técnica abaixo registra
+> os gates do builder; não constitui aprovação de adoção/distribuição global.
 
 O perfil `scripts/prepare-recursos-adaptation.js` prepara **somente
 `camap.mod_recursos`, versões `0.4.0` e `0.4.1`**, em uma pasta nova

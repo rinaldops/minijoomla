@@ -1,15 +1,17 @@
 # Recursos — ciclo isolado de desenvolvimento e teste no site
 
-> **Estado — validação local concluída, aceite do site bloqueado:** 0.4.x corrige
-> a coluna compacta e passou nas auditorias locais; ainda não foi carregada/testada
-> como pacote final no site. A releitura encontrou alterações concorrentes em
-> configuração de template e ETags: **não houve preservação integral do baseline**.
-> Recursos não instalado; não restaurar/adotar automaticamente trabalho concorrente.
-> Retomar somente após reconciliação da referência autorizada.
+> **Resultado após reconciliação (09/11/2026):** o usuário confirmou a experiência
+> com CAMAP e o retorno esquecido. Cassiopeia reativada por patch único com ETag;
+> três estilos salvos conservados. Recursos 0.4.0/0.4.1 passou no ensaio público/
+> admin, com formulário em memória e teclado. **Recursos não instalado**; oito
+> raízes/48 registros preservados desde a nova referência reconciliada.
+> Próximo ciclo isolado: Showcase. Histórico do bloqueio permanece abaixo.
 
 Base `3eee4a0`, branch `feat/joomla-finalization-step2`, iniciado em 09/11/2026.
 Baseline relido: 48 itens; host aceito 0.15.0/oito raízes. Não instalar Recursos,
 configurar novas raízes, publicar páginas ou modificar as listas nesta rodada.
+Essa restrição do ensaio não inclui o patch posterior de retorno do template,
+separadamente reconciliado com o usuário e documentado no final deste registro.
 
 ## Desenvolvimento → teste no site → análise
 
@@ -139,11 +141,11 @@ Code/docs revisados sem bloqueadores locais; helper Home somente exportado.
 
 Runtime LF permanece `4d34ff0852942fab9c24b680fb6bfb395af3e015d36bc6ce02bfc6a71503116d`;
 CSS LF agora `b25243f0672426e8260446dc194db96ccd5a4ffb08d29ea4959b371192737dad`.
-**0.4.x somente local, sem upload**. 26 arquivos 0.3.x carregados permanecem
+**Neste checkpoint, 0.4.x somente local, sem upload**. 26 arquivos 0.3.x carregados permanecem
 imutáveis e não aprovados em layout; tooling histórico preservado. 92 arquivos
 externos originais novamente conferidos intactos.
 
-## Bloqueio de preservação concorrente → documentação
+## Bloqueio de preservação concorrente → documentação (histórico resolvido)
 
 Antes de continuar a aceitação, a releitura de preservação **falhou** em dois
 registros. Diagnóstico somente leitura mostrou:
@@ -177,6 +179,8 @@ Evidências privadas ficam em `tmp/recursos-cycle/` e `tmp/recursos-row-cycle/`;
 pacotes/snapshot em `tmp/recursos-adapt-agent-*`. Não publicar valores reais
 de configuração, identificadores, ETags ou dados corporativos no repositório.
 Sete módulos ainda não adotados; Recursos permanece em validação bloqueada.
+Esse era o estado do checkpoint `1992dcf`; foi superado pela reconciliação abaixo,
+não por restauração automática ou descarte de evidências.
 
 Reexecução final com arquivos estáveis: **91 suítes aprovadas, zero skips/falhas**;
 21 Recursos portáveis, checker 272 JS e child standalone 79 locais/11 skips
@@ -187,3 +191,96 @@ estável resolveu a falha. Esse verde local não remove o bloqueio do site.
 Recibo de checkpoint privado agrega sete hashes de auditoria/preservação/estado,
 com `siteAccepted:false` e `newBaselineApproved:false`. Roots/CSS temporários
 removidos e sessão de navegador própria encerrada, sem restaurar registros.
+
+## Reconciliação autorizada → teste no site → análise → validação
+
+O usuário esclareceu que a troca era intencional para experimentar o layout
+CAMAP e que esqueceu de retornar. Isso resolveu a dúvida sobre autoria e a
+referência desejada. Nova leitura capturou os 48 registros, incluindo os estilos
+criados pelo usuário e ETags atuais; não reutilizar os ETags do baseline inicial.
+
+**Retorno limitado:** serviço administrativo/repository da 0.15.0, patch
+`templateKey: cassiopeia`, IF-MATCH específico. Guarda de transporte permitiu só
+um MERGE no SiteConfig e o contextinfo necessário. Readback confirmou Cassiopeia,
+**TemplateStylesJson byte-exato e os três estilos mantidos**, sem modificar o
+piloto ou qualquer outro registro. Comparação pré/pós: outros **47 registros/
+ETags exatos**, diferença somente em template ativo e metadados automáticos
+da configuração. Nenhum rollback massivo, exclusão de estilo ou reinstalação.
+
+O estado relido após esse patch é a referência reconciliada para o ensaio,
+não um backfill de dados históricos. O ETag novo do piloto é aceito como parte
+da experiência confirmada; seus dados operacionais continuam inalterados.
+O histórico da falha anterior de preservação continua válido naquele instante.
+
+Pacotes 0.4.0/0.4.1 reauditorados sem reconstruir/alterar arquivos e carregados
+em dois destinos novos imutáveis. **26 arquivos** relidos por bytes/hash/MIME.
+Descoberta em memória verificou 0.4.1 e revisão retida 0.4.0; composição 8+2
+temporária não alterou as oito aprovações do host. CSS adulterado em porta de
+leitura recusado, duplicidade conflita e leitura incompleta bloqueia, com zero
+writes/imports de entrypoint nessa descoberta negativa.
+
+**Teste real:** JS/CSS das duas revisões passaram em público e administrador,
+cartões/compacta × **180/320/768/900 px**, com título, breadcrumb, categoria e
+descrição longos. Retângulos `Range` dos títulos/descrições de links, categorias
+e contadores cobertos pela fixture couberam; título principal e breadcrumb foram
+verificados por scroll/descendentes, não por Range individual. A coluna esquerda
+compacta teve largura positiva, mantendo as asserções de root/page/descendentes.
+A falha 0.3.x em 768/900 não foi mascarada por overflow hidden ou skip de largura
+zero. No público foram testados também viewports 320/760/761/1366; no admin,
+320/700/760/761/900/1366. Sem novo ajuste de código ou regravação de pacote.
+
+Filtros/ordenação/flags salvos e aliases renderizaram corretamente; loading,
+error, sem links e filtro sem resultado passaram. URLs inseguras omitidas,
+breadcrumb inválido sem anchor e objeto com getter não executado. Controles
+estáticos realmente disabled; busca readonly e nota de prévia, sem implementar
+favoritos/sugestões/backend. “Atalhos mais usados” permanece seleção curada,
+não dado de analytics. Browsers sem container queries não recebem o stack local;
+este teste comprova o comportamento do Edge utilizado, não todos os browsers.
+
+**Formulário em memória:** onze campos editados via FIORI-AUTO; selectOption,
+checkboxes e Enter reais. Uma escrita em memória, nenhuma nas listas. Arrays/
+aliases/unknown JSON conservados; ETag antiga e enum inválido recusados. Renderer
+consumiu os valores relidos, mostrando compacta/filtro/flags. App descartado,
+HTML original preservado. Não é CRUD SharePoint ou instalação de Recursos.
+
+**Teclado:** Tab alcançou busca readonly, digitação não alterou seu valor, botões/
+select continuaram nativamente inativos. Tab entre links e Enter geraram clique
+isTrusted no destino esperado; navegação cancelada só pela fixture. Outline solid
+de 2 px observado. Root/CSS/apps próprios removidos, estilo do host intacto.
+Zoom real, screen reader, forced-colors e aceitação assistiva integral continuam
+pendentes, assim como lifecycle de uma futura adoção persistida.
+
+## Preservação reconciliada → documentação → próximo desenvolvimento
+
+Releitura final: **todos os 48 registros/ETags exatos em relação à referência
+reconciliada**, ambas páginas publicadas/sem checkout na 0.15.0, host.js e canvas
+inalterados, oito raízes aprovadas. Sample Data bloqueado no site povoado; editor/
+abas/cleanup, quatro plugins, imagens e menu originais passaram. 166/115 assets
+na janela observada sem HTTP >=400. Recibos agregados da rodada principal: **32**, todos
+success e hash verificados. A etapa de finalização encontrou um nome de recibo
+já existente e parou; usou nova saída para a releitura, sem sobrescrever o recibo
+anterior nem repetir writes de configuração. A operação não foi rollback.
+
+**Recursos não registrado/instalado/habilitado no tenant.** 52 arquivos de prova
+Recursos em quatro versões ficaram como assets imutáveis; nenhuma aprovação de
+root ou instância adicionada. Pacotes 0.3.x continuam íntegros, mas reprovados
+no teste de compacta longa; só 0.4.x passou o ensaio final. Flags de aprovação
+global nos planos permanecem false; o recibo operacional/site é separado.
+
+Fonte, direitos escopados e testes locais não foram alterados na retomada; 21
+Recursos portáveis e 22 com audit dos pacotes passaram novamente. Evidências
+reconciliadas privadas em `tmp/recursos-reconciled-cycle/`; arquivos anteriores
+mantidos para a cronologia. Não versionar snapshots/ETags/valores corporativos.
+Nova regressão integrada: **91 suítes aprovadas, zero skips/falhas**; checker
+272 JS, child standalone 79 locais/11 skips esperados. Verificação adicional
+confirmou o marcador real `data-template="cassiopeia"` na página pública e nova
+releitura integral dos 48 registros/ETags. Probe inicial usou uma classe hipotética
+inexistente e não foi contado como aprovação; corrigiu somente o seletor da
+fixture, não o site. Agregado final: **34 recibos aprovados**, navegador próprio
+encerrado e os 92 arquivos externos originais intactos.
+
+**Próximo ciclo isolado: Showcase**, após este fechamento. Os sete módulos
+ainda pendem de adoção persistida; faltam os ciclos de Showcase, Documentation,
+Videoteca e Forum antes de congelar o grupo real. Teto de dez raízes, XML de
+plugins/templates, migrações assistidas e aceites editoriais/assistivos globais
+seguem abertos. Não instalar em lote ou fabricar capacidade com roots movidos.

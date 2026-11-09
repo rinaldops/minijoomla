@@ -1,11 +1,12 @@
 # Plano de continuidade — MINIJOOMLA
 
-> **Recursos (09/11/2026) — bloqueio ativo:** 0.4.x auditada localmente após
-> falha de ranges da compacta em 0.3.x. Aceite final no site não concluído:
-> SiteConfig/template e ETags mudaram concorrentemente; 46/48 registros exatos.
-> [Diagnóstico/critério de retomada](CICLO-RECURSOS-ISOLADO.md). Preservar mudanças,
-> reconciliar referência autorizada antes de continuar. Recursos não instalado,
-> 0.4.x não carregada, nenhuma aprovação de raiz nova; Showcase ainda não iniciado.
+> **Recursos (09/11/2026) — ensaio isolado validado:** 0.4.x passou no público/
+> admin, ranges de conteúdo e formulário/teclado em memória. Usuário confirmou
+> experiência de layout; Cassiopeia reativada por patch único com ETag, três
+> estilos conservados. 48 registros íntegros desde a referência reconciliada,
+> 0.15.0/oito roots intactos. [Resultado/limites](CICLO-RECURSOS-ISOLADO.md).
+> Recursos não instalado. Próximo ciclo isolado: Showcase; quatro inputs reais
+> restantes antes de congelar grupo, sete módulos ainda pendentes de adoção.
 
 > **Ciclo Home isolado (09/11/2026):** 0.4.0/0.4.1 testadas no público/admin após
 > descoberta/correção do defeito de stats a 180 px. Formulário e teclado em memória;

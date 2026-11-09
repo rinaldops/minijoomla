@@ -1,11 +1,10 @@
 # MINIJOOMLA
 
-> **Recursos — validação bloqueada:** correção 0.4.x passou localmente; o teste
-> final no site aguarda reconciliação de alterações concorrentes no template/
-> ETags. **Não instalado**, sem novas raízes aprovadas. Dos 48 registros atuais,
-> 46 correspondem integralmente ao baseline e dois mudaram.
-> [Evidências e retomada](docs/CICLO-RECURSOS-ISOLADO.md). Não restaurar trabalho
-> concorrente nem avançar a Showcase sem resolver este gate.
+> **Recursos — ensaio isolado validado:** 0.4.x passou no público/admin após
+> correção da compacta e reconciliação com o usuário. Cassiopeia ativa, três
+> estilos conservados; 0.15.0/oito raízes/48 itens íntegros desde essa referência.
+> **Não instalado.** [Resultados e limites](docs/CICLO-RECURSOS-ISOLADO.md).
+> Próximo ciclo isolado: Showcase; sete módulos ainda pendentes de adoção.
 
 > **Ciclo Home isolado:** corrigido e retestado no site público/admin, inclusive
 > reflow por contêiner a 180 px e formulário/teclado em memória. **Home não
