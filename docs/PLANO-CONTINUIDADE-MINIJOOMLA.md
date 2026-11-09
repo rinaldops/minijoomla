@@ -1,5 +1,11 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Ciclo Hero isolado (08/11/2026):** três patches delimitados, testes reais de
+> imagem/ações/layout e formulário em memória, sem cadastro/root novo. 0.15.0,
+> oito raízes/48 itens íntegros; 89 suítes aprovadas. [Evidências](CICLO-HERO-ISOLADO.md).
+> Próximo desenvolvimento: Home em ensaio isolado, após este fechamento. Sete
+> módulos pendentes de adoção; não consumir capacidade ou publicar grupo incompleto.
+
 > **Ciclo de capacidade (08/11/2026):** agrupamento finito validado com dois
 > módulos neutros/revisões no site, sem configurar/instalar. Oito raízes/48 itens
 > da 0.15.0 preservados. [Provas/contraprovas e fila](CICLO-CAPACIDADE-XML.md).

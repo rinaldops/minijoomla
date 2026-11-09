@@ -1,5 +1,10 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Hero — evolução posterior:** pacote isolado corrigiu URLs/objetos, IDs fixos,
+> textos longos e mídia ausente; ensaio no site/memória passou sem adoção ou root
+> configurado. [Ciclo real e limites](CICLO-HERO-ISOLADO.md). Fonte original abaixo
+> permanece intacta; sete módulos ainda não adotados.
+
 > **Posterior — 08/11/2026:** Topsections também corrigido/adotado na 0.15.0,
 > incluindo reflow de raiz estreita/texto longo. [Ciclo real](CICLO-TOPSECTIONS.md).
 > Sete módulos pendentes; [capacidade](CAPACIDADE-RAIZES-XML.md) é o próximo gate.

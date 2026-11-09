@@ -47,6 +47,7 @@ export const TEST_SUITES = Object.freeze([
   ['highlights-adaptation.test.js', 'runHighlightsAdaptationTests'],
   ['topsections-adaptation.test.js', 'runTopsectionsAdaptationTests'],
   ['xml-module-group.test.js', 'runXmlModuleGroupTests'],
+  ['hero-adaptation.test.js', 'runHeroAdaptationTests'],
   ['plugins-builtin.test.js', 'runPluginsBuiltinTests'],
   ['release-check.test.js', 'runReleaseCheckTests'],
   ['serve-local.test.js', 'runServeLocalTests'],

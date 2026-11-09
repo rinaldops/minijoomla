@@ -1,5 +1,11 @@
 # MINIJOOMLA
 
+> **Ciclo Hero isolado:** adaptação testada no site com/sem imagem, textos longos,
+> parâmetros/teclado em memória e finalizador endurecido. **Hero não instalado**;
+> 0.15.0, oito raízes e 48 itens/ETags preservados. 89 suítes aprovadas.
+> [Resultado/limites](docs/CICLO-HERO-ISOLADO.md). Próximo ciclo isolado: Home;
+> sete módulos continuam pendentes de adoção definitiva.
+
 > **Ciclo de capacidade XML:** agrupador finito desenvolvido e testado no site
 > com dois módulos de prova, sem instalação. 0.15.0 permanece ativa, oito raízes/
 > 48 itens intactos. [Resultados e limites](docs/CICLO-CAPACIDADE-XML.md).
