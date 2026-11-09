@@ -24,8 +24,12 @@ artigos) permanecem, até decisão explícita diferente.
 trabalho local, preservando contribuições da principal e artefatos das worktrees.
 [Avaliação da integração](AVALIACAO-INTEGRACAO-WORKTREES.md): histórico linear
 permite fast-forward, mas deltas locais/finais de linha/dependências precisam
-ser tratados antes. Nenhum merge ou exclusão foi autorizado/executado só pela
-solicitação de avaliação. A decisão de execução deve preceder o bloco 1.
+ser tratados antes. Execução foi autorizada: candidata `b5c548f` commitada,
+100/0/0 integrado e 86/14 skips esperados/0 no checkout novo. Cópia privada de
+tmp verificada. A principal voltou a mudar por outra frente após congelamento:
+57 arquivos atuais preservados em nova captura. **Main/retirada das worktrees
+bloqueados até cessar concorrência e reconciliar esse delta**; nenhuma exclusão
+ou publicação no site executada. Não iniciar bloco 1 antes de fechar esse marco.
 
 1. **Organização e contratos nativos:** concluir controllers/bindings por
    componente e manifestos nativos ainda faltantes; verificar/concluir conexão

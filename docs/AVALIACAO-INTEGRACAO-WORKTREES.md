@@ -192,3 +192,37 @@ customizado inválido, fora do contrato suportado. O fluxo nativo não retorna
 Promise no guard síncrono. Esse limite não é aprovação de sandbox nem motivo
 para alterar hashes/fixtures históricas. Próximo gate é commit candidato e
 checkout independente com conversão Git, antes de mover a principal/remover árvores.
+
+### Checkpoint candidato validado — troca de main bloqueada por nova concorrência
+
+Commit candidato **`b5c548f`** registra núcleo reconciliado, documentação e suporte
+congelado. A seleção exclui fontes/teste parciais de Videoteca; snapshots desses
+arquivos e do template experimental permanecem privados. Diff staged foi
+verificado; CRLF histórico do suporte congelado conserva os bytes por `-text`
+e classificação `cr-at-eol`, sem alterar seus hashes. Scan limitado de padrões
+sensíveis não encontrou ocorrência; não é certificação pública de privacidade.
+
+Checkout Git novo, local e sem hardlinks passou: **86 suítes aprovadas, 14 skips
+esperados (SPMIDDLE ausente), zero falhas**; child standalone 85/14/0. Syntax:
+317 JS/MJS. A árvore nova permaneceu limpa. A suíte integrada da worktree com
+SPMIDDLE passou 100/0/0 após as correções. São gates locais; o delta nativo ainda
+não foi aceito/publicado no site, que permanece fora de escrita.
+
+Preservação operacional recebeu recibo autoritativo de sucesso: **56.472 arquivos
+regulares / 338.433.344 bytes** (base e suplementos), sem overwrite/exclusão,
+76 junctions registradas somente como metadados. A janela não é snapshot atômico
+e novos outputs posteriores requerem suplemento; nenhum perfil externo copiado.
+
+A rechecagem anterior à troca de main detectou **novas alterações apesar do
+congelamento confirmado**. A principal agora tem 57 arquivos locais, incluindo
+novos deltas em configurações, estilos/admin e testes, além de CAMAPv3.
+Uma terceira captura privada completa passou, preservando esses 57 arquivos,
+diffs e estado. Não atualizar main, guardar o delta em stash ou retirar worktrees
+enquanto a frente concorrente continuar editando. Não substituir esses arquivos
+pela candidata validada nem reaplicar o snapshot antigo sobre mudanças novas.
+
+**Consolidação parcial, não concluída:** fonte candidata commitada e checkout
+validado; main permanece em `231560b` e worktrees01/02 preservadas. A próxima
+ação exige janela real de edição cessada e reconciliação do novo delta, validação
+proporcional no site, depois fast-forward e retirada dos diretórios. Branches de
+recuperação e evidências privadas não são apagadas.
