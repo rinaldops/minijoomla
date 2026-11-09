@@ -5,6 +5,12 @@ See [contribution guidance](CONTRIBUTING.md) and [security policy](SECURITY.md).
 
 ## Reconciled baseline — 2026-11-04
 
+> Historical baseline below. The current [continuity plan](PLANO-CONTINUIDADE-MINIJOOMLA.md)
+> prioritizes consolidation and Joomla-standard features. Videoteca/Forum and
+> further external adoption are suspended; existing work and installed modules
+> are preserved. Plugin/template XML and assisted migrations remain explicit
+> pending work, not implied support from the module profile.
+
 Coordinator-reported production versions are **public 0.2.11 / admin 0.2.10**.
 The saved-image fix has **user-reported acceptance**, not a fresh agent
 observation. Main push `23f4696` includes `bc64256`, `343bb58` and restored JSON

@@ -1,11 +1,39 @@
 # Auditoria offline da distribuição selecionada
 
 `scripts/audit-distribution.js` lê somente os **arquivos declarados** de um
-manifest de staging `core`, dentro de `MINIJOOMLA/tmp/`. Não empacota, modifica,
+manifest de staging `core` ou da seleção exata `contributor-local`, dentro de `MINIJOOMLA/tmp/`. Não empacota, modifica,
 redige, publica nem aprova dados. Não lê fontes fora do staging, projetos irmãos,
 índice/histórico Git ou rede. Importar o módulo não dispara a auditoria.
 
-## Estado reconciliado — 04/11/2026
+## Consolidação local — 09/11/2026
+
+O tooling do snapshot MAIN foi integrado ao grafo step2, sem ativar CAMAPv3 ou
+a adaptação Videoteca parcial. O escopo core reconhece **somente** os três
+caminhos já selecionados pelo stage-release para o parser:
+`libraries/vendor/parse-xml/parse-xml.js`, `libraries/vendor/parse-xml/LICENSE`
+e `libraries/vendor/parse-xml/notices.txt`. Não libera o diretório vendor, aliases,
+arquivos extras, TinyMCE/SPMIDDLE nem as assinaturas dentro desses três arquivos.
+Regressões verificam conteúdo candidato em notices e rejeitam vendors vizinhos.
+
+Execução focal da suíte passou com inputs adversariais e um core real local de
+**147 arquivos**, todos os hashes declarados conferidos. O teste compara
+inventário exato da saída/manifesto, exige roots e os três arquivos parser e
+mantém as aprovações false. A contagem antiga MAIN de 146 (incluindo CAMAPv3) não
+é imposta ao grafo step2; fechamento de imports/assets segue o gate stage-release.
+Duas verificações de junction passaram; três criações de symlink de arquivo
+foram indisponíveis por permissão e são reportadas, não simuladas como passes.
+
+O contributor focal também passou na seleção de **391 arquivos**, incluindo os
+18 caminhos frozen: hashes/inventário completos e candidatos mantidos, sem
+exemptar fixtures/regras/vendor nem aprovar distribuição. Runner focal de
+negativos passou com 14 integrações explícitas, mas runner standalone completo
+e workflow `--commands` não foram executados nesta consolidação. Também não é
+aprovação de candidatos, direitos ou divulgação. A mensagem sobre Git agora
+explicita que esta ferramenta **não lê o índice/histórico nem estabelece seu
+conteúdo atual**. Os números e resultados de 04/11 seguintes são históricos;
+não foram reescritos, nem houve leitura/alteração do snapshot MAIN ou publicação.
+
+## Histórico — estado reconciliado de 04/11/2026
 
 Esta atualização é documental, a partir do agregado local e do coordenador;
 não executou o auditor novamente nem leu fontes em alteração. Os resultados
@@ -67,7 +95,7 @@ não investigado, sem declaração de indisponibilidade ou aceite. Ver
 [contrato público 6.6](CONTRACTS-MINIJOOMLA.md#66-público-neutro-cassiopeia--0211).
 Publicação no host e auditoria da distribuição são evidências distintas.
 
-### Resultado técnico atual — core local 0.3.1
+### Resultado técnico histórico — core local 0.3.1
 
 Continuidade local de atribuições legadas acrescentou um módulo próprio ao
 grafo administrativo: **50 arquivos / 496.268 bytes**, todos os hashes do novo
@@ -129,8 +157,10 @@ O módulo exporta `auditDistribution({ manifest })`. A suíte exporta
 
 ## Integridade e contenção
 
-- Aceita apenas `target: core`, `algorithm: sha256`, versão numérica `X.Y.Z`
-  e lista não vazia de entradas `{ path, bytes, sha256 }`. Campos adicionais
+- Aceita `target: core`, `algorithm: sha256`, versão numérica `X.Y.Z`
+  e lista não vazia de entradas `{ path, bytes, sha256 }`; ou `contributor-local`
+  schema 1 com seleção exata e flags de aprovação false. Para contributor,
+  confere também inventário completo sem arquivos/diretórios extras. Campos adicionais
   no manifest/entradas são recusados, não um canal para metadados privados.
 - Valida **todos os nomes** antes de abrir arquivos: caminhos relativos
   portáveis, sem traversal, backslash, percent encoding, drive/ADS, aliases
@@ -149,7 +179,7 @@ O módulo exporta `auditDistribution({ manifest })`. A suíte exporta
 
 São verificações locais proporcionais ao staging, não uma sandbox contra
 processos adversários alterando simultaneamente o filesystem. Use um staging
-estável. Arquivos **não declarados** e diretórios inteiros não são percorridos;
+estável. No target core, arquivos **não declarados** e diretórios inteiros não são percorridos;
 o resultado não certifica a pasta `tmp` nem um ZIP que inclua arquivos extras.
 Não executar o auditor sobre uma release ainda sendo gravada.
 

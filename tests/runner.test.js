@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { TEST_SUITES, runTestSuites } from './run-tests.js';
+import { CONTRIBUTOR_FILES } from '../scripts/stage-contributor.js';
+import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
 const OPTIONAL_FILES = [
   'admin-joomla-forms.test.js', 'admin-integrity.test.js', 'admin-extensions-service.test.js',
   'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
-  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js'
+  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js',
+  'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js'
 ];
 
 function put(path, content) {
@@ -21,18 +24,53 @@ function put(path, content) {
 function runIsolated(project, files) {
   // Exercise the real suite manifest and sources; exclude only this regression
   // suite to prevent recursively copying/running another standalone fixture.
-  return spawnSync(process.execPath, ['--input-type=module', '-e', `
+  const label = files ? 'negative regression' : 'complete standalone';
+  const timeout = files ? 60000 : 600000;
+  console.log(`checkpoint - runner ${label} child started; budget ${timeout / 1000}s`);
+  const start = performance.now();
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
     import { TEST_SUITES, runTestSuites } from './tests/run-tests.js';
     const selected = ${JSON.stringify(files ?? null)};
-    runTestSuites({ suites: TEST_SUITES.filter(suite => suite.file !== 'runner.test.js' && (!selected || selected.includes(suite.file))) })
+    let previous = performance.now();
+    const report = message => {
+      console.log(message);
+      const file = /^(?:ok - suite |not ok - suite |SKIP - )([^ :]+)/.exec(message)?.[1];
+      if (file && TEST_SUITES.some(suite => suite.file === file)) {
+        const now = performance.now();
+        console.log('checkpoint - child suite ' + file + ' elapsed_ms ' + Math.round(now - previous));
+        previous = now;
+      }
+    };
+    runTestSuites({ suites: TEST_SUITES.filter(suite => suite.file !== 'runner.test.js' && (!selected || selected.includes(suite.file))), report })
       .catch(error => { console.error(error); process.exitCode = 1; });
-  `], { cwd: project, encoding: 'utf8', timeout: 600000, maxBuffer: 8 * 1024 * 1024 });
+  `], { cwd: project, encoding: 'utf8', timeout, maxBuffer: 8 * 1024 * 1024 });
+  console.log(`checkpoint - runner ${label} child finished: ${Math.round(performance.now() - start)}ms; status ${result.status}; error ${result.error?.code ?? 'none'}`);
+  const checkpoints = (result.stdout ?? '').split(/\r?\n/).filter(line => /^checkpoint - child suite [a-z0-9.-]+ elapsed_ms \d+$/.test(line));
+  // Never print raw stderr/fixture values for timeout diagnostics.
+  const detail = result.error ? checkpoints.slice(-10) : checkpoints.filter(line => Number(line.split(' ').at(-1)) >= 2000);
+  for (const checkpoint of detail) console.log(checkpoint);
+  return result;
 }
 
-export async function runRunnerTests() {
+// Default coverage includes the entire standalone checkout. Focal negatives
+// can be run while core integration is underway without claiming a full pass.
+export async function runRunnerTests({ completeStandalone = true } = {}) {
   assert.deepEqual(TEST_SUITES.filter((suite) => suite.requiresSPMiddle).map((suite) => suite.file).sort(), [...OPTIONAL_FILES].sort());
   assert.equal(new Set(TEST_SUITES.map((suite) => suite.file)).size, TEST_SUITES.length);
-  for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js']) {
+  // These DOM helpers are exercised by registered suites/browser fixtures, not
+  // independent Node suites. Everything else must be registered explicitly.
+  const helpers = ['admin-errors-dom.test.js', 'admin-layout-dom.test.js', 'admin-management-dom.test.js', 'final-acceptance-dom.test.js'];
+  const suspended = ['videoteca-adaptation.test.js'];
+  const discovered = readdirSync(join(PROJECT, 'tests')).filter(file => file.endsWith('.test.js'));
+  assert.deepEqual(discovered.filter(file => !TEST_SUITES.some(suite => suite.file === file)).sort(), [...helpers, ...suspended.filter(file => discovered.includes(file))].sort(), 'No unregistered test suites except explicit helper/suspended fixtures');
+  for (const suite of TEST_SUITES) {
+    assert.ok(existsSync(join(PROJECT, 'tests', suite.file)), `Declared suite must exist: ${suite.file}`);
+    assert.match(readFileSync(join(PROJECT, 'tests', suite.file), 'utf8'), new RegExp(`export (?:(?:async )?function ${suite.entryPoint}\\b|\\{\\s*${suite.entryPoint}\\s*\\} from )`), `Declared entry point must be exported: ${suite.file}`);
+  }
+  for (const file of ['scripts/prepare-videoteca-adaptation.js', 'tests/videoteca-adaptation.test.js']) assert.ok(!CONTRIBUTOR_FILES.includes(file), 'Suspended Videoteca must not enter standalone/contributor selection');
+  assert.ok(!TEST_SUITES.some(suite => /camap-v3|camapv3|videoteca/.test(suite.file)), 'Suspended suites must not execute');
+  assert.ok(!CONTRIBUTOR_FILES.some(file => /camap-v3|camapv3/.test(file)), 'Suspended CAMAPv3 sources must not enter contributor selection');
+  for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js', 'query-options-main-regression.test.js', 'extension-migration-plan.test.js', 'tooling-validation.test.js']) {
     assert.equal(TEST_SUITES.find((suite) => suite.file === file).requiresSPMiddle, false);
   }
 
@@ -42,38 +80,23 @@ export async function runRunnerTests() {
   try {
     const project = join(base, 'standalone', 'MINIJOOMLA');
     mkdirSync(project, { recursive: true });
-    for (const directory of ['src', 'tests', 'examples']) cpSync(join(PROJECT, directory), join(project, directory), { recursive: true });
-    cpSync(join(PROJECT, 'package.json'), join(project, 'package.json'));
-    mkdirSync(join(project, 'scripts'), { recursive: true });
-    cpSync(join(PROJECT, 'scripts', 'module-manifests.js'), join(project, 'scripts', 'module-manifests.js'));
-    cpSync(join(PROJECT, 'scripts', 'generate-joomla-sampledata.js'), join(project, 'scripts', 'generate-joomla-sampledata.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-module-adoption.js'), join(project, 'scripts', 'prepare-module-adoption.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-editorial-adaptation.js'), join(project, 'scripts', 'prepare-editorial-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-highlights-adaptation.js'), join(project, 'scripts', 'prepare-highlights-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-topsections-adaptation.js'), join(project, 'scripts', 'prepare-topsections-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-xml-module-group.js'), join(project, 'scripts', 'prepare-xml-module-group.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-hero-adaptation.js'), join(project, 'scripts', 'prepare-hero-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-home-adaptation.js'), join(project, 'scripts', 'prepare-home-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-recursos-adaptation.js'), join(project, 'scripts', 'prepare-recursos-adaptation.js'));
-    cpSync(join(PROJECT, 'scripts', 'prepare-showcase-adaptation.js'), join(project, 'scripts', 'prepare-showcase-adaptation.js'));
-    mkdirSync(join(project, 'docs'), { recursive: true });
-    cpSync(join(PROJECT, 'docs', 'EXTENSOES-JOOMLA.md'), join(project, 'docs', 'EXTENSOES-JOOMLA.md'));
-    cpSync(join(PROJECT, 'docs', 'ETAPA-1-SAMPLE-DATA.md'), join(project, 'docs', 'ETAPA-1-SAMPLE-DATA.md'));
-    for (const file of ['.gitignore', '.gitattributes', 'scripts/check-syntax.js', 'scripts/stage-contributor.js', 'scripts/release-check.js', 'scripts/serve-local.js', 'scripts/test-standalone-examples.js', 'scripts/stage-release.js', 'scripts/audit-distribution.js', 'scripts/test-admin-layout.js', 'README.md', 'LICENSE.md', 'docs/ADMIN-LAYOUT-TESTS.md', 'docs/CONTRIBUTING.md', 'docs/CONTRIBUTOR-SELECTION.md', 'docs/SECURITY.md', 'docs/RELEASE-CORE.md', 'docs/LOCAL-DEMO.md', 'docs/THIRD-PARTY-NOTICES.md', 'docs/licenses/GPL-2.0.txt']) {
-      mkdirSync(dirname(join(project, file)), { recursive: true });
-      cpSync(join(PROJECT, file), join(project, file));
-    }
+    // The same reviewed exact paths as contributor staging: no recursive source
+    // discovery, suspended fixtures, tmp, siblings or omissions of script deps.
+    for (const file of CONTRIBUTOR_FILES) copyTestTree(join(PROJECT, file), join(project, file));
+    for (const suite of TEST_SUITES) assert.ok(CONTRIBUTOR_FILES.includes(`tests/${suite.file}`), `Standalone selection must include ${suite.file}`);
     const coreCount = TEST_SUITES.length - OPTIONAL_FILES.length - 1;
-    const absent = runIsolated(project);
-    assert.ifError(absent.error);
-    assert.equal(absent.status, 0, absent.stdout + absent.stderr);
-    assert.equal((absent.stdout.match(/^SKIP - /gm) ?? []).length, OPTIONAL_FILES.length);
-    assert.ok(absent.stdout.includes(`Suites: ${coreCount} passed, ${OPTIONAL_FILES.length} skipped, 0 failed`), absent.stdout);
-    for (const file of OPTIONAL_FILES) assert.ok(absent.stdout.includes(`SKIP - ${file}:`));
-    assert.ok(absent.stdout.includes('ok - suite spmiddle-adapter.test.js (core/local)'));
-    assert.ok(absent.stdout.includes('ok - suite spmiddle-error-translation.test.js (core/local)'));
-    assert.ok(absent.stdout.includes('ok - suite standalone-examples.test.js (core/local)'));
-    console.log(`ok - actual standalone checkout: ${coreCount} core/local suites pass (including actual examples); ${OPTIONAL_FILES.length} visible integration skips`);
+    if (completeStandalone) {
+      const absent = runIsolated(project);
+      assert.ifError(absent.error);
+      assert.equal(absent.status, 0, absent.stdout + absent.stderr);
+      assert.equal((absent.stdout.match(/^SKIP - /gm) ?? []).length, OPTIONAL_FILES.length);
+      assert.ok(absent.stdout.includes(`Suites: ${coreCount} passed, ${OPTIONAL_FILES.length} skipped, 0 failed`), absent.stdout);
+      for (const file of OPTIONAL_FILES) assert.ok(absent.stdout.includes(`SKIP - ${file}:`));
+      assert.ok(absent.stdout.includes('ok - suite spmiddle-adapter.test.js (core/local)'));
+      assert.ok(absent.stdout.includes('ok - suite spmiddle-error-translation.test.js (core/local)'));
+      assert.ok(absent.stdout.includes('ok - suite standalone-examples.test.js (core/local)'));
+      console.log(`ok - actual standalone checkout: ${coreCount} core/local suites pass (including actual examples); ${OPTIONAL_FILES.length} visible integration skips`);
+    }
 
     // Break a core import only in our copy and check the real process exit.
     put(join(project, 'tests', 'core.test.js'), "import './missing-core.js'; export function runTests() {}");
@@ -99,7 +122,7 @@ export async function runRunnerTests() {
     console.log('ok - missing actual example entry fails the core/local suite and process despite optional integration skips');
 
     // An empty sibling is deliberately broken, not a middleware implementation.
-    // All nine real integration imports must fail, rather than be skipped.
+    // All real integration imports must fail, rather than be skipped.
     mkdirSync(join(base, 'standalone', 'SPMIDDLE'));
     const partial = runIsolated(project, ['spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(partial.error);
@@ -152,6 +175,6 @@ export async function runRunnerTests() {
     console.log('ok - runner never hides core imports, missing exports, or installed-integration failures; later suites still run');
   } finally {
     // Only this invocation's uniquely named temporary fixture is removed.
-    rmSync(base, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
+    removeTestDirectory(base);
   }
 }

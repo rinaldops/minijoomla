@@ -41,8 +41,12 @@ export function manifestBytes(input) {
   throw new ValidationError('Conteudo do manifesto invalido.');
 }
 
-function param(field) {
+function param(field, { strictMetadata = false } = {}) {
   const a = field.attributes;
+  if (strictMetadata && (typeof a.name !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(a.name)
+    || (a.label !== undefined && a.label.length > 200) || (a.description !== undefined && a.description.length > 500))) {
+    throw new ValidationError('XML: metadados de parametro requerem correcao explicita, sem normalizacao ou truncamento.');
+  }
   if (!a.name || BAD_NAMES.has(a.name)) throw new ValidationError('XML: nome de parametro invalido ou reservado.');
   const runtimeType = runtimeAttribute(field, 'type');
   const type = runtimeType ?? ({ list: 'select', radio: 'select' }[a.type] ?? a.type ?? 'text');
@@ -66,7 +70,7 @@ function param(field) {
 }
 
 /** Parse metadata only: neither XML references nor JavaScript are executed. */
-export function parseJoomlaManifest(input, { baseUrl, manifestPath } = {}) {
+export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetadata = false } = {}) {
   const bytes = manifestBytes(input);
   if (bytes.byteLength > MAX_MANIFEST_BYTES) throw new ValidationError('XML excede 64 KiB.');
   let text, doc;
@@ -124,7 +128,7 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath } = {}) {
   const definitions = fields.flatMap((group) => {
     if ((group.children ?? []).some((node) => node.type === 'element' && !['field', 'fieldset'].includes(node.name))) throw unsupported('Parametros XML aninhados nao sao suportados.');
     for (const set of children(group, 'fieldset')) if ((set.children ?? []).some((node) => node.type === 'element' && node.name !== 'field')) throw unsupported('Fieldsets XML aninhados nao sao suportados.');
-    return [...children(group, 'field'), ...children(group, 'fieldset').flatMap((set) => children(set, 'field'))].map(param);
+    return [...children(group, 'field'), ...children(group, 'fieldset').flatMap((set) => children(set, 'field'))].map(field => param(field, { strictMetadata }));
   });
   const params = normalizeParamDefinitions(definitions);
   const key = extensionKey(runtimeAttribute(root, 'key') ?? element);

@@ -1,5 +1,11 @@
 # Administração de extensões, módulos e templates
 
+> **Consolidação atual:** integração das branches preserva contratos nativos,
+> Sample Data e contribuições locais de plugins administrativos. A fila vigente
+> está no [plano de continuidade](PLANO-CONTINUIDADE-MINIJOOMLA.md), com expansão
+> Videoteca/Forum suspensa. Organização/controllers e perfis XML novos ainda
+> dependem dos gates próprios; testes locais não são save/lifecycle no tenant.
+
 ## Estado da integração — 03/11/2026 (atualizado nesta sessão)
 
 Além do núcleo descrito abaixo, a frente local acrescentou `#/plugins`,

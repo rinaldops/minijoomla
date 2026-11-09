@@ -316,8 +316,11 @@ function renderNotFoundPage(link) {
  * Omitido, os campos `data-admin-richtext` continuam só `<textarea>`
  * sem editor rico — nunca lança, nunca bloqueia a tela.
  */
-export function createAdminApplication({ adminService, discoveryService, mediaService, sampleDataService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
+export function createAdminApplication({ adminService, discoveryService, mediaService, pluginRuntime, sampleDataService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
   let latestNavigation = 0;
+  let stopped = false;
+  let started = false;
+  let starting;
   let activeRichTextEditors = [];
   let pendingRichTextElementIds = [];
   let editorMounts = Promise.resolve();
@@ -737,13 +740,26 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
   }
 
   const router = new Router({ base: basePath, onNavigate: async (location) => {
+    if (stopped) return;
     const navigationId = ++latestNavigation;
+    pluginRuntime?.cancelPending?.();
+    let pluginError = false;
+    if (pluginRuntime) {
+      try {
+        await pluginRuntime.start();
+        if (navigationId !== latestNavigation || stopped) return;
+        await pluginRuntime.refresh({ isCurrent: () => navigationId === latestNavigation && !stopped });
+      } catch { pluginError = true; }
+    }
+    if (navigationId !== latestNavigation || stopped) return;
     const { html, etag, management, bind, record } = await renderRoute(location, navigationId);
     await editorMounts;
     if (navigationId !== latestNavigation) return;
     if (!documentRef) return;
     cleanupRichTextEditors();
-    documentRef.body.innerHTML = html;
+    // Keep plugin/configuration screens available to repair the catalog. Saves
+    // still recheck it and fail closed, rather than running without plugins.
+    documentRef.body.innerHTML = (pluginError ? '<p role="alert">Plugins administrativos indisponíveis. Recarregue antes de salvar.</p>' : '') + html;
     bindSidebarToggle();
     bindSidebarGroups();
     bindTabHandlers();
@@ -757,7 +773,20 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     else if (location.path === '/config') bindFormHandlers('config', undefined, etag, navigationId, record);
   }});
 
-  const application = { router, start: () => router.start([{ name: 'admin', pattern: /^.*$/, keys: [] }]), stop: () => { latestNavigation += 1; router.stop(); cleanupRichTextEditors(); } };
+  const application = { router, start: () => {
+    if (started) return starting;
+    started = true;
+    stopped = false;
+    starting = router.start([{ name: 'admin', pattern: /^.*$/, keys: [] }]);
+    return starting;
+  }, stop: () => {
+    started = false;
+    stopped = true;
+    latestNavigation += 1;
+    router.stop();
+    cleanupRichTextEditors();
+    return pluginRuntime?.stop?.();
+  } };
   if (autoStart) application.start();
   return application;
 }

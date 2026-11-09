@@ -90,8 +90,10 @@ async function mountAdmin(root) {
     lists: CONFIG.lists,
     sampleDataPackageLoader, sampleDataJournalStore
   });
-  createAdminApplication({
+  const application = createAdminApplication({
     adminService: app.admin,
+    pluginRuntime: app.adminPlugins,
+    autoStart: false,
     discoveryService: app.discovery,
     mediaService: app.media,
     sampleDataService: app.sampleData,
@@ -103,6 +105,7 @@ async function mountAdmin(root) {
       ...options
     })
   });
+  await application.start();
 }
 
 const root = await waitForRoot();

@@ -11,6 +11,13 @@ const MAX_FILES = 2000;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_FINDINGS = 100;
+// Match stage-release's exact parser selection, not the vendor directory.
+// This only defines core scope; every byte still passes the candidate scan.
+const CORE_VENDOR_FILES = new Set([
+  'libraries/vendor/parse-xml/parse-xml.js',
+  'libraries/vendor/parse-xml/LICENSE',
+  'libraries/vendor/parse-xml/notices.txt'
+]);
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 // Signatures produce candidates, not a conclusion about authenticity. Even
@@ -70,6 +77,7 @@ function validName(name) {
 }
 
 function coreName(name) {
+  if (CORE_VENDOR_FILES.has(name)) return true;
   if (['index.js', 'loader.js', 'entrypoints.json', 'LICENSE.md', 'docs/licenses/GPL-2.0.txt', 'docs/THIRD-PARTY-NOTICES.md'].includes(name)) return true;
   return /^(?:libraries\/minijoomla\/|modules\/|plugins\/content\/|components\/|layouts\/joomla\/|templates\/|media\/templates\/|administrator\/)/i.test(name) &&
     !/^libraries\/minijoomla\/(?:composition\/|infrastructure\/(?:spmiddle|sharepoint)[^/]*)/i.test(name) &&
@@ -188,7 +196,7 @@ function auditManifest({ manifest } = {}) {
     scope: { files: 'manifest-only', unlistedFiles: contributor ? 'complete-inventory-verified-no-extras' : 'not-audited', gitIndex: 'not-read', gitHistory: 'not-read', network: 'not-used' },
     pending: [
       'Manual review of authenticity, privacy, rights and provenance remains required, including when candidates are zero.',
-      'Tracked tmp artifacts and aggregator Git history require a separate authorized review; ignoring tmp does not remove tracked data or history.',
+      'Git indexes and histories, including any tracked temporary artifacts, require a separate authorized review; this audit does not read Git or establish their current contents.',
       contributor ? 'TinyMCE bytes/notices are included unchanged; provenance, complete licenses and corresponding source/build materials remain unresolved. No upstream source was downloaded.' : 'TinyMCE is excluded from core; distributions including it still require verified provenance and complete corresponding source/build materials. No upstream source was downloaded.',
       'SPMIDDLE is excluded from core; distributions copying it still require its copyright and complete MIT license. No sibling project was read.',
       'Signatures are conservative and incomplete; encoded/packed data, arbitrary personal data and unknown corporate domains are not certified. Opaque files require manual review.'

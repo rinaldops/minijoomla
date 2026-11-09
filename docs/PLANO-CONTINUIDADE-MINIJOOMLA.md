@@ -1,5 +1,80 @@
 # Plano de continuidade — MINIJOOMLA
 
+## Prioridade vigente — finalizar somente o Joomla padrão
+
+Diretriz posterior do usuário: **Videoteca e Forum não devem ser desenvolvidos
+neste momento; foco somente nos itens padrões do Joomla original.** Esta diretriz
+prevalece sobre a fila de expansão externa abaixo. Interrompida a frente de
+Videoteca; todo trabalho local parcial é preservado sem integração, publicação
+ou instalação. Não iniciar Forum, novos ciclos externos ou grupo de adoção
+como pré-condição do fechamento nativo. Os ensaios externos anteriores ficam
+históricos; não remover nem desabilitar módulos já instalados por inferência.
+
+Objetivo: fechar o CMS minimalista Joomla-like acordado, com Atum/Cassiopeia,
+preservação editorial/ETags/JSON e ciclo Desenvolvimento → Teste no site →
+Análise → Validação → Documentação. Não significa implementar o Joomla PHP
+integral nem acrescentar implicitamente ACL/com_users, SQL, ZIP genérico,
+workflow, contatos/banners/feeds ou índice Finder completo. As exclusões
+anteriores (i18n, SEO integrado ao host, histórico e check-in/check-out de
+artigos) permanecem, até decisão explícita diferente.
+
+### Seis blocos para o fechamento nativo
+
+**Gate anterior aos novos blocos:** avaliar/consolidar agora as branches e o
+trabalho local, preservando contribuições da principal e artefatos das worktrees.
+[Avaliação da integração](AVALIACAO-INTEGRACAO-WORKTREES.md): histórico linear
+permite fast-forward, mas deltas locais/finais de linha/dependências precisam
+ser tratados antes. Nenhum merge ou exclusão foi autorizado/executado só pela
+solicitação de avaliação. A decisão de execução deve preceder o bloco 1.
+
+1. **Organização e contratos nativos:** concluir controllers/bindings por
+   componente e manifestos nativos ainda faltantes; verificar/concluir conexão
+   de plugins administrativos persistidos no host ativo. Views, módulos e hooks
+   já existentes não são tratados como recursos ausentes. Trabalho antigo da
+   principal não é implementação validada desta branch.
+2. **XML de plugins:** parser/descoberta/inventário e lifecycle de identidade,
+   grupo/client/eventos, registro desabilitado, revisão e reversão seguros.
+3. **XML de templates:** perfil próprio, posições/params/assets, estilos/default
+   e revisão/reversão, sem trocar default ao descobrir/registrar.
+4. **Migrações assistidas necessárias:** prévia, mapeamentos explícitos,
+   confirmação, executor/diário/recuperação e ETags. A antiga prévia em outra
+   árvore não é authoritative; esta application não contém seu executor/UI.
+5. **Aceite real do núcleo:** save/upload editorial com TinyMCE, CRUD de plugins
+   e estilos, Sample Data em destino vazio/recuperação interrompida sem reinstalar
+   o atual, e aceites de teclado/zoom/contraste/mídia/leitor aplicáveis.
+6. **Integração e entrega:** integrar somente mudanças verificadas das branches,
+   preservar trabalho alheio da principal, release nativa imutável, releitura e
+   rollback/documentação final. Privacidade/proveniência/terceiros e distribuição
+   pública permanecem gates separados, não satisfeitos pelos testes funcionais.
+
+O núcleo operacional já cobre conteúdo, categorias/tags, menus, módulos,
+estilos/configuração, plugins nativos, editor/imagens/agendas, dados de exemplo
+e persistência. Regressão observada: 94 suítes aprovadas e 275 JS verificados,
+incluindo suítes de ferramentas externas; isso não mede porcentagem de paridade
+com todo Joomla nem comprova todos os aceites reais pendentes. Os seis blocos
+são fila de fechamento, não seis comandos nem prazo estimado. Próxima execução:
+auditar/concluir bloco 1 antes dos perfis XML, sem trabalho novo de Videoteca/Forum.
+
+## Histórico da expansão e ciclos anteriores
+
+> **Retomada de Documentation:** seis edições de artigo foram confirmadas pelo
+> usuário como referência de preservação; 48/48 registros, canvas e estado das
+> páginas conferidos contra essa referência. Pública permanece em rascunho,
+> administrador publicado, sem rollback/publicação automática. Vínculo upstream
+> da licença e mapa de derivação foram materializados no novo perfil 0.5.x;
+> gate técnico específico SOURCE/NOTICE aprovado em revisão independente.
+> 0.4.x permaneceu local por mapa incompleto. Ensaio de 0.5.x em pastas de prova
+> no site validado após correções/retestes do runner; falhas históricas preservadas.
+> Público/admin, teclado, navegação e formulário em memória passaram; cleanup e
+> 48/48 registros/ETags/configuração/oito raízes conferidos. Sem adoção ou raiz
+> persistida; não é aprovação jurídica/global ou acessibilidade integral.
+> Próximo desenvolvimento individual: Videoteca. Regressão 94/94; código local
+> desta retomada ainda sem novo commit/push.
+> **Videoteca iniciada localmente**, após fechar Documentation: 16 campos,
+> URLs/mídia/dados inertes e apresentação estática honesta em desenvolvimento.
+> [Ciclo individual](CICLO-VIDEOTECA-ISOLADO.md). Nenhum asset Videoteca enviado,
+> registro/raiz configurado ou módulo instalado por essa preparação.
+
 > **Documentation — gate local / bloqueio upstream (09/11/2026):** preparação
 > técnica com 24 campos, árvores/ciclos/URLs seguros e reflow profundo validada;
 > publicação, pacote final no site e adoção ainda não liberados. Atribuições e

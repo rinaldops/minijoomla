@@ -1,13 +1,18 @@
 # MINIJOOMLA
 
-> **Documentation — preparação local validada, publicação bloqueada:** 24 campos,
-> URLs/dados/árvores e reflow até vinte níveis testados localmente. Ainda faltam
-> atribuições/licença/fonte upstream Phoca/Joomla e o aceite dos pacotes finais
-> no site. **Não instalado nem enviado**; 0.15.0/Cassiopeia/três estilos/oito raízes/
-> 48 itens fora do escopo de escrita. [Gate e retomada](docs/CICLO-DOCUMENTATION-ISOLADO.md).
-> Última leitura: uma edição de artigo e página pública em rascunho; preservadas
-> sem rollback/publicação automática. Checkpoint documental para commit/push;
-> código/fixtures e integração permanecem locais até resolver o gate upstream.
+> **Prioridade atual: finalizar o Joomla padrão.** Videoteca e Forum suspensos;
+> expansão externa não é pré-condição do fechamento nativo. Trabalho parcial
+> preservado sem instalar/publicar. [Fila de fechamento](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
+> **Documentation — ensaio isolado 0.5.x validado:** atribuições, vínculo GPL upstream,
+> mapa de derivação e fontes/rebuild offline passaram no gate técnico específico.
+> Testes público/admin, teclado, navegação e formulário em memória passaram;
+> não é aprovação jurídica/global ou acessibilidade integral. Expansão externa suspensa.
+> **Não instalado**; 0.15.0/Cassiopeia/três estilos/oito raízes/48 itens fora do
+> escopo de escrita. [Ciclo e retomada](docs/CICLO-DOCUMENTATION-ISOLADO.md).
+> Seis edições de artigo confirmadas como referência de preservação; página
+> pública continua em rascunho, sem rollback/publicação automática. Código e
+> integração desta retomada ainda locais, sem novo commit/push.
 
 > **Showcase — ensaio isolado validado:** 0.5.x retestada nos cinco modos, público/
 > admin, após correções de texto e sequência de teclado. Sphere usa a lista estática

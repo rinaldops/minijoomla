@@ -1,9 +1,17 @@
 # Matriz de adoção dos dez módulos CAMAP
 
-> **Documentation — evolução local (09/11/2026):** 24 campos e adaptação segura/
-> reflow profundo passaram localmente, mas o gate Phoca/Joomla upstream permanece
-> aberto. Não enviado ao site ou adotado. [Evidências e bloqueio](CICLO-DOCUMENTATION-ISOLADO.md).
-> As contraprovas CSS não são o aceite final de pacote; sete módulos pendentes.
+> **Expansão suspensa por steering posterior:** Videoteca e Forum não devem ser
+> desenvolvidos neste momento. Foco somente no fechamento nativo Joomla-like;
+> os módulos externos pendentes não bloqueiam essa fila. Preservar ensaios e
+> módulos já instalados, sem remover/desabilitar por inferência. Plano vigente
+> em [continuidade](PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
+> **Documentation — retomada (09/11/2026):** 24 campos preservados; fontes/notices,
+> vínculo GPL e mapa de derivação materializados em 0.5.x após reprovação do mapa
+> 0.4.x. Gate técnico específico e ensaio isolado no site passaram após retestes,
+> sem adoção ou raiz persistida. [Ciclo e limites](CICLO-DOCUMENTATION-ISOLADO.md).
+> Não é aprovação jurídica/global nem acessibilidade integral; sete módulos pendentes.
+> A antiga fila Videoteca está suspensa; as duas aprovações restantes não são consumidas.
 
 > **Showcase — atualização (09/11/2026):** 0.5.x passou no ensaio isolado público/
 > admin, incluindo cinco modos, imagens e teclado contínuo. Sphere é a lista estática

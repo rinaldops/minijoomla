@@ -1,5 +1,11 @@
 # Preparação da distribuição open source
 
+> **Consolidação em andamento:** branches, código e evidências privadas são
+> preservados antes da retirada de worktrees. Zero tmp rastreado, testes verdes
+> e integração funcional não aprovam privacidade, origem/build/licenças de todos
+> os terceiros ou divulgação pública. Ver a
+> [avaliação da integração](AVALIACAO-INTEGRACAO-WORKTREES.md).
+
 ## Objetivo confirmado — 03/11/2026
 
 MINIJOOMLA é um projeto independente inspirado no Joomla, destinado a um

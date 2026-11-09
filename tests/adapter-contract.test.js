@@ -20,6 +20,43 @@ function assertPageShape(result, label) {
   assert.equal(typeof result.pages, 'number', `${label}.pages deve ser number.`);
 }
 
+export const SEARCH_ARTICLES = [
+  { id: 1, alias: 'phrase', title: 'Energia ação', introtext: '', fulltext: '', tags: [] },
+  { id: 2, alias: 'split', title: 'AÇÃO', introtext: 'outra', fulltext: 'energia', tags: [] },
+  { id: 3, alias: 'single', title: 'Energia', introtext: '', fulltext: '', tags: [] },
+  { id: 4, alias: 'tagged', title: 'Tema', introtext: '', fulltext: '', tags: ['ação', 'energia'] },
+  { id: 5, alias: 'literal', title: 'C++ [solar].*', introtext: '', fulltext: '', tags: [] },
+  { id: 6, alias: 'other', title: 'Outra notícia', introtext: '', fulltext: '', tags: [] },
+  { id: 7, alias: 'hidden', title: 'Energia ação', introtext: '', fulltext: '', tags: [], published: false }
+].map((item) => ({ category: 'noticias', published: true, publishUp: '2026-01-01', ...item }));
+
+// Main regression shared by Fake and SPMiddle: canonical Unicode, literal
+// terms in different fields, regex-looking input, totals and pagination.
+export async function runSearchAdapterContract(adapter) {
+  for (const [searchMode, aliases] of [
+    ['exact', ['phrase']], ['all', ['phrase', 'split', 'tagged']], ['any', ['phrase', 'split', 'single', 'tagged']]
+  ]) {
+    const options = Object.freeze({ search: '  ENERGIA\tac\u0327a\u0303o  ', searchMode, sort: 'id', direction: 'asc', pageSize: 2 });
+    const first = await adapter.listArticles(options);
+    assertPageShape(first, searchMode);
+    assert.equal(first.total, aliases.length);
+    assert.equal(first.pages, Math.ceil(aliases.length / 2));
+    const second = await adapter.listArticles({ ...options, page: 2 });
+    assert.deepEqual([...first.items, ...second.items].map((item) => item.alias), aliases);
+    assert.equal(second.total, first.total);
+    assert.equal(second.pages, first.pages);
+    const unavailable = await adapter.listArticles({ ...options, page: 999 });
+    assert.deepEqual(unavailable.items, []);
+    assert.equal(unavailable.total, aliases.length);
+    assert.equal(unavailable.page, 999);
+  }
+  for (const searchMode of ['all', 'any', 'exact', '.*']) {
+    assert.deepEqual((await adapter.listArticles({ search: 'C++ [solar].*', searchMode })).items.map((item) => item.alias), ['literal']);
+    assert.equal((await adapter.listArticles({ search: 'does-not-exist', searchMode })).total, 0);
+  }
+  assert.deepEqual((await adapter.listArticles({ search: 'energia ação' })).items.map((item) => item.alias), ['phrase'], 'omitted adapter mode preserves historical phrase matching');
+}
+
 export async function runContentAdapterContract({ adapter, fixture, report = () => {} } = {}) {
   assert.ok(adapter && typeof adapter === 'object', 'adapter é obrigatório.');
   assert.ok(fixture && typeof fixture === 'object', 'fixture é obrigatório.');
@@ -101,5 +138,7 @@ export async function runAdapterContractTests() {
     },
     report: (name) => console.log(`ok - adapter contract: ${name}`)
   });
+  await runSearchAdapterContract(createFakeAdapter({ articles: SEARCH_ARTICLES }));
   console.log(`adapter contract: ${count} testes aprovados`);
+  console.log('ok - Fake adapter literal Unicode search modes, totals and pagination');
 }

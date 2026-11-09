@@ -4,6 +4,7 @@ import { parseJsonObject } from './declared-params.js';
 const SORT_FIELDS = ['publishUp', 'title', 'alias', 'id', 'author'];
 const ORDERINGS = { 'publishUp-desc': { sort: 'publishUp', direction: 'desc' }, 'publishUp-asc': { sort: 'publishUp', direction: 'asc' }, 'title-asc': { sort: 'title', direction: 'asc' } };
 const QUERY_FIELDS = ['category', 'tag', 'featured', 'year', 'month', 'page', 'search', 'titleContains', 'now'];
+const ordering = (value) => typeof value === 'string' && Object.hasOwn(ORDERINGS, value) ? ORDERINGS[value] : undefined;
 
 // The resolved display defaults (10) are not evidence that a limit was saved.
 // An own componentParamsJson, even undefined, is authoritative provenance.
@@ -18,6 +19,33 @@ export function resolveQueryParams(config = {}) {
     content: Object.freeze({ ...(listLimit === undefined ? {} : { listLimit }), orderBy: typeof orderBy === 'string' && Object.hasOwn(ORDERINGS, orderBy) ? orderBy : 'publishUp-desc' }),
     search: Object.freeze({ ...(resultsLimit === undefined ? {} : { resultsLimit }), searchPhrases: normalizeSearchMode(own(search, 'searchPhrases'), 'all') })
   });
+}
+
+function resolvedOptions(params, config, options, component = 'content', savedLimit = true) {
+  const fallback = ordering(options.orderBy) ?? ORDERINGS[params.content.orderBy];
+  const explicitSort = SORT_FIELDS.includes(options.sort);
+  const sort = explicitSort ? options.sort : fallback.sort;
+  const routeDirection = options.direction ?? options.dir;
+  const direction = ['asc', 'desc'].includes(routeDirection) ? routeDirection
+    : explicitSort ? (sort === 'publishUp' ? 'desc' : 'asc') : fallback.direction;
+  const limit = savedLimit ? params[component]?.[component === 'search' ? 'resultsLimit' : 'listLimit'] : undefined;
+  return {
+    pageSize: normalizePageSize(options.pageSize, limit ?? config.pageSize), sort, direction,
+    ...(component === 'search' ? { searchMode: normalizeSearchMode(options.searchMode ?? options.searchPhrases ?? options.searchphrase, params.search.searchPhrases) } : {})
+  };
+}
+
+// Compatibility with the main query helper: only explicit list/search contexts
+// consume saved limits. The service's existing content defaults remain unchanged.
+export function resolveContentQuery(config = {}, options = {}, context = {}) {
+  const params = resolveQueryParams(config);
+  config = ownEnumerableData(config); options = ownEnumerableData(options); context = ownEnumerableData(context);
+  const result = resolvedOptions(params, config, options, context.search === true ? 'search' : 'content', context.search === true || context.list === true);
+  if (params.content.orderBy === 'publishUp-desc' && !SORT_FIELDS.includes(options.sort)
+    && !['asc', 'desc'].includes(options.direction ?? options.dir) && !ordering(options.orderBy)) {
+    delete result.sort; delete result.direction;
+  }
+  return result;
 }
 
 function normalizePage(result, pageSize) {
@@ -35,16 +63,7 @@ export function createContentService(adapter, config) {
   config = ownEnumerableData(config);
   const queryOptions = (options = {}, component = 'content') => {
     options = ownEnumerableData(options);
-    const fallback = ORDERINGS[params.content.orderBy];
-    const explicitSort = SORT_FIELDS.includes(options.sort);
-    const sort = explicitSort ? options.sort : fallback.sort;
-    const direction = ['asc', 'desc'].includes(options.direction) ? options.direction
-      : explicitSort ? (sort === 'publishUp' ? 'desc' : 'asc') : fallback.direction;
-    return {
-      pageSize: normalizePageSize(options.pageSize, params[component]?.[component === 'search' ? 'resultsLimit' : 'listLimit'] ?? config.pageSize),
-      sort, direction,
-      ...(component === 'search' ? { searchMode: normalizeSearchMode(options.searchMode ?? options.searchPhrases ?? options.searchphrase, params.search.searchPhrases) } : {})
-    };
+    return resolvedOptions(params, config, options, component);
   };
   const listOptions = (options, component = 'content') => {
     options = ownEnumerableData(options);
@@ -52,7 +71,7 @@ export function createContentService(adapter, config) {
     const result = Object.fromEntries(QUERY_FIELDS.filter((key) => Object.hasOwn(options, key)).map((key) => [key, options[key]]));
     Object.assign(result, resolved);
     // Keep the historical omitted default keys, but never forward raw sort/dir.
-    if (!Object.hasOwn(options, 'sort') && !Object.hasOwn(options, 'direction') && params.content.orderBy === 'publishUp-desc') { delete result.sort; delete result.direction; }
+    if (!Object.hasOwn(options, 'sort') && !Object.hasOwn(options, 'direction') && !Object.hasOwn(options, 'dir') && !ordering(options.orderBy) && params.content.orderBy === 'publishUp-desc') { delete result.sort; delete result.direction; }
     if (Object.hasOwn(options, 'page')) result.page = normalizePageNumber(options.page);
     return result;
   };

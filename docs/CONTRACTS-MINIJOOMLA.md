@@ -7,6 +7,51 @@
 
 ## Objetivo
 
+### Consolidação nativa — plugins administrativos e Sample Data
+
+As contribuições locais da principal foram reconciliadas com a branch validada:
+runtime administrativo de plugins e Sample Data coexistem na composição, app
+e host. Managers explicitamente injetados mantêm precedência; o contrato legado
+beforeSave/afterSave é preservado. Managers com `captureSaveOperation` capturam
+as duas fases/params para uma operação, inclusive se a persistência iniciada
+termina depois de refresh/stop. Guardas impedem novas escritas pré-operação em
+tela abandonada, mas não cancelam uma escrita já iniciada.
+
+MERGE 204/null continua preservado; releitura posterior alimenta somente a
+observação, não é snapshot atômico, retry ou transformação retroativa do artigo
+persistido. Falha de observer/releitura não mascara gravação concluída. Grupos,
+JSON desconhecido, ETags e validação existentes permanecem. A migração adicionada
+é **prévia privada sem executor**, e `strictMetadata` XML é opt-in para não
+regredir o perfil legado.
+
+Validação deste incremento foi local/focal; não certifica save/lifecycle de
+plugins no tenant nem instalação de Sample Data com plugins transformadores.
+O site aceito não foi publicado/modificado como efeito da integração Git.
+Fila de fechamento em [continuidade](PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
+O runtime nativo fornece guard síncrono imediatamente antes da persistência,
+cobrindo cancelamento após a conclusão assíncrona do hook. Preparação de catálogo
+e imports obsoletos não bloqueia a navegação atual; commits/lifecycle continuam
+serializados e lifecycle já iniciado não recebe timeout/cancelamento forçado.
+Guards customizados que retornam valor/Promise são inválidos. Rejeições de Promise
+normal são observadas sem `await`, mas Promises com constructor/species adulterado
+e proxies não fazem parte do contrato suportado nem de uma promessa de sandbox.
+
+### Consultas reconciliadas na consolidação
+
+`resolveContentQuery` conserva compatibilidade de chamadas da principal usando
+a resolução protegida atual. Rota explícita válida prevalece sobre valores
+salvos e padrões; aliases `orderBy`/`dir`/`searchPhrases` sobrevivem nos links de
+paginação sem chegar como campos livres ao port. Limite salvo de lista não
+substitui capacidade de blog/home/tags; matching literal NFC/whitespace e metadata
+pública permanecem nos adapters atuais. `componentParamsJson` mantém proveniência
+dos valores efetivamente salvos, sem tratar defaults de formulário como gravação.
+
+Os testes da principal foram preservados em regressão distinta, sem substituir
+os testes/guardas atuais. Integração SPMIDDLE tem entrada explícita e não mascara
+ausência/falha do irmão. Não houve emissão de SEO no host, migração automática
+ou regravação da configuração por essa compatibilidade.
+
 Este documento congela o contrato de leitura que qualquer adapter de
 conteúdo — hoje o `FakeAdapter` (`src/libraries/minijoomla/infrastructure/fake-adapter.js`) e um
 adapter SPMIDDLE com transporte **local** — deve satisfazer para ser

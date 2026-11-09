@@ -1,5 +1,11 @@
 # Extensoes Joomla no MiniJoomla
 
+> **Fila vigente:** finalizar os recursos nativos após consolidar as branches.
+> XML de plugins/templates e migração assistida têm
+> [contratos próprios](CONTRATOS-EVOLUCAO-XML.md); este documento não anuncia seu
+> suporte implementado. Videoteca/Forum e expansão externa suspensos conforme
+> [plano atual](PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
 ## Contrato implementado
 
 O perfil `joomla-xml-v1` descobre modulos JavaScript de site por

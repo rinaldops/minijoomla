@@ -1,5 +1,11 @@
 # Plano de compatibilidade de extensoes com Joomla
 
+> **Prioridade posterior:** somente fechamento Joomla padrão; Videoteca/Forum
+> e expansão externa suspensos. Primeiro consolidar trabalho validado e as
+> contribuições nativas preservadas da principal. XML de plugins/templates e
+> migrações permanecem evolução delimitada, não paridade PHP/ZIP/ACL.
+> [Fila vigente](PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.

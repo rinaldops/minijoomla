@@ -22,7 +22,7 @@
 import { ValidationError } from '../core/contracts.js';
 import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles } from './extension-input.js';
 import { normalizeAssignment, normalizeAssignmentTokens, normalizeDateTime } from './module-assignment.js';
-import { validateTemplateStyles } from './template-styles.js';
+import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
 import { toSiteConfigOverrides } from './site-config-overrides.js';
 import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from './module-catalog.js';
 import { normalizeParamValues, parseJsonObject } from './declared-params.js';
@@ -528,19 +528,47 @@ export function createAdminService(repositories, { pluginManager } = {}) {
   async function saveArticle(input, { partial, id, etag, action }) {
     const normalized = normalizeArticleInput(input, { partial });
     if (!pluginManager) return partial ? articleRepository().update(id, normalized, { etag }) : articleRepository().create(normalized);
-    const value = await pluginManager.beforeSave({ ...normalized }, { id, action });
+    // Optional per-write handle pins handlers/params across async persistence,
+    // refresh and out-of-order completions. Legacy injected managers retain
+    // their beforeSave/afterSave contract without implicit wrapping or imports.
+    const savePlugins = typeof pluginManager.captureSaveOperation === 'function'
+      ? await pluginManager.captureSaveOperation() : pluginManager;
+    if (!savePlugins || typeof savePlugins.beforeSave !== 'function' || typeof savePlugins.afterSave !== 'function') throw new TypeError('Handle de plugins de gravação inválido.');
+    const writeGuard = Object.getOwnPropertyDescriptor(savePlugins, 'assertBeforeWrite');
+    if (writeGuard && (!Object.hasOwn(writeGuard, 'value') || typeof writeGuard.value !== 'function')) throw new TypeError('Guard de gravação deve ser uma função síncrona de dados.');
+    const value = await savePlugins.beforeSave({ ...normalized }, { id, action });
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('onContentBeforeSave deve retornar um objeto de artigo.');
     const transformed = normalizeArticleInput(value, { partial });
-    const saved = partial
-      ? await articleRepository().update(id, transformed, { etag })
-      : await articleRepository().create(transformed);
-    if (saved && typeof saved === 'object') {
-      try {
-        const observed = structuredClone(saved);
-        if (saved.etag !== undefined) Object.defineProperty(observed, 'etag', { value: saved.etag, enumerable: false, configurable: true });
-        await pluginManager.afterSave(observed, { id: saved.id, action });
-      } catch { /* observacional: nunca mascara a gravação concluída */ }
+    const repository = articleRepository();
+    // No await between this optional synchronous operation guard and invoking
+    // persistence. Legacy injected managers without a guard remain supported.
+    if (writeGuard) {
+      const result = writeGuard.value.call(savePlugins);
+      if (result !== undefined) {
+        // Invalid async guards still block the write immediately. Observe a
+        // genuine Promise rejection without awaiting it or invoking thenables.
+        try { Reflect.apply(Promise.prototype.then, result, [undefined, () => {}]); }
+        catch { /* A non-Promise return is rejected by the same contract below. */ }
+        throw new TypeError('Guard de gravação deve ser síncrono e não retornar valor.');
+      }
     }
+    const saved = partial
+      ? await repository.update(id, transformed, { etag })
+      : await repository.create(transformed);
+    try {
+      // SPMIDDLE update may return null after a successful MERGE 204. Read the
+      // persisted record (including its current ETag) ONLY for observation;
+      // never fabricate a full article from a partial patch or reuse old ETag.
+      // This is not an atomic write snapshot: another editor may update the
+      // record before this read. Failure here must not retry/mask the write.
+      const persisted = partial && (saved === null || saved === undefined)
+        ? await articleRepository().findById(id) : saved;
+      if (persisted && typeof persisted === 'object' && !Array.isArray(persisted)) {
+        const observed = structuredClone(persisted);
+        if (persisted.etag !== undefined) Object.defineProperty(observed, 'etag', { value: persisted.etag, enumerable: false, configurable: true });
+        await savePlugins.afterSave(observed, { id: persisted.id, action });
+      }
+    } catch { /* observacional: nunca mascara a gravação concluída */ }
     return saved;
   }
   const articleCrud = {
@@ -791,7 +819,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
         const operationalInput = { ...input };
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) delete operationalInput[field];
         const normalized = normalizeSiteConfigInput(operationalInput);
-        if (normalized.templateKey && !['default', 'cassiopeia', 'camap'].includes(normalized.templateKey)) {
+        if (normalized.templateKey && !BUILTIN_TEMPLATES.includes(normalized.templateKey)) {
           const templates = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
           if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
         }

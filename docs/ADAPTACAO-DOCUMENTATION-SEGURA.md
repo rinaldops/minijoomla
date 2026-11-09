@@ -1,6 +1,12 @@
 # Documentation: adaptação local segura
 
-> **Estado do coordenador:** testes/build/auditoria somente locais; nenhum asset
+> **Nota de retomada:** este documento registra o perfil privado histórico
+> 0.3.x. O ciclo posterior identificou o vínculo GPL upstream e materializou
+> 0.5.x com notices/fontes/mapa explícitos, após reprovar o mapa incompleto de
+> 0.4.x. [Perfil novo](PROVENIENCIA-DOCUMENTATION.md). Os anteriores não mudaram.
+> Testes no site foram retestados; consolidação do aceite final ainda pendente.
+
+> **Estado histórico 0.3.x:** testes/build/auditoria somente locais; nenhum asset
 > Documentation carregado no site. Notices/atribuições/fonte upstream Phoca/Joomla
 > ainda pendentes, e pacote final/navegação/formulário/teclado não aceitos no site.
 > [Ciclo, consulta de worktrees e critérios de retomada](CICLO-DOCUMENTATION-ISOLADO.md).

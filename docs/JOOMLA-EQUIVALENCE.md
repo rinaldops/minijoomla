@@ -1,5 +1,10 @@
 # MINIJOOMLA — inventário e matriz de equivalência Joomla
 
+> **Escopo vigente posterior:** prioridade no fechamento dos recursos padrão
+> Joomla-like já acordados; Videoteca/Forum e expansão externa suspensos.
+> A matriz abaixo conserva fases/históricos e não mede paridade integral.
+> Os seis blocos nativos restantes estão no topo do plano de continuidade.
+
 > Esta matriz registra a fase 1 e mantém suas afirmações históricas. O estado
 > atual, incluindo integração SharePoint anterior e lacunas da expansão local,
 > está no [handoff](HANDOFF-DESENVOLVIMENTO.md) e no

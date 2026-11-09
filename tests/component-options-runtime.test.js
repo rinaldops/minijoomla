@@ -168,13 +168,18 @@ export async function runComponentOptionsRuntimeTests() {
     publishUp: '2026-01-01T00:00:00Z'
   });
   async function searchHtml() {
+    const freshRepositories = createDemoRepositories({ storage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value)
+    } });
+    const saved = await createAdminService(freshRepositories).siteConfig.get();
     const documentRef = { body: { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] } };
     const app = createApplication({
       autoStart: false, documentRef,
-      config: { ...toSiteConfigOverrides(await admin.siteConfig.get()), basePath: '/portal' },
+      config: { ...toSiteConfigOverrides(saved), basePath: '/portal' },
       adapter: createSPMiddleAdapter({
-        articleRepository: repositories.articles, categoryRepository: repositories.categories,
-        tagRepository: repositories.tags, menuRepository: repositories.menu
+        articleRepository: freshRepositories.articles, categoryRepository: freshRepositories.categories,
+        tagRepository: freshRepositories.tags, menuRepository: freshRepositories.menu
       }),
       getModuleInstances: async () => []
     });

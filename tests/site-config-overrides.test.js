@@ -15,6 +15,9 @@ export async function runSiteConfigOverridesTests() {
   assert.equal(empty.templateStyleId, 'default-default');
   assert.ok(Object.hasOwn(empty, 'componentParamsJson'));
   assert.equal(empty.componentParamsJson, undefined);
+  const storedParams = ' { "content": { "listLimit": 10 }, "future": { "keep": true } } ';
+  assert.equal(toSiteConfigOverrides({ componentParamsJson: storedParams }).componentParamsJson, storedParams,
+    'Preserve exact provenance without canonicalizing whitespace or unknown saved configuration');
   assert.equal(empty.componentParams.content.listLimit, 10, 'display defaults remain declared');
   assert.deepEqual(empty.queryParams, { content: { orderBy: 'publishUp-desc' }, search: { searchPhrases: 'all' } }, 'missing persisted limits must not become saved 10');
   const queryJson = '{"content":{"listLimit":10,"orderBy":"title-asc","showTitle":false,"unknown":true},"search":{"resultsLimit":2,"searchPhrases":"any","highlightTerms":false},"custom":{"secret":"not-a-query"}}';

@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
 import { stageRelease } from '../scripts/stage-release.js';
+import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(PROJECT, 'scripts', 'stage-release.js');
@@ -128,7 +129,7 @@ export const styles = new URL('./styles/main.css', import.meta.url);
     // Copy the real sources into a clone-like fixture with no sibling packages.
     // No rename/removal of the shared workspace's actual SPMIDDLE is necessary.
     const cloneSource = join(base, 'standalone', 'src');
-    cpSync(join(PROJECT, 'src'), cloneSource, { recursive: true, dereference: false });
+    copyTestTree(join(PROJECT, 'src'), cloneSource);
     assert.ok(!existsSync(join(base, 'standalone', 'SPMIDDLE')));
     const core = build('real-core', { sourceRoot: cloneSource });
     const repeat = build('real-core-repeat', { sourceRoot: cloneSource });
@@ -172,7 +173,7 @@ export const styles = new URL('./styles/main.css', import.meta.url);
     assert.throws(() => build('site-still-gated', { target: 'site' }), /Raiz de fontes ausente/);
     console.log(`ok - core staging: ${core.manifest.files.length} real files without sibling packages, GPL notices, deterministic hashes, offline loader and strict graph/containment/immutable gates`);
   } finally {
-    rmSync(base, { recursive: true, force: true });
+    removeTestDirectory(base);
   }
 }
 
