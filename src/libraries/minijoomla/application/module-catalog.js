@@ -14,6 +14,7 @@ export const BUILTIN_MODULE_TYPES = Object.freeze([
   { key: 'articles-latest', title: 'Artigos — Mais recentes', description: 'Lista os artigos publicados mais recentes.', params: [limit(5)] },
   { key: 'articles-category', title: 'Artigos — Categoria', description: 'Lista artigos de uma categoria.', params: [limit(5), { name: 'category', type: 'text', label: 'Alias da categoria', default: '' }] },
   { key: 'articles-news', title: 'Artigos — Destaques', description: 'Exibe artigos em destaque.', params: [limit(3)] },
+  { key: 'articles-featured', title: 'Artigos — Destaque com imagem', description: 'Exibe artigos em destaque com imagem e resumo.', params: [limit(3)] },
   { key: 'tags-similar', title: 'Tags — Similares', description: 'Artigos relacionados pelas tags do artigo atual.', params: [limit(5)] },
   { key: 'tags-popular', title: 'Tags — Populares', description: 'Nuvem/lista das tags mais usadas.', params: [] },
   { key: 'articles-archive', title: 'Artigos — Arquivados', description: 'Lista de meses com artigos publicados.', params: [limit(12)] },

@@ -174,6 +174,17 @@ export function createExtensionLoader({ importModule = DEFAULT_IMPORT, onError =
   return Object.freeze({ ensureModuleRegistered, ensurePluginsRegistered, cancelPendingPlugins });
 }
 
+// TEMPLATE_MODULE_POSITIONS lista as posições ESTRUTURAIS compartilhadas por
+// TODOS os templates embutidos (ver tests/site-runtime.test.js, que itera
+// esta lista exigindo que `cassiopeia` e `camap` renderizem cada uma). Um
+// template INSTALADO (manifesto `<key>.manifest.json`, ver
+// docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar posições adicionais fora
+// desta lista; `resolveModuleEntries()` abaixo aceita um parâmetro opcional
+// com as posições do template ATIVO (quando ele é um template instalado,
+// lidas de `positionsJson` da linha do catálogo) e passa a rotear módulos
+// atribuídos a elas sem cair no fallback `sidebar`. Builtins (sem linha de
+// catálogo) continuam cobertos só por TEMPLATE_MODULE_POSITIONS, comportamento
+// inalterado.
 export const TEMPLATE_MODULE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer']);
 const KNOWN_POSITIONS = new Set(['sidebar', 'content', ...TEMPLATE_MODULE_POSITIONS]);
 const HEADER_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
@@ -245,14 +256,26 @@ function chromeAndSettings(settingsJson) {
  * janela de publicação) ou fora da atribuição/escopo da rota/categoria
  * atual são omitidas. `now` (default: momento da chamada) existe só para
  * permitir testes determinísticos da janela de publicação.
+ *
+ * `activeTemplatePositions` (opcional, pivô de empacotamento): quando o
+ * template ativo é um template INSTALADO (não builtin), o call site
+ * (`src/libraries/minijoomla/index.js`) repassa aqui o array de posições
+ * declaradas por ele (`positionsJson` da linha do catálogo) — essas
+ * posições passam a ter sua própria lista em `byPosition` e um módulo
+ * atribuído a uma delas é roteado para lá, em vez de cair em `sidebar`.
+ * Ausência/parâmetro vazio preserva o comportamento atual exatamente como
+ * era (builtins, sem linha de catálogo).
  */
-export function resolveModuleEntries(moduleInstances, scope = {}, now = new Date()) {
+export function resolveModuleEntries(moduleInstances, scope = {}, now = new Date(), activeTemplatePositions = []) {
   const rows = Array.isArray(moduleInstances) ? moduleInstances : [];
+  const extraPositions = Array.isArray(activeTemplatePositions) ? activeTemplatePositions.filter((position) => !KNOWN_POSITIONS.has(position)) : [];
+  const knownForThisRender = extraPositions.length ? new Set([...KNOWN_POSITIONS, ...extraPositions]) : KNOWN_POSITIONS;
   const byPosition = { sidebar: [], content: [] };
   for (const position of TEMPLATE_MODULE_POSITIONS) byPosition[position] = [];
+  for (const position of extraPositions) byPosition[position] = [];
   for (const row of rows) {
     if (!isPublishedRow(row, now) || !isAssignedRow(row, scope)) continue;
-    const position = KNOWN_POSITIONS.has(row.position) ? row.position : 'sidebar';
+    const position = knownForThisRender.has(row.position) ? row.position : 'sidebar';
     const { showTitle } = row;
     const { moduleClass, headerTag, headerClass, settings } = chromeAndSettings(row.settingsJson);
     byPosition[position].push({

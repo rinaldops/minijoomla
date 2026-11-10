@@ -1,5 +1,12 @@
 # Administração de extensões, módulos e templates
 
+> Continuidade 06/11/2026: [relatório e escopo vigente](AVALIACAO-E-ESCOPO-2026-11-06.md).
+> `listLimit/orderBy/resultsLimit/searchPhrases` agora são conectados às consultas
+> no delta local (não apenas apresentação), com validação/revisão focada.
+> XML de plugins/templates e migração assistida estão incluídos como evolução,
+> não suporte já implementado. SEO do host/i18n/histórico/check-in de artigos
+> excluídos desta etapa; estados antigos abaixo são históricos.
+
 ## Estado da integração — 03/11/2026 (atualizado nesta sessão)
 
 Além do núcleo descrito abaixo, a frente local acrescentou `#/plugins`,

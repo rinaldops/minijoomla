@@ -20,6 +20,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'docs/ADMIN-LAYOUT-TESTS.md',
   'docs/CONTRIBUTING.md',
   'docs/CONTRIBUTOR-SELECTION.md',
+  'docs/CONTRATOS-EVOLUCAO-XML.md',
   'docs/LOCAL-DEMO.md',
   'docs/EXTENSOES-JOOMLA.md',
   'docs/RELEASE-CORE.md',
@@ -111,11 +112,13 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'src/media/vendor/tinymce/tinymce.min.js',
   'src/libraries/minijoomla/application/admin-extensions-service.js',
   'src/libraries/minijoomla/application/admin-service.js',
+  'src/libraries/minijoomla/application/admin-plugins.js',
   'src/libraries/minijoomla/application/component-options.js',
   'src/libraries/minijoomla/application/content-service.js',
   'src/libraries/minijoomla/application/declared-params.js',
   'src/libraries/minijoomla/application/extension-discovery-service.js',
   'src/libraries/minijoomla/application/extension-input.js',
+  'src/libraries/minijoomla/application/extension-migration-plan.js',
   'src/libraries/minijoomla/application/extension-manifest.js',
   'src/libraries/minijoomla/application/joomla-discovery.js',
   'src/libraries/minijoomla/application/joomla-extension-installer.js',
@@ -260,6 +263,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/admin-taxonomy-views.test.js',
   'tests/admin-modules-view.test.js',
   'tests/admin-plugins-view.test.js',
+  'tests/admin-plugins-runtime.test.js',
   'tests/admin-template-styles-view.test.js',
   'tests/admin-module-form-view.test.js',
   'tests/admin-extension-forms-view.test.js',
@@ -279,6 +283,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/editor-final.test.js',
   'tests/entity-contracts-final.test.js',
   'tests/extension-discovery-service.test.js',
+  'tests/extension-migration-plan.test.js',
   'tests/featured-schedule.test.js',
   'tests/final-acceptance-dom.test.js',
   'tests/image-margins.test.js',
@@ -298,6 +303,8 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/plugins-native-runtime.test.js',
   'tests/plugins-save-events.test.js',
   'tests/published-parameter-compat.test.js',
+  'tests/provisioning-model.test.js',
+  'tests/query-options.test.js',
   'tests/release-check.test.js',
   'tests/release-stage.test.js',
   'tests/review-fixes.test.js',
@@ -315,7 +322,8 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/spmiddle-integration.test.js',
   'tests/standalone-examples.test.js',
   'tests/static-ui.test.js',
-  'tests/tinymce-notices.test.js'
+  'tests/tinymce-notices.test.js',
+  'tests/tooling-validation.test.js'
 ].sort());
 
 function within(root, path) {

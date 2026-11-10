@@ -9,6 +9,9 @@ export const TEST_SUITES = Object.freeze([
   ['site-views-core.test.js', 'runSiteViewsCoreTests'],
   ['plugins-native-runtime.test.js', 'runPluginsNativeRuntimeTests'],
   ['plugins-save-events.test.js', 'runPluginsSaveEventsTests'],
+  ['admin-plugins-runtime.test.js', 'runAdminPluginsRuntimeTests', true],
+  ['query-options.test.js', 'runQueryOptionsTests'],
+  ['extension-migration-plan.test.js', 'runExtensionMigrationPlanTests'],
   ['admin-joomla-content.test.js', 'runAdminJoomlaContentTests'],
   ['admin-menu-model.test.js', 'runAdminMenuModelTests'],
   ['admin-article-model.test.js', 'runAdminArticleModelTests'],
@@ -39,6 +42,7 @@ export const TEST_SUITES = Object.freeze([
   ['standalone-examples.test.js', 'runStandaloneExamplesTests'],
   ['release-stage.test.js', 'runReleaseCoreStageTests'],
   ['distribution-audit.test.js', 'runDistributionAuditTests'],
+  ['tooling-validation.test.js', 'runToolingValidationTests'],
   ['contributor-stage.test.js', 'runContributorStageTests'],
   ['admin-layout-runner.test.js', 'runAdminLayoutRunnerTests'],
   ['editor-final.test.js', 'runEditorFinalTests'],
@@ -61,6 +65,7 @@ export const TEST_SUITES = Object.freeze([
   ['adapter-contract.test.js', 'runAdapterContractTests'],
   ['spmiddle-adapter.test.js', 'runSPMiddleAdapterTests'],
   ['spmiddle-integration.test.js', 'runSPMiddleIntegrationTests', true],
+  ['provisioning-model.test.js', 'runProvisioningModelTests', true],
   ['spmiddle-error-translation.test.js', 'runSPMiddleErrorTranslationTests'],
   ['admin-service.test.js', 'runAdminServiceTests'],
   ['extension-discovery-service.test.js', 'runExtensionDiscoveryServiceTests'],
@@ -76,7 +81,8 @@ export const TEST_SUITES = Object.freeze([
   ['offline-gate.test.js', 'runOfflineGateTests'],
   ['site-config-overrides.test.js', 'runSiteConfigOverridesTests'],
   ['schema-migration.test.js', 'runSchemaMigrationTests', true],
-  ['entity-contracts-final.test.js', 'runEntityContractsFinalTests', true]
+  ['entity-contracts-final.test.js', 'runEntityContractsFinalTests', true],
+  ['installed-template-positions.test.js', 'runInstalledTemplatePositionsTests']
 ].map(([file, entryPoint, requiresSPMiddle = false]) => Object.freeze({ file, entryPoint, requiresSPMiddle })));
 
 async function hasSPMiddle(testsDirectory) {

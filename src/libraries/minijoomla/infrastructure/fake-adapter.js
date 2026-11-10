@@ -1,4 +1,5 @@
 import { inDateWindow } from '../core/date-window.js';
+import { normalizeQuery } from '../core/contracts.js';
 
 const articles = [
   { id: 1, title: 'Bem-vindo ao MINIJOOMLA', alias: 'boas-vindas', introtext: 'Uma camada Joomla-like pequena e independente.', fulltext: '<p>Este artigo demonstra conteúdo seguro, categorias e módulos.</p>', author: 'Equipe editorial', category: 'noticias', tags: ['início', 'guia'], published: true, featured: true, publishUp: '2026-01-01', publishDown: null },
@@ -24,6 +25,14 @@ function cloneArticle(article) { return article ? { ...article, tags: [...(artic
 function publicArticle(article, now) { return article ? { ...cloneArticle(article), featured: isFeatured(article, now) } : article; }
 function cloneCategory(category) { return category ? { ...category } : category; }
 function cloneMenu(menu) { return menu ? { ...menu } : menu; }
+// Literal matching only: Unicode/whitespace normalization is shared with the port.
+function searchMatch(article, term, mode) {
+  if (!term) return true;
+  const text = normalizeQuery(`${article.title ?? ''} ${article.introtext ?? ''} ${article.fulltext ?? ''} ${(article.tags ?? []).join(' ')}`, Infinity).toLowerCase();
+  const tokens = term.split(' ');
+  return mode === 'all' ? tokens.every((token) => text.includes(token))
+    : mode === 'any' ? tokens.some((token) => text.includes(token)) : text.includes(term);
+}
 export function createFakeAdapter(seed = {}) {
   const data = {
     articles: (seed.articles ?? articles).map(cloneArticle),
@@ -31,9 +40,9 @@ export function createFakeAdapter(seed = {}) {
     menus: (seed.menus ?? menus).map(cloneMenu)
   };
   return Object.freeze({
-    async listArticles({ category, tag, featured = false, year, month, page = 1, pageSize = 5, search = '', titleContains = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
-      const paging = pageOptions({ page, pageSize }); const term = String(search).toLocaleLowerCase(); const titleTerm = String(titleContains).trim().toLocaleLowerCase(); const field = SORT_FIELDS.has(sort) ? sort : 'publishUp'; const multiplier = direction === 'asc' ? 1 : -1;
-      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!featured || isFeatured(a, now)) && inArchiveMonth(a, year, month) && (!titleTerm || String(a.title ?? '').toLocaleLowerCase().includes(titleTerm)) && (!term || `${a.title} ${a.introtext} ${a.fulltext} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(term))).sort((a, b) => { const left = a[field] ?? ''; const right = b[field] ?? ''; const primary = left < right ? -1 : left > right ? 1 : 0; if (primary) return primary * multiplier; const leftTie = String(a.alias ?? a.id ?? ''); const rightTie = String(b.alias ?? b.id ?? ''); return leftTie < rightTie ? -1 : leftTie > rightTie ? 1 : 0; });
+    async listArticles({ category, tag, featured = false, year, month, page = 1, pageSize = 5, search = '', searchMode = 'exact', titleContains = '', sort = 'publishUp', direction = 'desc', now = new Date() } = {}) {
+      const paging = pageOptions({ page, pageSize }); const term = normalizeQuery(search).toLowerCase(); const titleTerm = String(titleContains).trim().toLocaleLowerCase(); const field = SORT_FIELDS.has(sort) ? sort : 'publishUp'; const multiplier = direction === 'asc' ? 1 : -1;
+      const items = data.articles.filter((a) => visible(a, now) && (!category || a.category === category) && (!tag || (a.tags ?? []).includes(tag)) && (!featured || isFeatured(a, now)) && inArchiveMonth(a, year, month) && (!titleTerm || String(a.title ?? '').toLocaleLowerCase().includes(titleTerm)) && searchMatch(a, term, searchMode)).sort((a, b) => { const left = a[field] ?? ''; const right = b[field] ?? ''; const primary = left < right ? -1 : left > right ? 1 : 0; if (primary) return primary * multiplier; const leftTie = String(a.alias ?? a.id ?? ''); const rightTie = String(b.alias ?? b.id ?? ''); return leftTie < rightTie ? -1 : leftTie > rightTie ? 1 : 0; });
       const start = (paging.page - 1) * paging.pageSize; return { items: items.slice(start, start + paging.pageSize).map((article) => publicArticle(article, now)), total: items.length, page: paging.page, pageSize: paging.pageSize, pages: Math.ceil(items.length / paging.pageSize) };
     },
     async getArticle(alias, { now = new Date() } = {}) { return publicArticle(data.articles.find((a) => a.alias === alias && visible(a, now)) ?? null, now); },

@@ -79,8 +79,10 @@ async function mountAdmin(root) {
     mediaFileClientFactory: fileClient,
     lists: CONFIG.lists
   });
-  createAdminApplication({
+  const application = createAdminApplication({
     adminService: app.admin,
+    pluginRuntime: app.adminPlugins,
+    autoStart: false,
     discoveryService: app.discovery,
     mediaService: app.media,
     documentRef: { body: root, documentElement: null, title: '' },
@@ -91,6 +93,7 @@ async function mountAdmin(root) {
       ...options
     })
   });
+  await application.start();
 }
 
 const root = await waitForRoot();

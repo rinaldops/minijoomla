@@ -43,14 +43,22 @@ export function createTemplateRuntime({ importModule = (url) => import(url), doc
     if (!builtin && !row) throw new TypeError('Template selecionado não está registrado.');
     const base = documentRef?.baseURI ?? import.meta.url;
     const styles = stylesFor(row, builtin, base);
-    if (builtin) return { key: selectedKey, render: builtin.render, bind: builtin.bind, styles };
+    if (builtin) return { key: selectedKey, render: builtin.render, bind: builtin.bind, styles, positions: [] };
     const url = assetUrl(row.entryPointUrl, base, '.js');
     if (!loaded.has(url)) loaded.set(url, importModule(url));
     const module = await loaded.get(url);
     const render = module.renderShell ?? module.default;
     if (typeof render !== 'function') throw new TypeError('Template deve exportar renderShell ou uma função default.');
     if (module.bindShell !== undefined && typeof module.bindShell !== 'function') throw new TypeError('bindShell deve ser uma função.');
-    return { key: selectedKey, render, bind: module.bindShell, styles };
+    // `positions` (pivô de empacotamento): posições declaradas pelo próprio
+    // template instalado (`row.positionsJson`), repassadas ao call site em
+    // `src/libraries/minijoomla/index.js` para que módulos atribuídos a
+    // elas sejam roteados corretamente por `resolveModuleEntries()` em vez
+    // de cair no fallback `sidebar`. Builtins não têm linha de catálogo,
+    // então sempre `[]` acima.
+    let positions = [];
+    try { positions = Array.isArray(row.positionsJson) ? row.positionsJson : JSON.parse(row.positionsJson ?? '[]'); } catch { positions = []; }
+    return { key: selectedKey, render, bind: module.bindShell, styles, positions: Array.isArray(positions) ? positions : [] };
   }
 
   function applyStyles(template) {

@@ -2,7 +2,7 @@ import { createConfig } from './core/config.js';
 import { Router } from './core/router.js';
 import { EventBus } from './core/events.js';
 import { createFakeAdapter } from './infrastructure/fake-adapter.js';
-import { createContentService } from './application/content-service.js';
+import { createContentService, resolveContentQuery } from './application/content-service.js';
 import { createTemplateRuntime } from './application/template-runtime.js';
 import { createModuleStyles } from './application/module-styles.js';
 import { createModuleRegistry, menuModule } from './modules/registry.js';
@@ -12,6 +12,7 @@ import { bindMenuTree } from '../../modules/mod_menu/tmpl/default.js';
 import { articlesLatestModule } from '../../modules/mod_articles_latest/mod_articles_latest.js';
 import { articlesCategoryModule } from '../../modules/mod_articles_category/mod_articles_category.js';
 import { articlesNewsModule } from '../../modules/mod_articles_news/mod_articles_news.js';
+import { articlesFeaturedModule } from '../../modules/mod_articles_featured/mod_articles_featured.js';
 import { tagsSimilarModule } from '../../modules/mod_tags_similar/mod_tags_similar.js';
 import { tagsPopularModule } from '../../modules/mod_tags_popular/mod_tags_popular.js';
 import { articlesArchiveModule } from '../../modules/mod_articles_archive/mod_articles_archive.js';
@@ -66,7 +67,8 @@ export function createApplication({
   const modules = createModuleRegistry()
     .register('menu', menuModule).register('breadcrumbs', breadcrumbsModule).register('search', searchModule)
     .register('articles-latest', articlesLatestModule).register('articles-category', articlesCategoryModule)
-    .register('articles-news', articlesNewsModule).register('tags-similar', tagsSimilarModule)
+    .register('articles-news', articlesNewsModule).register('articles-featured', articlesFeaturedModule)
+    .register('tags-similar', tagsSimilarModule)
     .register('tags-popular', tagsPopularModule).register('articles-archive', articlesArchiveModule)
     .register('custom-html', customHtmlModule).register('login', loginModule)
     .register('articles-categories', articlesCategoriesModule).register('related-items', relatedItemsModule)
@@ -179,6 +181,9 @@ export function createApplication({
       });
       if (navigationId !== latestNavigation) return;
       const link = (path, params) => router.link(path, params);
+      // Preserve explicit query overrides when following pagination, without
+      // copying path aliases or arbitrary parameters into adapter requests.
+      const queryParams = Object.fromEntries(['pageSize', 'sort', 'dir', 'orderBy', 'searchPhrases'].filter((key) => Object.hasOwn(location.params, key)).map((key) => [key, location.params[key]]));
 
       // Maintenance gate: keeps the shell (menus/modules/template) but replaces
       // the main content for any route.
@@ -192,23 +197,22 @@ export function createApplication({
         } else body = '<section class="error-state" role="alert"><h1>404</h1><p>Artigo não encontrado.</p></section>';
         crumbs.push({ label: article?.title ?? '404' });
       } else if (location.route?.name === 'category') {
-        const { layout: layoutParam, sort: sortParam, dir, filter = '' } = location.params;
+        const { layout: layoutParam, filter = '' } = location.params;
         const layout = layoutParam === 'list' ? 'list' : 'blog';
-        const sort = ['title', 'publishUp', 'author'].includes(sortParam) ? sortParam : 'publishUp';
-        const direction = dir === 'asc' || dir === 'desc' ? dir : (sort === 'publishUp' ? 'desc' : 'asc');
-        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
+        const { sort = 'publishUp', direction = 'desc', pageSize } = resolveContentQuery(siteConfig, queryParams, { list: layout === 'list' });
+        const blog = blogSettings(componentParams?.content, pageSize);
         const vm = await content.category(location.params.alias, layout === 'list'
-          ? { page: location.params.page, sort, direction, titleContains: filter }
-          : { page: location.params.page, pageSize: blog.pageSize });
+          ? { page: location.params.page, pageSize, sort, direction, titleContains: filter, layout }
+          : { page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize, sort, direction });
         const categoryPath = await content.categoryPath(location.params.alias);
-        const listParams = { layout: layout === 'list' ? 'list' : undefined, sort: layout === 'list' ? sort : undefined, dir: layout === 'list' ? direction : undefined, filter };
+        const listParams = { ...queryParams, layout: layout === 'list' ? 'list' : undefined, sort: layout === 'list' ? sort : undefined, dir: layout === 'list' ? direction : undefined, filter };
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Categoria não encontrada.</p></section>';
         if (vm) {
           const children = await content.subcategories(vm.category);
           renderDeferred = async (prepare) => renderCategory(await prepare(vm), {
             layout, settings: blog, route: location.path, sort, direction, filter,
             children, categoryLink: (alias) => link(`/category/${encodeURIComponent(alias)}`),
-            link: (page) => router.link(location.path, { page }),
+            link: (page) => router.link(location.path, { ...queryParams, page }),
             listLink: (changes) => router.link(location.path, { ...listParams, ...changes }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
@@ -224,12 +228,12 @@ export function createApplication({
         body = renderTagList(await content.tags(), { tagLink: (name) => link(`/tag/${encodeURIComponent(name)}`) });
         crumbs.push({ label: 'Tags' });
       } else if (location.route?.name === 'tag') {
-        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
-        const vm = await content.tag(location.params.alias, { page: location.params.page, pageSize: blog.pageSize });
+        const blog = blogSettings(componentParams?.content, resolveContentQuery(siteConfig, queryParams).pageSize);
+        const vm = await content.tag(location.params.alias, { ...queryParams, page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize });
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Tag não encontrada.</p></section>';
         if (vm) {
           renderDeferred = async (prepare) => renderTag(await prepare(vm), {
-            settings: blog, link: (page) => router.link(location.path, { page }),
+            settings: blog, link: (page) => router.link(location.path, { ...queryParams, page }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
           });
@@ -237,29 +241,29 @@ export function createApplication({
         crumbs.push({ label: 'Tags', href: link('/tags') }, { label: vm ? vm.tag : '404' });
       } else if (location.route?.name === 'search') {
         const query = await plugins.prepareSearchQuery(location.params.q ?? '', {});
-        const found = await content.search(query, { page: location.params.page });
-        renderDeferred = async (prepare) => renderSearch(query, await prepare(found), {
-          link: (page) => link(location.path, { q: query, page }),
+        const found = await content.search(query, { ...queryParams, page: location.params.page });
+        renderDeferred = async (prepare) => renderSearch(found.query, await prepare(found), {
+          link: (page) => link(location.path, { ...queryParams, q: found.query, page }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams
         });
         crumbs.push({ label: 'Busca' });
       } else if (location.route?.name === 'archive') {
         const { year, month, page } = location.params;
-        const archived = await content.archive({ year, month, page });
+        const archived = await content.archive({ ...queryParams, year, month, page });
         const months = await content.archiveMonths({ limit: 50 });
         renderDeferred = async (prepare) => renderArchive(await prepare(archived), {
-          year, month, months, link: (nextPage) => link(location.path, { year, month, page: nextPage }),
+          year, month, months, link: (nextPage) => link(location.path, { ...queryParams, year, month, page: nextPage }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });
         crumbs.push({ label: 'Arquivo' });
       } else if (location.route?.name === 'home') {
-        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
-        const result = await content.home({ page: location.params.page, pageSize: blog.pageSize });
+        const blog = blogSettings(componentParams?.content, resolveContentQuery(siteConfig, queryParams).pageSize);
+        const result = await content.home({ ...queryParams, page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize });
         renderDeferred = async (prepare) => renderFeatured(await prepare(result), {
           siteName: siteConfig.siteName, siteDescription: siteConfig.siteDescription, settings: blog,
-          link: (page) => link('/', { page }),
+          link: (page) => link('/', { ...queryParams, page }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });
@@ -274,7 +278,7 @@ export function createApplication({
         route: location.route?.name,
         categoryAlias: location.route?.name === 'category' ? location.params.alias : undefined,
         menuItemId: resolveActiveMenuItemId(menus, menuActivePath)
-      });
+      }, new Date(), selectedTemplate?.positions);
       await plugins.afterRoute(location);
       // A supplied repository is authoritative: removing its last row must remove the module too.
       if (!getModuleInstances) entries.sidebar.push(
@@ -292,6 +296,15 @@ export function createApplication({
         articles: await withCategoryAlias((await adapter.listArticles({ pageSize: 50 })).items),
         featuredArticles: (await adapter.listArticles({ featured: true, pageSize: 50 })).items,
         similarArticles, tags: await adapter.listTags({ popular: true }), months: await content.archiveMonths(), link,
+        // `articleLink`/`timezone`/`componentParams` (Iteração 5): mesmo
+        // contrato já usado pelos call sites de `renderArticleCard()` em
+        // `renderDeferred` (blog/categoria/busca/tags/arquivo) acima —
+        // necessário para que `articles-featured` (novo módulo builtin)
+        // respeite `componentParams.content` (ex. `showIntro`) em vez de
+        // sempre mostrar introtext/imagem, como qualquer outro consumidor
+        // de `renderArticleCard()`.
+        articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
+        componentParams: componentParams?.content,
         siteName: siteConfig.siteName, session: siteConfig.session, article: pendingArticle,
         categories: Object.values(entries).flat().some((entry) => entry.name === 'articles-categories') ? flattenCategories(await content.categoriesTree()) : []
       };

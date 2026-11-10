@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+  <name>mod_articles_featured</name><version>1.0.0</version>
+  <description>Exibe artigos em destaque com imagem e resumo.</description>
+  <files><filename module="mod_articles_featured">mod_articles_featured.js</filename><folder>tmpl</folder></files>
+</extension>

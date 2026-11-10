@@ -5,6 +5,15 @@ See [contribution guidance](CONTRIBUTING.md) and [security policy](SECURITY.md).
 
 ## Reconciled baseline — 2026-11-04
 
+> Historical baseline below. The [2026-11-06 assessment and approved scope](AVALIACAO-E-ESCOPO-2026-11-06.md)
+> and [active plan](PLANO-CONTINUIDADE-MINIJOOMLA.md#escopo-vigente--06112026)
+> supersede its current-state claims. Adoption of ten additional modules,
+> plugin/template XML and assisted migrations are included. i18n, host SEO,
+> article revision history and article check-in/check-out are out of scope now.
+> Module XML generation exists; save hooks exist with injected manager.
+> The current repository has no tracked tmp files; older aggregator counts
+> are not its inventory. [Evolution contracts](CONTRATOS-EVOLUCAO-XML.md).
+
 Coordinator-reported production versions are **public 0.2.11 / admin 0.2.10**.
 The saved-image fix has **user-reported acceptance**, not a fresh agent
 observation. Main push `23f4696` includes `bc64256`, `343bb58` and restored JSON

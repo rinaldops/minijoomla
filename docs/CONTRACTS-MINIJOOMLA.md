@@ -7,6 +7,55 @@
 
 ## Objetivo
 
+### Extensão de consultas — 06/11/2026
+
+O desenvolvimento atual conecta opções existentes às consultas sem alterar
+schemas: **rota explícita válida → valor salvo → padrão**. `listLimit` aplica-se
+às listas de categoria e arquivo; blog/home/tags conservam a quantidade de
+`blogSettings`/`pageSize`. `orderBy` salvo aplica-se também aos blogs quando a
+rota não fornece ordenação. Limites resolvidos do formulário não contam como
+explicitamente salvos: `componentParamsJson` conserva essa proveniência, inclusive
+ausência, mantendo `pageSize` histórico até existir limite salvo.
+
+O port `listArticles` aceita `searchMode: all|any|exact`. Texto/query são
+normalizados para NFC e whitespace simples, sem regex de usuário; `all` exige
+todos os tokens literais, `any` exige um, `exact` exige a frase contígua. Ambos
+os adapters usam a mesma semântica e contam/paginam após filtrar. Sem `searchMode`
+no adapter, mantém-se a correspondência histórica exata; a busca do serviço usa
+o padrão declarado `all`. Filtros/modo/limite explícitos persistem nos links
+de paginação, sem regravar configuração.
+
+`metaDescription`/`metaKeywords` do artigo são dados públicos preservados pelo
+adapter, inclusive para related-items por keywords sem tags. Não são emission
+de SEO no host; SEO integrado ao host está excluído desta etapa, assim como
+i18n, histórico editorial e check-in/check-out do artigo.
+
+Critérios e baseline completos no [relatório vigente](AVALIACAO-E-ESCOPO-2026-11-06.md).
+Este bloco descreve o delta local em desenvolvimento; não amplia o aceite do
+host nem altera o contrato de erro/transporte das seções históricas abaixo.
+
+### Plugins administrativos — conexão local
+
+`createMiniJoomlaAdminApp` fornece runtime próprio quando há repositório de
+extensões; ausência explícita desse repositório conserva a composição parcial
+sem plugins. Catálogo configurado ilegível/corrupto bloqueia save, não vira
+catálogo vazio. Manager explicitamente injetado (inclusive `null` para opt-out)
+mantém precedência e nunca recebe plugins carregados implicitamente.
+
+O runtime usa somente eventos de save do grupo content, exclui nativos de
+exibição e outros grupos; lifecycle exige opt-in de código `adminLifecycle`.
+Isso isola eventos, não o top-level de ES modules aprovados: não é sandbox.
+O host conecta runtime ao app, refresh/navegação/stop invalidam trabalho obsoleto
+e cada save captura handlers/params próprios, mantendo-os também no pós-save
+quando a persistência já iniciada termina após refresh/stop. Observadores recebem
+cópias do artigo persistido/ETag; seu retorno não altera o snapshot do próximo
+nem mascara gravação concluída. Não é transação ou cancelamento de escrita.
+
+O contrato de injeção antigo beforeSave/afterSave continua aceito; o handle
+opcional `captureSaveOperation` fixa a operação completa nos managers suportados.
+Validação/revalidação e ETag de escrita permanecem no serviço, sem imports na
+descoberta. Esses testes são locais; não certificar save ou lifecycle no tenant.
+
 Este documento congela o contrato de leitura que qualquer adapter de
 conteúdo — hoje o `FakeAdapter` (`src/libraries/minijoomla/infrastructure/fake-adapter.js`) e um
 adapter SPMIDDLE com transporte **local** — deve satisfazer para ser

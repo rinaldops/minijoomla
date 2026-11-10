@@ -1,7 +1,34 @@
 import { ValidationError } from '../core/contracts.js';
 
-export const TEMPLATE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer', 'component']);
-export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
+// Lista reservada, sempre válida, de posições ESTRUTURAIS: usada pelos
+// templates builtin (`default`/`cassiopeia`/`camap`) e como piso mínimo
+// para qualquer template, instalado ou não. Um template INSTALADO
+// (manifesto `<key>.manifest.json`, mecanismo descrito em
+// MINIJOOMLA/docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar suas
+// próprias posições adicionais, fora desta lista — `templatePositions()`
+// abaixo aceita qualquer nome bem-formado (`isWellFormedPositionName`),
+// não só os desta lista fechada. Isso permite instalar um template com
+// posições semânticas próprias (ex. `hero`, `menu-principal`) sem editar
+// este arquivo a cada posição nova — generalização introduzida no pivô de
+// empacotamento do `camap-v3` (ver web-devs/CAMAP-V3/minijoomla-template/),
+// mas aplicável a qualquer template instalado futuro, não só a esse.
+export const STRUCTURAL_TEMPLATE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer', 'component']);
+// Nome retrocompatível (mesmo valor) — alguns call sites antigos ainda o
+// importam sob este nome; novo código deve preferir STRUCTURAL_TEMPLATE_POSITIONS.
+export const TEMPLATE_POSITIONS = STRUCTURAL_TEMPLATE_POSITIONS;
+export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'articles-featured', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
+
+/*
+ * Formato de nome de posição declarada por um template instalado: minúsculas,
+ * começa com letra, hífens permitidos, 2-41 caracteres. Verificação
+ * APENAS de forma — não verifica pertencimento a nenhuma enumeração. Usada
+ * por `templatePositions()` para aceitar posições fora de
+ * `STRUCTURAL_TEMPLATE_POSITIONS` sem abrir a porta para valores
+ * arbitrários (espaços, maiúsculas, símbolos).
+ */
+export function isWellFormedPositionName(value) {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(value);
+}
 
 export const NATIVE_PLUGIN_KEYS = Object.freeze(['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation']);
 export const NATIVE_PLUGIN_URLS = Object.freeze(NATIVE_PLUGIN_KEYS.map((key) => `native:${key}`));
@@ -63,12 +90,21 @@ export function jsonObject(value, field = 'settings') {
   } catch { throw new ValidationError(`${field} deve ser um objeto JSON serializável.`); }
 }
 
+/*
+ * `positions`: aceita qualquer combinação de posições ESTRUTURAIS
+ * (`STRUCTURAL_TEMPLATE_POSITIONS`) e/ou posições declaradas por um
+ * template instalado (`isWellFormedPositionName`) — mudança estritamente
+ * aditiva: nada que já era aceito deixa de ser; nomes malformados
+ * continuam rejeitados. Usada tanto no registro direto de template
+ * (`admin-service.js`) quanto na descoberta por manifesto
+ * (`extension-discovery-service.js`, `extension-manifest.js`).
+ */
 export function templatePositions(value) {
   let positions = value;
   if (typeof positions === 'string') {
     try { positions = JSON.parse(positions); } catch { throw new ValidationError('positionsJson deve ser um array JSON válido.'); }
   }
-  if (!Array.isArray(positions) || !positions.length || positions.some((position) => !TEMPLATE_POSITIONS.includes(position))) throw new ValidationError('positions contém uma posição inválida.');
+  if (!Array.isArray(positions) || !positions.length || positions.some((position) => !STRUCTURAL_TEMPLATE_POSITIONS.includes(position) && !isWellFormedPositionName(position))) throw new ValidationError('positions contém uma posição inválida.');
   return JSON.stringify([...new Set(positions)]);
 }
 

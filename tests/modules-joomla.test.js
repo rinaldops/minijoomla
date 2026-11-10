@@ -15,7 +15,7 @@ const customManifest = readFileSync(new URL('../src/modules/mod_custom/mod_custo
 assert.match(customManifest, /<extension type="module"/);
 assert.match(customManifest, /<filename module="mod_custom">mod_custom\.js<\/filename>/);
 assert.equal(typeof customHtmlModule.render, 'function');
-for (const key of ['mod_articles_latest', 'mod_articles_category', 'mod_articles_news', 'mod_tags_similar', 'mod_tags_popular', 'mod_articles_archive']) {
+for (const key of ['mod_articles_latest', 'mod_articles_category', 'mod_articles_news', 'mod_articles_featured', 'mod_tags_similar', 'mod_tags_popular', 'mod_articles_archive']) {
   const manifest = readFileSync(new URL(`../src/modules/${key}/${key}.xml`, import.meta.url), 'utf8');
   assert.match(manifest, /<extension type="module"/);
   assert.ok(manifest.includes(`${key}.js`), `${key} manifest declares its entry point`);

@@ -1,4 +1,5 @@
 import { defaultConfig } from '../../../../../libraries/minijoomla/core/config.js';
+import { BUILTIN_TEMPLATES } from '../../../../../libraries/minijoomla/application/template-styles.js';
 import { SITE_CONFIG_FIELDS } from '../../../com_minijoomla/field-schemas.js';
 import { renderAdminForm } from '../../../com_minijoomla/render-form.js';
 
@@ -9,7 +10,7 @@ const CONFIG_OPTION_LABELS = {
 };
 
 export function renderConfigPage(record, link, templates = [], shell) {
-  const builtins = ['default', 'cassiopeia', 'camap'];
+  const builtins = BUILTIN_TEMPLATES;
   const choices = new Map(builtins.map((key) => [key, { value: key, label: `${key} (integrado)` }]));
   templates.filter((template) => template.enabled && !builtins.includes(template.key)).forEach((template) => choices.set(template.key, { value: template.key, label: template.title }));
   if (record?.templateKey && !choices.has(record.templateKey)) choices.set(record.templateKey, { value: record.templateKey, label: `${record.templateKey} (atual — indisponível)` });

@@ -1,5 +1,13 @@
 # Plano de compatibilidade de extensoes com Joomla
 
+> Escopo ampliado em 06/11/2026 pelo responsável: outros dez módulos,
+> plugins/templates XML e migração assistida incluídos no plano. Ver
+> [avaliação vigente](AVALIACAO-E-ESCOPO-2026-11-06.md) e
+> [contratos da evolução](CONTRATOS-EVOLUCAO-XML.md). i18n, SEO do host,
+> histórico e check-in/check-out de artigos estão excluídos nesta etapa.
+> O diagnóstico inicial abaixo é histórico: o perfil XML de módulos já foi
+> implementado/publicado conforme registros, mas seu aceite integral é separado.
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.

@@ -1,5 +1,10 @@
 # Extensoes Joomla no MiniJoomla
 
+> Evolução incluída em 06/11/2026: adoção dos outros dez módulos, perfis XML de
+> plugins/templates e migração assistida. [Contratos e gates](CONTRATOS-EVOLUCAO-XML.md).
+> O suporte descrito abaixo continua sendo o perfil de módulos implementado;
+> planejamento não habilita novos tipos nem converte dados automaticamente.
+
 ## Contrato implementado
 
 O perfil `joomla-xml-v1` descobre modulos JavaScript de site por

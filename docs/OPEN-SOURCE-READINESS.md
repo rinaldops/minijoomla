@@ -1,5 +1,11 @@
 # Preparação da distribuição open source
 
+> Referência atual: [avaliação e escopo de 06/11/2026](AVALIACAO-E-ESCOPO-2026-11-06.md).
+> MINIJOOMLA agora possui Git próprio e zero tmp rastreado na baseline. Números,
+> remotos e versões antigos abaixo são históricos. Isso não certifica a
+> privacidade do import atual, o histórico legado externo nem direitos de terceiros.
+> A seleção técnica cresceu para 304 arquivos na avaliação; não é liberação pública.
+
 ## Objetivo confirmado — 03/11/2026
 
 MINIJOOMLA é um projeto independente inspirado no Joomla, destinado a um

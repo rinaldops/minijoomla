@@ -1,7 +1,14 @@
 # Auditoria offline da distribuição selecionada
 
+> Referência vigente: [avaliação de 06/11/2026](AVALIACAO-E-ESCOPO-2026-11-06.md).
+> O auditor aceita `core` e seleção exata `contributor-local`; os números/índice
+> de 04/11 abaixo são históricos. Core atual da avaliação: 143 arquivos com
+> hashes aprovados e três arquivos do parser indevidamente fora do escopo do
+> auditor; correção em desenvolvimento. Git próprio, zero tmp rastreado na baseline.
+
 `scripts/audit-distribution.js` lê somente os **arquivos declarados** de um
-manifest de staging `core`, dentro de `MINIJOOMLA/tmp/`. Não empacota, modifica,
+manifest de staging `core` ou `contributor-local`, dentro de `MINIJOOMLA/tmp/`.
+No contributor exige allowlist exata e inventário sem extras. Não empacota, modifica,
 redige, publica nem aprova dados. Não lê fontes fora do staging, projetos irmãos,
 índice/histórico Git ou rede. Importar o módulo não dispara a auditoria.
 

@@ -18,7 +18,13 @@
       const repositories = createDemoRepositories();
       const config = await repositories.siteConfig.findById(1);
       const previewTemplate = new URLSearchParams(location.search).get('template');
-      if (previewTemplate && !['default', 'cassiopeia', 'camap'].includes(previewTemplate)) throw new TypeError('Template de demonstração desconhecido.');
+      // Allowlist deixa de ser um array fixo: builtins reais (`default`/
+      // `cassiopeia`/`camap`) OU qualquer chave já semeada no catálogo
+      // (templates instalados, ex. `camap-v3`, servidos via
+      // `/pkg/<chave>/...` por `scripts/serve-local.js --extra-root`) —
+      // chave totalmente desconhecida continua rejeitada com o mesmo erro.
+      const installedTemplateKeys = (await repositories.templates.findMany()).items.map((row) => row.key);
+      if (previewTemplate && !['default', 'cassiopeia', 'camap'].includes(previewTemplate) && !installedTemplateKeys.includes(previewTemplate)) throw new TypeError('Template de demonstração desconhecido.');
       // Preview selects its own saved style/defaults without changing demo storage.
       const siteConfig = toSiteConfigOverrides(previewTemplate ? { ...config, templateKey: previewTemplate } : config);
       const adapter = createSPMiddleAdapter({

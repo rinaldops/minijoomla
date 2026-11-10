@@ -21,7 +21,19 @@ const DEFINITIONS = Object.freeze({
   camap: normalizeParamDefinitions(CAMAP_PARAM_DEFINITIONS)
 });
 
-export function templateParamDefinitions(templateKey) {
+/*
+ * `installedDefinitions` (Gap B, pivô de empacotamento): quando o chamador
+ * já tem a linha de catálogo de um template INSTALADO em mãos (ex.
+ * `templateStyles.get()`/`list()` em admin-extensions-service.js, que
+ * carrega `row.paramDefinitionsJson` antes de montar o formulário), repassa
+ * aqui as definições já normalizadas — usadas em vez do mapa estático
+ * `DEFINITIONS` quando fornecidas. Builtins continuam resolvidos pelo mapa
+ * estático; ausência de ambos devolve `[]`. Mudança de assinatura é
+ * aditiva (parâmetro novo, opcional, default `undefined`) — nenhum
+ * chamador existente quebra; a função permanece síncrona.
+ */
+export function templateParamDefinitions(templateKey, installedDefinitions) {
+  if (Array.isArray(installedDefinitions)) return installedDefinitions;
   return DEFINITIONS[templateKey] ?? [];
 }
 
@@ -54,7 +66,7 @@ export function parseTemplateStyles(value, { strict = false } = {}) {
   return styles;
 }
 
-export function validateTemplateStyles(styles) {
+export function validateTemplateStyles(styles, definitionsByKey = {}) {
   if (!Array.isArray(styles)) throw new ValidationError('templateStyles deve ser uma lista.');
   if (styles.length > 100) throw new ValidationError('Máximo de 100 estilos de template.');
   const ids = new Set();
@@ -72,17 +84,17 @@ export function validateTemplateStyles(styles) {
       if (homes.has(style.template)) throw new ValidationError(`Somente um estilo padrão por template (${style.template}).`);
       homes.add(style.template);
     }
-    const params = normalizeParamValues(templateParamDefinitions(style.template), style.params ?? {}, { keepUndeclared: !DEFINITIONS[style.template] });
+    const params = normalizeParamValues(templateParamDefinitions(style.template, definitionsByKey[style.template]), style.params ?? {}, { keepUndeclared: !DEFINITIONS[style.template] && !definitionsByKey[style.template] });
     return { id, template: style.template, title: title.slice(0, 200), home: style.home === true, params };
   });
   return JSON.stringify(normalized);
 }
 
 /* Lista completa: estilos persistidos + um estilo padrão virtual para cada template conhecido sem estilo. */
-export function effectiveTemplateStyles(storedStyles, templateKeys = BUILTIN_TEMPLATES, titles = {}, options = {}) {
+export function effectiveTemplateStyles(storedStyles, templateKeys = BUILTIN_TEMPLATES, titles = {}, options = {}, definitionsByKey = {}) {
   const styles = parseTemplateStyles(storedStyles, options);
   for (const key of templateKeys) {
-    if (!styles.some((style) => style.template === key)) styles.push({ id: `${key}-default`, template: key, title: `${titles[key] ?? key} — Padrão`, home: true, params: defaultParamValues(templateParamDefinitions(key)), virtual: true });
+    if (!styles.some((style) => style.template === key)) styles.push({ id: `${key}-default`, template: key, title: `${titles[key] ?? key} — Padrão`, home: true, params: defaultParamValues(templateParamDefinitions(key, definitionsByKey[key])), virtual: true });
   }
   for (const key of new Set(styles.map((style) => style.template))) {
     const own = styles.filter((style) => style.template === key);

@@ -7,7 +7,7 @@ export function runModuleManifestsTests() {
   const paths = NATIVE_MODULE_PACKAGES.flatMap(({ folder }) => [`modules/${folder}/${folder}.js`, `modules/${folder}/tmpl/default.js`]);
   for (const path of paths) assert.ok(existsSync(new URL(`../src/${path}`, import.meta.url)), `actual native asset ${path}`);
   const manifests = generateModuleManifests(paths, '0.5.1');
-  assert.equal(manifests.size, 15);
+  assert.equal(manifests.size, 16);
   assert.deepEqual([...manifests].map(([path, data]) => [path, data.toString()]), [...generateModuleManifests(paths, '0.5.1')].map(([path, data]) => [path, data.toString()]));
   for (const module of NATIVE_MODULE_PACKAGES) {
     const text = manifests.get(`modules/${module.folder}/${module.folder}.xml`).toString();
@@ -32,5 +32,5 @@ export function runModuleManifestsTests() {
   assert.equal(generateModuleManifests(paths.slice(0, 2), '0.5.1').size, 1, 'target closure controls inclusion');
   assert.throws(() => generateModuleManifests(paths.slice(0, 1), '0.5.1'), /Template de módulo ausente/);
   assert.match(generateModuleManifests(paths.slice(0, 2), '<&"').values().next().value.toString(), /<version>&lt;&amp;&quot;<\/version>/);
-  console.log('ok - 15 catalogue-generated native module manifests: defaults, bounds, options, target closure and persisted keys');
+  console.log('ok - 16 catalogue-generated native module manifests: defaults, bounds, options, target closure and persisted keys');
 }

@@ -82,9 +82,9 @@ export function createPluginManager() {
 
   /* Save hooks are stricter than render filters: beforeSave failures and
    * explicit vetoes must reach the persistence boundary unchanged. */
-  async function savePipeline(eventName, value, context, { strict = false } = {}) {
+  async function savePipeline(eventName, value, context, { strict = false, targets = [...plugins] } = {}) {
     let result = value;
-    for (const plugin of [...plugins]) {
+    for (const plugin of targets) {
       const handler = plugin.enabled !== false ? plugin.events?.[eventName] : undefined;
       if (typeof handler !== 'function') continue;
       try {
@@ -193,6 +193,16 @@ export function createPluginManager() {
     /* `onContentBeforeSave`: filtra/valida os dados antes de gravar (valor devolvido substitui o anterior). */
     beforeSave(data, context = {}) { return savePipeline('onContentBeforeSave', data, context, { strict: true }); },
     afterSave(data, context = {}) { return savePipeline('onContentAfterSave', data, context); },
+    /* One handle per persistence operation, not a global "last save" snapshot.
+     * Reconciliation/unregister/stop cannot change its handlers or immutable
+     * params; concurrent writes may complete in any order. */
+    captureSaveOperation() {
+      const targets = [...plugins];
+      return Object.freeze({
+        beforeSave: (data, context = {}) => savePipeline('onContentBeforeSave', data, context, { strict: true, targets }),
+        afterSave: (data, context = {}) => savePipeline('onContentAfterSave', data, context, { targets })
+      });
+    },
     afterRoute(location, context = {}) { return pipeline('onAfterRoute', location, context); },
     /* Nomes dos plugins de um grupo (content/system/search); sem argumento, todos. */
     list(group) { return plugins.filter((plugin) => group === undefined || plugin.group === group).map((plugin) => plugin.name); },

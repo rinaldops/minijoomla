@@ -12,6 +12,11 @@ export async function runSiteConfigOverridesTests() {
   assert.ok('templateParams' in empty);
   assert.ok('templateStyleId' in empty);
   assert.ok('componentParams' in empty);
+  assert.equal(Object.hasOwn(empty, 'componentParamsJson'), true, 'Absent saved limits remain distinguishable from resolved form defaults');
+  assert.equal(empty.componentParamsJson, undefined);
+  const storedParams = ' { "content": { "listLimit": 10 }, "future": { "keep": true } } ';
+  assert.equal(toSiteConfigOverrides({ componentParamsJson: storedParams }).componentParamsJson, storedParams,
+    'Preserve exact provenance without canonicalizing unknown saved configuration');
   assert.equal(empty.templateStyleId, 'default-default');
 
   // Test with minimal record

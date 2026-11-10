@@ -5,7 +5,7 @@
  * admin-service.js; nenhuma escrita contorna ETag/validação de lá.
  */
 import { ValidationError } from '../core/contracts.js';
-import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_KEYS, NATIVE_PLUGIN_URLS, templatePositions } from './extension-input.js';
+import { STRUCTURAL_TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_KEYS, NATIVE_PLUGIN_URLS, templatePositions } from './extension-input.js';
 import { moduleTypeCatalog } from './module-catalog.js';
 import { moduleState } from './module-assignment.js';
 import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
@@ -13,7 +13,6 @@ import { BUILTIN_TEMPLATES, effectiveTemplateStyles, templateParamDefinitions, v
 import { COMPONENT_OPTIONS, findComponentOptions, mergeComponentParams, resolveComponentParams } from './component-options.js';
 import { parseExtensionManifest, manifestRecordJson } from './extension-manifest.js';
 
-export const MODULE_POSITIONS = Object.freeze([...TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content']);
 export const MODULE_BATCH_ACTIONS = Object.freeze(['publish', 'unpublish', 'trash', 'restore', 'delete', 'move']);
 
 function conflict(message) { return Object.assign(new Error(message), { code: 'concurrency-conflict' }); }
@@ -68,22 +67,51 @@ export function createExtensionAdministration({ repositories, extensions, module
 
   async function templateCatalog() {
     const rows = await templateRows();
-    const builtins = BUILTIN_TEMPLATES.map((key) => ({ key, title: key === 'default' ? 'MiniJoomla (padrão)' : key === 'cassiopeia' ? 'Cassiopeia' : 'CAMAP', builtin: true, enabled: true, positions: MODULE_POSITIONS.filter((position) => !['sidebar', 'content'].includes(position)) }));
+    const builtins = BUILTIN_TEMPLATES.map((key) => ({ key, title: key === 'default' ? 'MiniJoomla (padrão)' : key === 'cassiopeia' ? 'Cassiopeia' : 'CAMAP', builtin: true, enabled: true, positions: STRUCTURAL_TEMPLATE_POSITIONS.filter((position) => position !== 'component') }));
     const registered = rows.filter((row) => !BUILTIN_TEMPLATES.includes(row.key)).map((row) => {
       // Ausência legada é distinta de JSON persistido inválido.
       const positions = row.positionsJson === undefined || row.positionsJson === null || row.positionsJson === '' ? [] : JSON.parse(templatePositions(row.positionsJson));
-      return { key: row.key, title: row.title || row.key, builtin: false, enabled: row.enabled !== false, positions: positions.filter((position) => position !== 'component'), id: row.id };
+      // `paramDefinitions` (Gap B): definições declaradas pelo próprio
+      // template instalado (`row.paramDefinitionsJson`), repassadas no
+      // catálogo para que `templateStyles` as use em vez do mapa estático
+      // de builtins — ausência/erro de parse vira `[]` (template sem
+      // parâmetros declarados), nunca interrompe a listagem.
+      let paramDefinitions = [];
+      try { paramDefinitions = row.paramDefinitionsJson ? normalizeParamDefinitions(JSON.parse(row.paramDefinitionsJson)) : []; } catch { paramDefinitions = []; }
+      return { key: row.key, title: row.title || row.key, builtin: false, enabled: row.enabled !== false, positions: positions.filter((position) => position !== 'component'), paramDefinitions, id: row.id };
     });
     return [...builtins, ...registered];
+  }
+
+  function paramDefinitionsByKey(catalog) {
+    return Object.fromEntries(catalog.filter((entry) => Array.isArray(entry.paramDefinitions) && entry.paramDefinitions.length).map((entry) => [entry.key, entry.paramDefinitions]));
+  }
+
+  /*
+   * Lista completa de posições válidas para uma instância de módulo
+   * (dropdown de posição, validação de `batch({action:'move'})`):
+   * união das posições de TODOS os templates do catálogo (builtins +
+   * templates instalados, cada um contribuindo suas próprias `positions`)
+   * com as duas posições de catch-all `sidebar`/`content` — nunca mais uma
+   * lista fechada fixa. Um template instalado passa a contribuir suas
+   * posições automaticamente ao registrar-se, sem exigir edição deste
+   * arquivo (generalização do pivô de empacotamento do `camap-v3`, mas
+   * válida para qualquer template instalado futuro).
+   */
+  async function modulePositions() {
+    const catalog = await templateCatalog();
+    const positions = new Set(['sidebar', 'content']);
+    for (const template of catalog) for (const position of template.positions) positions.add(position);
+    return [...positions];
   }
 
   const modules = {
     async catalog() { return moduleTypeCatalog(await extensionRows()); },
     async positions(templateKey) {
-      const catalog = await templateCatalog();
+      const [catalog, all] = await Promise.all([templateCatalog(), modulePositions()]);
       const key = templateKey || (await siteConfig.get())?.templateKey || 'default';
       const template = catalog.find((entry) => entry.key === key) ?? catalog[0];
-      return { template: template.key, positions: template.positions, all: MODULE_POSITIONS };
+      return { template: template.key, positions: template.positions, all };
     },
     async duplicate(id) {
       const record = await moduleInstances.get(id);
@@ -97,7 +125,7 @@ export function createExtensionAdministration({ repositories, extensions, module
     },
     async batch(items, action, { position } = {}) {
       if (!MODULE_BATCH_ACTIONS.includes(action)) throw new ValidationError(`Ação em lote desconhecida: ${String(action)}.`);
-      if (action === 'move' && !MODULE_POSITIONS.includes(position)) throw new ValidationError('Escolha uma posição válida para mover.');
+      if (action === 'move' && !(await modulePositions()).includes(position)) throw new ValidationError('Escolha uma posição válida para mover.');
       return runBatch(items, async ({ id, etag }) => {
         if (action === 'delete') {
           const record = await moduleInstances.get(id);
@@ -173,21 +201,22 @@ export function createExtensionAdministration({ repositories, extensions, module
       const [config, catalog] = await Promise.all([siteConfig.get(), templateCatalog()]);
       const titles = Object.fromEntries(catalog.map((entry) => [entry.key, entry.title]));
       const activeKey = config?.templateKey || 'default';
-      const styles = effectiveTemplateStyles(config?.templateStylesJson, catalog.filter((entry) => entry.enabled || entry.key === activeKey).map((entry) => entry.key), titles, { strict: true })
+      const styles = effectiveTemplateStyles(config?.templateStylesJson, catalog.filter((entry) => entry.enabled || entry.key === activeKey).map((entry) => entry.key), titles, { strict: true }, paramDefinitionsByKey(catalog))
         .map((style) => ({ ...style, templateTitle: titles[style.template] ?? style.template, isDefault: style.template === activeKey && style.home }));
       return { etag: config?.etag, templateKey: activeKey, styles, catalog };
     },
     async get(id) {
-      const { etag, styles, templateKey } = await templateStyles.list();
+      const { etag, styles, templateKey, catalog } = await templateStyles.list();
       const style = styles.find((entry) => entry.id === String(id));
-      return style ? { ...style, etag, templateKey, definitions: templateParamDefinitions(style.template) } : null;
+      return style ? { ...style, etag, templateKey, definitions: templateParamDefinitions(style.template, paramDefinitionsByKey(catalog)[style.template]) } : null;
     },
     async save(id, { title, params } = {}, { etag } = {}) {
-      return persistStyles(etag, (styles) => {
+      return persistStyles(etag, (styles, config, catalog) => {
         const style = styles.find((entry) => entry.id === String(id));
         if (!style) throw new ValidationError('Estilo não encontrado.');
+        const definitions = templateParamDefinitions(style.template, paramDefinitionsByKey(catalog)[style.template]);
         if (title !== undefined) style.title = String(title).trim();
-        if (params !== undefined) style.params = normalizeParamValues(templateParamDefinitions(style.template), params, { keepUndeclared: !templateParamDefinitions(style.template).length });
+        if (params !== undefined) style.params = normalizeParamValues(definitions, params, { keepUndeclared: !definitions.length });
         return styles;
       });
     },
@@ -231,9 +260,10 @@ export function createExtensionAdministration({ repositories, extensions, module
     const titles = Object.fromEntries(catalog.map((entry) => [entry.key, entry.title]));
     const activeKey = config?.templateKey || 'default';
     const keys = [...new Set([...catalog.filter((entry) => entry.enabled).map((entry) => entry.key), activeKey])];
-    const styles = effectiveTemplateStyles(config?.templateStylesJson, keys, titles, { strict: true }).map(({ virtual, ...style }) => style);
+    const definitionsByKey = paramDefinitionsByKey(catalog);
+    const styles = effectiveTemplateStyles(config?.templateStylesJson, keys, titles, { strict: true }, definitionsByKey).map(({ virtual, ...style }) => style);
     const next = mutate(styles, config, catalog);
-    const patch = { templateStylesJson: validateTemplateStyles(next) };
+    const patch = { templateStylesJson: validateTemplateStyles(next, definitionsByKey) };
     if (extraPatch) Object.assign(patch, extraPatch(next.find((entry) => entry.id === String(styleId))));
     return siteConfig.save(patch, config ? { etag } : {});
   }

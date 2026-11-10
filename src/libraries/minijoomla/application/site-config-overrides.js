@@ -28,5 +28,8 @@ export function toSiteConfigOverrides(record) {
   overrides.templateParams = resolveTemplateParams(record);
   overrides.templateStyleId = resolveTemplateStyleId(record);
   overrides.componentParams = resolveComponentParams(record);
+  // Preserve provenance: resolved defaults are not explicitly saved limits.
+  // An own undefined value keeps historical pageSize when this field is absent.
+  overrides.componentParamsJson = record.componentParamsJson;
   return overrides;
 }

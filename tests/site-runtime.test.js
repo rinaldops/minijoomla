@@ -387,7 +387,7 @@ export async function runSiteRuntimeTests() {
      } finally { app.stop(); }
    }
    const persistedModules = (await removalRepos.moduleInstances.findMany()).items;
-   assert.equal(persistedModules.length, 5, 'the test must start with every demo module row');
+   assert.equal(persistedModules.length, 7, 'the test must start with every demo module row');
    const beforeAllRemoval = await renderRemovalHome();
    for (const row of persistedModules) assert.ok(beforeAllRemoval.html.includes(`module-${row.extensionKey}`), `persisted ${row.extensionKey} must render before removal`);
    const allTrashReport = await removalAdmin.moduleInstances.batch(persistedModules.map(({ id, etag }) => ({ id, etag })), 'trash');

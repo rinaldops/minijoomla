@@ -3,7 +3,7 @@ export class ValidationError extends Error { constructor(message = 'Parâmetro i
 export class DataError extends Error { constructor(message = 'Falha ao consultar conteúdo', options) { super(message, options); this.name = 'DataError'; } }
 
 export function normalizeQuery(value, limit = 120) {
-  return String(value ?? '').trim().slice(0, limit);
+  return String(value ?? '').normalize('NFC').replace(/\s+/gu, ' ').trim().slice(0, limit).trim();
 }
 
 export function emptyPage(page = 1, pageSize = 5) { return { items: [], total: 0, page, pageSize, pages: 0 }; }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { defaultConfig } from '../src/libraries/minijoomla/core/config.js';
+import { BUILTIN_TEMPLATES } from '../src/libraries/minijoomla/application/template-styles.js';
 import { renderConfigPage } from '../src/administrator/components/com_config/tmpl/application/default.js';
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 
@@ -11,7 +12,7 @@ export async function runAdminConfigViewTests() {
     { key: 'inactive', title: 'Desativado', enabled: false }
   ], shell);
   for (const [name, value] of Object.entries(defaultConfig)) assert.ok(html.includes(`name="${name}"`), `default field ${name} rendered`);
-  for (const key of ['default', 'cassiopeia', 'camap']) assert.ok(html.includes(`${key} (integrado)`));
+  for (const key of BUILTIN_TEMPLATES) assert.ok(html.includes(`${key} (integrado)`));
   assert.ok(html.includes('Ativo &lt;script&gt;'));
   assert.ok(!html.includes('value="inactive"'));
 

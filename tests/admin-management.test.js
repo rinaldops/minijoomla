@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+import { BUILTIN_TEMPLATES } from '../src/libraries/minijoomla/application/template-styles.js';
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 import { ValidationError } from '../src/libraries/minijoomla/core/contracts.js';
 import { renderAdminList } from '../src/administrator/components/com_minijoomla/render-list.js';
@@ -150,9 +151,13 @@ export async function runAdminManagementTests() {
   const createdTemplate = await service.templates.create(validTemplate);
   assert.equal(createdTemplate.positionsJson, '["footer"]');
   assert.equal(createdTemplate.styles, '["./c.css"]');
-  for (const patch of [{ positions: [] }, { positions: ['unknown'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
+  for (const patch of [{ positions: [] }, { positions: ['UNKNOWN'] }, { positions: ['bad position'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
     await assert.rejects(() => service.templates.create({ ...validTemplate, ...patch, key: 'invalid' }), ValidationError);
   }
+  // Posição bem-formada fora da lista estrutural fechada é aceita (pivô de
+  // empacotamento: um template instalado pode declarar posições próprias).
+  const installedPositionTemplate = await service.templates.create({ title: 'Instalado', key: 'installed-with-custom-position', version: '1', entryPointUrl: './installed.js', positions: ['custom-hero'], styles: '[]' });
+  assert.equal(installedPositionTemplate.positionsJson, '["custom-hero"]');
   const instance = await service.moduleInstances.create({ title: 'Native', extensionKey: 'articles-latest', position: 'main-top', settings: { limit: 3 } });
   const searchInstance = await service.moduleInstances.create({ title: 'Search', extensionKey: 'search', position: 'search', settings: {} });
   assert.equal(searchInstance.extensionKey, 'search');
@@ -249,7 +254,7 @@ export async function runAdminManagementTests() {
   const builtinOnlyFake = managementDocument();
   const builtinOnlyApp = createAdminApplication({ adminService: builtinOnlyService, documentRef: builtinOnlyFake.documentRef, autoStart: false });
   await builtinOnlyApp.router.navigate('#/config');
-  for (const key of ['default', 'cassiopeia', 'camap']) assert.match(builtinOnlyFake.documentRef.body.innerHTML, new RegExp(`<option value="${key}"`));
+  for (const key of BUILTIN_TEMPLATES) assert.match(builtinOnlyFake.documentRef.body.innerHTML, new RegExp(`<option value="${key}"`));
   assert.match(builtinOnlyFake.documentRef.body.innerHTML, /<option value="camap" selected>/);
   await builtinOnlyService.siteConfig.save({ templateKey: 'cassiopeia' }, { etag: (await builtinOnlyService.siteConfig.get()).etag });
   assert.equal((await builtinOnlyService.siteConfig.get()).templateKey, 'cassiopeia');

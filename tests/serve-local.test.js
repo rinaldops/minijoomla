@@ -7,8 +7,8 @@ import { createLocalDemoServer } from '../scripts/serve-local.js';
 
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
 
-async function withServer(root, verify) {
-  const server = createLocalDemoServer({ root });
+async function withServer(root, verify, extraRoots) {
+  const server = createLocalDemoServer({ root, extraRoots });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   assert.equal(server.address().address, '127.0.0.1');
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -106,4 +106,48 @@ export async function runServeLocalTests() {
     }
   });
   console.log('ok - loopback demo server serves real public/admin example bytes and their direct owned module/style entrypoints');
+
+  // `extraRoots` (pivô de empacotamento): montagem opt-in de uma raiz externa
+  // sob um prefixo, reaproveitando exatamente a mesma validação de
+  // containment/symlink/MIME — nunca uma porta mais frouxa que a raiz
+  // principal, e sem alterar o comportamento default (sem extraRoots).
+  {
+    const tmp = fileURLToPath(new URL('../tmp/', import.meta.url));
+    mkdirSync(tmp, { recursive: true });
+    const root = mkdtempSync(join(tmp, 'serve-local-extraroot-'));
+    const pkgRoot = mkdtempSync(join(tmp, 'serve-local-pkg-'));
+    try {
+      mkdirSync(join(root, 'examples'));
+      writeFileSync(join(root, 'examples/index.html'), '<h1>Demo</h1>');
+      writeFileSync(join(pkgRoot, 'index.js'), 'export const ok = true;');
+      mkdirSync(join(pkgRoot, 'css'));
+      writeFileSync(join(pkgRoot, 'css/template.css'), 'body{color:red}');
+      mkdirSync(join(pkgRoot, 'tmp'));
+      writeFileSync(join(pkgRoot, 'tmp/private.json'), '{"notForServing":true}');
+      let linked = false;
+      try { symlinkSync(join(pkgRoot, 'tmp'), join(pkgRoot, 'linked'), 'junction'); linked = true; }
+      catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; }
+      await withServer(root, async (base) => {
+        const entry = await fetch(base + '/pkg/camap-v3/index.js');
+        assert.equal(entry.status, 200);
+        assert.equal(entry.headers.get('content-type'), 'text/javascript; charset=utf-8');
+        assert.equal(await entry.text(), 'export const ok = true;');
+        const css = await fetch(base + '/pkg/camap-v3/css/template.css');
+        assert.equal(css.status, 200);
+        assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
+        // Mounted root rejects the same private-directory/traversal/symlink
+        // classes as the main root — not a looser gate.
+        for (const path of ['/pkg/camap-v3/tmp/private.json', '/pkg/camap-v3/../index.js', '/pkg/camap-v3/absent.js']) {
+          assert.equal((await fetch(base + path)).status, 404, path);
+        }
+        if (linked) assert.equal((await fetch(base + '/pkg/camap-v3/linked/private.json')).status, 404);
+        // Default behavior (no mount hit) is unchanged: main root still serves its own tree.
+        assert.equal((await fetch(base + '/examples/index.html')).status, 200);
+        // A path that merely starts with the mounted example's own tree,
+        // outside any declared prefix, still 404s exactly as before.
+        assert.equal((await fetch(base + '/pkg-unrelated/index.js')).status, 404);
+      }, { 'pkg/camap-v3': pkgRoot });
+    } finally { rmSync(root, { recursive: true, force: true }); rmSync(pkgRoot, { recursive: true, force: true }); }
+    console.log('ok - loopback demo server: --extra-root mounts an external package root under a prefix with the same containment/symlink/MIME rules, default behavior unchanged without it');
+  }
 }

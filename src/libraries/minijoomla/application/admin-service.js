@@ -20,12 +20,12 @@
  * não de persistir).
  */
 import { ValidationError } from '../core/contracts.js';
-import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles } from './extension-input.js';
+import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles, isWellFormedPositionName } from './extension-input.js';
 import { normalizeAssignment, normalizeAssignmentTokens, normalizeDateTime } from './module-assignment.js';
-import { validateTemplateStyles } from './template-styles.js';
+import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
 import { toSiteConfigOverrides } from './site-config-overrides.js';
 import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from './module-catalog.js';
-import { normalizeParamValues, parseJsonObject } from './declared-params.js';
+import { normalizeParamValues, normalizeParamDefinitions, parseJsonObject } from './declared-params.js';
 import { createExtensionAdministration, runBatch } from './admin-extensions-service.js';
 
 function requireRepository(repositories, domain) {
@@ -213,6 +213,14 @@ const EXTENSION_V2_DEFAULTS = Object.freeze({ ordering: 0, folder: '', paramsJso
 const MODULE_V2_DEFAULTS = Object.freeze({ showTitle: true, publishUp: null, publishDown: null, trashed: false, assignment: 'all', assignmentJson: '[]', note: '' });
 const SITE_CONFIG_V2_DEFAULTS = Object.freeze({ offline: false, offlineMessage: '', metaDescription: '', metaKeywords: '', robots: '', sitenamePagetitles: 'none', homeView: 'category', homeCategory: 'noticias', templateStylesJson: '', componentParamsJson: '' });
 
+/*
+ * `paramDefinitionsJson` (Gap B, pivô de empacotamento): opcional — um
+ * template instalado pode declarar seus próprios parâmetros de estilo no
+ * manifesto (`paramDefinitions`), validados pela mesma
+ * `normalizeParamDefinitions()` já usada para Module/Plugin. Ausência vira
+ * `[]` (mesmo padrão de `positionsJson`/`styles`): nenhum template é
+ * obrigado a declarar parâmetros.
+ */
 function normalizeTemplateInput(input = {}, { partial }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
@@ -225,6 +233,8 @@ function normalizeTemplateInput(input = {}, { partial }) {
   }
   if (input.positionsJson !== undefined && input.positions === undefined) result.positionsJson = templatePositions(input.positionsJson);
   if (!partial && result.positionsJson === undefined) throw new ValidationError('positions é obrigatório.');
+  if (input.paramDefinitions !== undefined) result.paramDefinitionsJson = JSON.stringify(normalizeParamDefinitions(input.paramDefinitions));
+  if (input.paramDefinitionsJson !== undefined && input.paramDefinitions === undefined) result.paramDefinitionsJson = JSON.stringify(normalizeParamDefinitions(input.paramDefinitionsJson));
   if (input.discoveredFrom !== undefined) result.discoveredFrom = optionalText(input.discoveredFrom);
   if (input.enabled !== undefined) result.enabled = enabledValue(input.enabled);
   return result;
@@ -246,7 +256,15 @@ function normalizeModuleInstanceInput(input = {}, { partial }) {
   if (!partial || input.extensionKey !== undefined) result.extensionKey = requireText(input.extensionKey, 'extensionKey');
   if (!partial || input.position !== undefined) {
     result.position = requireText(input.position, 'position');
-    if (![...TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content'].includes(result.position)) throw new ValidationError('position deve ser uma posição de módulo suportada.');
+    // Estrutural ∪ 'sidebar'/'content' (legado) ∪ qualquer posição
+    // bem-formada declarada por um template instalado (ver Gap A em
+    // extension-input.js) — persistência aceita a forma; se a posição
+    // realmente existe no template ATIVO no momento do render é decidido
+    // em dynamic-modules.js's resolveModuleEntries(), não aqui. 'component'
+    // é sempre rejeitada aqui mesmo sendo um nome bem-formado: é a posição
+    // reservada do conteúdo principal do artigo/categoria, nunca atribuível
+    // a uma instância de módulo (mesma regra de antes da generalização).
+    if (result.position === 'component' || (![...TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content'].includes(result.position) && !isWellFormedPositionName(result.position))) throw new ValidationError('position deve ser uma posição de módulo suportada.');
   }
   if (input.ordering !== undefined) {
     const ordering = Number(input.ordering);
@@ -500,19 +518,32 @@ export function createAdminService(repositories, { pluginManager } = {}) {
   async function saveArticle(input, { partial, id, etag, action }) {
     const normalized = normalizeArticleInput(input, { partial });
     if (!pluginManager) return partial ? articleRepository().update(id, normalized, { etag }) : articleRepository().create(normalized);
-    const value = await pluginManager.beforeSave({ ...normalized }, { id, action });
+    // Optional per-write handle pins handlers/params across async persistence,
+    // refresh and out-of-order completions. Legacy injected managers retain
+    // their beforeSave/afterSave contract without implicit wrapping or imports.
+    const savePlugins = typeof pluginManager.captureSaveOperation === 'function'
+      ? await pluginManager.captureSaveOperation() : pluginManager;
+    if (!savePlugins || typeof savePlugins.beforeSave !== 'function' || typeof savePlugins.afterSave !== 'function') throw new TypeError('Handle de plugins de gravação inválido.');
+    const value = await savePlugins.beforeSave({ ...normalized }, { id, action });
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('onContentBeforeSave deve retornar um objeto de artigo.');
     const transformed = normalizeArticleInput(value, { partial });
     const saved = partial
       ? await articleRepository().update(id, transformed, { etag })
       : await articleRepository().create(transformed);
-    if (saved && typeof saved === 'object') {
-      try {
-        const observed = structuredClone(saved);
-        if (saved.etag !== undefined) Object.defineProperty(observed, 'etag', { value: saved.etag, enumerable: false, configurable: true });
-        await pluginManager.afterSave(observed, { id: saved.id, action });
-      } catch { /* observacional: nunca mascara a gravação concluída */ }
-    }
+    try {
+      // SPMIDDLE update may return null after a successful MERGE 204. Read the
+      // persisted record (including its current ETag) ONLY for observation;
+      // never fabricate a full article from a partial patch or reuse old ETag.
+      // This is not an atomic write snapshot: another editor may update the
+      // record before this read. Failure here must not retry/mask the write.
+      const persisted = partial && (saved === null || saved === undefined)
+        ? await articleRepository().findById(id) : saved;
+      if (persisted && typeof persisted === 'object' && !Array.isArray(persisted)) {
+        const observed = structuredClone(persisted);
+        if (persisted.etag !== undefined) Object.defineProperty(observed, 'etag', { value: persisted.etag, enumerable: false, configurable: true });
+        await savePlugins.afterSave(observed, { id: persisted.id, action });
+      }
+    } catch { /* observacional: nunca mascara a gravação concluída */ }
     return saved;
   }
   const articleCrud = {
@@ -759,7 +790,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
         const operationalInput = { ...input };
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) delete operationalInput[field];
         const normalized = normalizeSiteConfigInput(operationalInput);
-        if (normalized.templateKey && !['default', 'cassiopeia', 'camap'].includes(normalized.templateKey)) {
+        if (normalized.templateKey && !BUILTIN_TEMPLATES.includes(normalized.templateKey)) {
           const templates = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
           if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
         }

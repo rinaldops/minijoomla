@@ -27,6 +27,7 @@ import { createMediaUploadService } from '../application/media-upload-service.js
 import { createTemplateDiscoveryService } from '../application/extension-discovery-service.js';
 import { createJoomlaDiscoveryService } from '../application/joomla-discovery.js';
 import { createJoomlaExtensionInstaller } from '../application/joomla-extension-installer.js';
+import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
 
 /*
  * `mediaFileClientFactory`, quando informado, segue o MESMO padrão de
@@ -39,10 +40,17 @@ import { createJoomlaExtensionInstaller } from '../application/joomla-extension-
  * imagem na origem (ver src/administrator/components/com_minijoomla/editor.js), nunca insere um
  * `data:` URI inline.
  */
-export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager,
+export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, importModule,
   joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, ...appOptions } = {}) {
   const app = createMiniJoomlaSharePointApp(appOptions);
-  const admin = createAdminService(app.repositories, { pluginManager });
+  // An explicitly injected manager (including null to opt out) has precedence;
+  // never load persisted plugins into a caller-owned/public manager. Deliberate
+  // omission of lists.extensions keeps legacy partial compositions plugin-free;
+  // a CONFIGURED catalog that fails to load must instead block article saves.
+  let admin;
+  const adminPlugins = pluginManager === undefined && app.repositories.extensions
+    ? createAdminPluginsRuntime({ importModule, getPlugins: () => admin.extensions.list() }) : null;
+  admin = createAdminService(app.repositories, { pluginManager: adminPlugins ?? pluginManager });
   const fileClient = typeof extensionsFileClientFactory === 'function' ? extensionsFileClientFactory({ webUrl: appOptions.webUrl }) : null;
   const legacy = fileClient ? createExtensionDiscoveryService(fileClient) : null;
   if (!Array.isArray(joomlaDiscoveryRoots)) throw new TypeError('joomlaDiscoveryRoots deve ser uma lista.');
@@ -55,5 +63,5 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
   const media = typeof mediaFileClientFactory === 'function'
     ? createMediaUploadService(mediaFileClientFactory({ webUrl: appOptions.webUrl }))
     : null;
-  return Object.freeze({ ...app, admin, discovery: discoveryWithTemplates, templates, media });
+  return Object.freeze({ ...app, admin, adminPlugins, discovery: discoveryWithTemplates, templates, media });
 }

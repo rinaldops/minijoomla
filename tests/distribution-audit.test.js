@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditDistribution } from '../scripts/audit-distribution.js';
+import { stageRelease } from '../scripts/stage-release.js';
+import { removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(PROJECT, 'scripts', 'audit-distribution.js');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const json = (value) => JSON.stringify(value, null, 2);
 
-// All audit inputs are synthetic and owned by this suite under project tmp.
-// No actual source, tenant artifact, sibling dependency or Git state is read.
+// Synthetic adversarial inputs and a real core stage are owned under project
+// tmp. The real graph uses MINIJOOMLA sources only, never sibling/Git/tenant data.
 export async function runDistributionAuditTests() {
   mkdirSync(join(PROJECT, 'tmp'), { recursive: true });
   const base = mkdtempSync(join(PROJECT, 'tmp', 'distribution-audit-test-'));
@@ -30,7 +32,11 @@ export async function runDistributionAuditTests() {
     return { root, manifest, value };
   };
   const revise = (item, change) => { change(item.value); put(item.manifest, json(item.value)); };
-  const cli = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8' });
+  const cli = (...args) => {
+    const result = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8', timeout: 10000 });
+    assert.ifError(result.error);
+    return result;
+  };
   let linkChecks = 0;
   let linkSkips = 0;
   const tryLink = (target, path, type) => {
@@ -65,6 +71,8 @@ export async function runDistributionAuditTests() {
     assert.match(result.pending.join('\n'), /TinyMCE.*complete corresponding source/);
     assert.match(result.pending.join('\n'), /SPMIDDLE.*complete MIT license/);
     assert.match(result.pending.join('\n'), /including when candidates are zero/);
+    assert.match(result.pending.join('\n'), /does not read Git or establish their current contents/);
+    assert.doesNotMatch(result.pending.join('\n'), /Tracked tmp artifacts and aggregator Git history require/);
     assert.deepEqual(readFileSync(clean.manifest), manifestBefore);
     assert.deepEqual(readdirSync(clean.root).sort(), inventoryBefore);
     clean.value.files.forEach(({ path }, index) => assert.deepEqual(readFileSync(join(clean.root, path)), before[index]));
@@ -126,6 +134,35 @@ export async function runDistributionAuditTests() {
     assert.equal(privateReport.counts.byCategory['private-artifact'].files, 5);
     assert.equal(privateReport.counts.byCategory['opaque-content-review'].files, 2);
     assert.ok(privateReport.counts.byCategory['outside-core-scope'].files >= 8);
+
+    const parserNames = ['libraries/vendor/parse-xml/parse-xml.js', 'libraries/vendor/parse-xml/LICENSE', 'libraries/vendor/parse-xml/notices.txt'];
+    const parser = fixture(Object.fromEntries(parserNames.map(path => [path, 'Synthetic parser scope fixture.'])));
+    assert.equal(auditDistribution({ manifest: parser.manifest }).counts.candidates, 0);
+    // Exact path scope is not a content/signature exemption, even for notices.
+    put(join(parser.root, parserNames[2]), `const token = "${fakeSecret}";`);
+    revise(parser, value => {
+      const data = readFileSync(join(parser.root, parserNames[2]));
+      value.files[2] = { path: parserNames[2], bytes: data.length, sha256: hash(data) };
+    });
+    const parserCandidate = auditDistribution({ manifest: parser.manifest });
+    assert.equal(parserCandidate.counts.byCategory['credential-literal'].files, 1);
+    assert.ok(!parserCandidate.counts.byCategory['outside-core-scope']);
+    const unauthorizedNames = ['libraries/vendor/parse-xml/extra.js', 'libraries/vendor/parse-xml/license', 'libraries/vendor/parse-xml/LICENSE.md', 'libraries/vendor/parse-xml/nested/parse-xml.js', 'libraries/vendor/other/parse-xml.js', 'libraries/vendor/spmiddle/fixture.js', 'media/vendor/tinymce/tinymce.min.js', 'administrator/components/vendor/fixture.js'];
+    const unauthorized = fixture(Object.fromEntries(unauthorizedNames.map(path => [path, 'Synthetic unauthorized vendor.'])));
+    assert.equal(auditDistribution({ manifest: unauthorized.manifest }).counts.byCategory['outside-core-scope'].files, unauthorizedNames.length);
+
+    const core = stageRelease({ version: '0.3.1', output: join(base, 'real-core'), target: 'core' });
+    const coreReport = auditDistribution({ manifest: join(core.output, 'manifest.json') });
+    assert.equal(coreReport.target, 'core');
+    assert.equal(coreReport.integrity, 'all-declared-file-hashes-verified');
+    assert.equal(coreReport.counts.files, core.manifest.files.length);
+    assert.equal(core.manifest.files.length, 146, 'Current real core inventory; update explicitly when its graph changes (mod_articles_featured added in the Iteração 5 destaques module, camap-v3 files removed from MINIJOOMLA in the Iteração 4.0 packaging pivot — now confined to web-devs/CAMAP-V3/minijoomla-template/)');
+    assert.ok(!coreReport.counts.byCategory['outside-core-scope'], 'A real core stage must not be rejected as unauthorized vendor');
+    for (const path of parserNames) assert.ok(core.manifest.files.some(entry => entry.path === path));
+    assert.equal(coreReport.publicDistributionApproved, false);
+    assert.equal(coreReport.rightsReviewed, false);
+    assert.equal(coreReport.privacyCertified, false);
+    console.log(`ok - real core distribution audit: ${coreReport.counts.files} verified staged files, exact parser scope, no vendor/signature exemption or approval`);
 
     const many = fixture(Object.fromEntries(Array.from({ length: 125 }, (_, index) => [`libraries/minijoomla/fixture-${index}.js`, `const token = "${fakeSecret}";`])));
     const bounded = auditDistribution({ manifest: many.manifest });
@@ -238,13 +275,14 @@ export async function runDistributionAuditTests() {
     linkSync(join(linked.root, 'libraries/minijoomla/fixture.js'), hardlinkPath);
     assert.throws(() => auditDistribution({ manifest: hardlink.manifest }), /audit-hardlinks-not-allowed/);
 
-    const importOnly = spawnSync(process.execPath, ['--input-type=module', '-e', `globalThis.fetch = () => { throw new Error('No network'); }; await import(${JSON.stringify(new URL('../scripts/audit-distribution.js', import.meta.url).href)});`], { encoding: 'utf8' });
+    const importOnly = spawnSync(process.execPath, ['--input-type=module', '-e', `globalThis.fetch = () => { throw new Error('No network'); }; await import(${JSON.stringify(new URL('../scripts/audit-distribution.js', import.meta.url).href)});`], { encoding: 'utf8', timeout: 10000 });
+    assert.ifError(importOnly.error);
     assert.equal(importOnly.status, 0, importOnly.stderr);
     assert.equal(importOnly.stdout, '');
     console.log(`ok - distribution audit: synthetic manifest-only read, verified hashes, candidate privacy/counts, bounded findings, CLI and containment; ${linkChecks} link checks, ${linkSkips} permission-limited skips; no public/rights/privacy approval`);
   } finally {
     // Only this suite's mkdtemp directory is removed; never shared tmp artifacts.
-    if (existsSync(base)) rmSync(base, { recursive: true, force: true });
+    removeTestDirectory(base);
   }
 }
 

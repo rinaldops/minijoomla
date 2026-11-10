@@ -7,6 +7,7 @@
  */
 import { escapeHtml } from '../../../libraries/minijoomla/security/sanitize.js';
 import { MODULE_ADVANCED_PARAMS } from '../../../libraries/minijoomla/application/module-catalog.js';
+import { BUILTIN_TEMPLATES } from '../../../libraries/minijoomla/application/template-styles.js';
 import { MODULE_ASSIGNMENTS, moduleState, normalizeAssignmentTokens, normalizeAssignment } from '../../../libraries/minijoomla/application/module-assignment.js';
 import { planLegacyModuleAssignment } from '../../../libraries/minijoomla/application/legacy-module-assignment.js';
 import { PLUGIN_GROUPS } from '../../../libraries/minijoomla/application/extension-manifest.js';
@@ -506,7 +507,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   async function configPage() {
     const record = await adminService.siteConfig.get();
     const templates = adminService.templates?.available === false ? [] : await adminService.templates?.list?.() ?? [];
-    const choices = new Map(['default', 'cassiopeia', 'camap'].map((key) => [key, { value: key, label: `${key} (integrado)` }]));
+    const choices = new Map(BUILTIN_TEMPLATES.map((key) => [key, { value: key, label: `${key} (integrado)` }]));
     templates.filter((template) => template.enabled && !choices.has(template.key)).forEach((template) => choices.set(template.key, { value: template.key, label: template.title }));
     if (record?.templateKey && !choices.has(record.templateKey)) choices.set(record.templateKey, { value: record.templateKey, label: `${record.templateKey} (atual - indisponível)` });
     const unavailable = ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles'];

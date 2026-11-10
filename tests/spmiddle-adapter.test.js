@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createSPMiddleAdapter } from '../src/libraries/minijoomla/infrastructure/spmiddle-adapter.js';
-import { runContentAdapterContract } from './adapter-contract.test.js';
+import { runContentAdapterContract, runSearchAdapterContract, SEARCH_ARTICLES } from './adapter-contract.test.js';
 
 function repository(items, calls = []) {
   return { findMany: async (query, options) => { calls.push({ query, options }); return { items }; } };
@@ -66,13 +66,18 @@ export async function runSPMiddleAdapterTests() {
   assert.equal((await adapter.listArchive({ limit: 1 })).length, 1);
 
   const custom = createSPMiddleAdapter({
-    articleRepository: repository([{ key: 7, heading: 'Mapper', slug: 'mapper', status: 'published', labels: [{ title: 'schema-tag' }], starts: '2026-01-01' }]),
-    categoryRepository: repository([]), fields: { article: { id: 'key', title: 'heading', alias: 'slug', state: 'status', tags: 'labels', publishUp: 'starts' } }, now: '2026-10-31'
+    articleRepository: repository([{ key: 7, heading: 'Mapper', slug: 'mapper', status: 'published', labels: [{ title: 'schema-tag' }], starts: '2026-01-01', description: 'Descrição <literal>', keywords: 'guia, solar', transport: 'not-public' }]),
+    categoryRepository: repository([]), fields: { article: { id: 'key', title: 'heading', alias: 'slug', state: 'status', tags: 'labels', publishUp: 'starts', metaDescription: 'description', metaKeywords: 'keywords' } }, now: '2026-10-31'
   });
   assert.deepEqual(await custom.getArticle('mapper'), {
     id: 7, title: 'Mapper', alias: 'mapper', introtext: '', fulltext: '', categoryId: undefined, published: true,
-    featured: false, publishUp: '2026-01-01', publishDown: null, author: '', tags: ['schema-tag']
+    featured: false, publishUp: '2026-01-01', publishDown: null, author: '', tags: ['schema-tag'], metaDescription: 'Descrição <literal>', metaKeywords: 'guia, solar'
   });
+  await runSearchAdapterContract(createSPMiddleAdapter({
+    articleRepository: repository(SEARCH_ARTICLES.map(({ published, ...item }) => ({ ...item, categoryId: 10, state: published ? 'Published' : 'Draft' }))),
+    categoryRepository: repository([{ id: 10, alias: 'noticias' }]), now: '2026-11-06'
+  }));
+  console.log('ok - SPMiddle adapter literal Unicode search modes, totals, pagination and mapped metadata');
 
   // regressão: quando não há override determinístico, o adapter avalia o relógio por chamada
   const withoutOverride = createSPMiddleAdapter({

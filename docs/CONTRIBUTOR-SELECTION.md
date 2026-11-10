@@ -1,5 +1,11 @@
 # CONTRIBUTOR LOCAL — seleção técnica revisável
 
+> Baseline reavaliada em 06/11/2026: 304 arquivos / 4.234.501 bytes,
+> verificação padrão de seleção/hashes/inventário aprovada. Contagens de 171 e
+> testes de 04/11 abaixo são históricos. O `npm test` completo da avaliação
+> apresentou falha de cleanup e timeout; não declarar passe atual do workflow
+> integral por esse teste padrão separado. [Relatório atual](AVALIACAO-E-ESCOPO-2026-11-06.md).
+
 Esta seleção é uma cópia local utilizável para contribuição, **não uma
 distribuição pública aprovada**. O estágio `core` 0.3.1 é runtime-only: não
 contém demos, testes nem o runtime TinyMCE e não deve ser chamado de contributor.
@@ -14,7 +20,13 @@ node scripts/stage-contributor.js --output tmp/contributor-local-01
 node --input-type=module -e "const s = await import('./scripts/stage-contributor.js'); s.verifyContributorStage({ output: 'tmp/contributor-local-01' });"
 node scripts/audit-distribution.js --manifest tmp/contributor-local-01/manifest.json
 node tests/contributor-stage.test.js
+node tests/contributor-stage.test.js --commands
 ```
+
+A primeira execução valida seleção/CLI/integridade sem recursar comandos npm.
+`--commands` acrescenta o workflow completo no recorte isolado (npm test,
+sintaxe, exemplos, core e HTTP/MIME). Sem essa opção não anunciar esse workflow
+como executado. Onze integrações são opcionais somente quando o irmão está ausente.
 
 `--output` é a única opção CLI e resolve relativamente ao projeto, não ao
 diretório do terminal. Deve ser um **descendente de `tmp/`**, novo: diretório
@@ -46,8 +58,9 @@ fixtures, regras de auditoria, exemplos ou avisos.
   real em navegador nem licença completa/proveniência/fonte-build correspondente.
 - Scripts de teste/sintaxe/servidor/gates locais, incluindo `stage-release.js`.
 - Somente docs de entrada revisáveis: este documento, `CONTRIBUTING.md`,
-  `SECURITY.md`, `LOCAL-DEMO.md`, `ADMIN-LAYOUT-TESTS.md`, `RELEASE-CORE.md`,
-  `THIRD-PARTY-NOTICES.md` e o texto GPL. README/avisos ainda contêm contexto
+   `SECURITY.md`, `LOCAL-DEMO.md`, `ADMIN-LAYOUT-TESTS.md`, `RELEASE-CORE.md`,
+   `EXTENSOES-JOOMLA.md`, `CONTRATOS-EVOLUCAO-XML.md`,
+   `THIRD-PARTY-NOTICES.md` e o texto GPL. README/avisos ainda contêm contexto
   histórico: sua inclusão **não** autoriza redistribuí-los como documentação OSS.
 
 Não entram o irmão SPMIDDLE nem sua licença sem seu código, Git/índice/histórico,
@@ -72,7 +85,7 @@ seleção exata e todos os hashes/bytes, inclusive schema/flags e formato determ
 do manifesto. É verificação de integridade, **não auditor de candidatos**.
 Comandos executados dentro da seleção criam seu próprio `tmp/`: isso deixa a
 pasta de trabalho com extras e ela não deve ser confundida com o estágio intacto.
-O teste direto remove somente seus próprios temporários e confere novamente.
+O workflow `--commands` remove somente seus próprios temporários e confere novamente.
 
 ## Comandos úteis dentro da seleção
 
@@ -87,12 +100,13 @@ node scripts/serve-local.js
 node scripts/stage-release.js --version 0.3.1 --output tmp/core-local-01 --target core
 ```
 
-- `npm test`: o runner real registra as suítes; **nove integration skips** são
+- `npm test`: o runner real registra as suítes; **onze integration skips** são
   esperados sem `../SPMIDDLE`. Falha local ou irmão presente/incompleto continua
   sendo falha. `runner.test.js` cria e executa seu child isolado atual, excluindo
   apenas a si próprio para evitar recursão; nenhuma transformação do runner aqui.
-- `npm run check`: sintaxe de src/tests/examples. O teste direto também confere
-  separadamente a sintaxe de todos os scripts selecionados.
+- `npm run check`: sintaxe de `.js/.mjs` em src/tests/examples/scripts, sem
+  executar módulos. Imports ausentes continuam sendo verificados pelo runner,
+  não certificados pelo parser de sintaxe.
 - Standalone: sete grupos Node com os módulos originais dos exemplos, sem
   navegador/TinyMCE real. Consulte `LOCAL-DEMO.md`.
 - Servidor: loopback somente leitura, MIME explícito/no-store/nosniff. Demos em
@@ -108,7 +122,7 @@ node scripts/stage-release.js --version 0.3.1 --output tmp/core-local-01 --targe
 
 O teste está integrado ao runner; seu child isolado também copia os novos
 scripts/documentos selecionados. A função exportada usa `commands: false` por
-padrão para não recursar npm; a CLI direta executa o workflow completo. Nenhuma
+padrão para não recursar npm; a CLI direta com `--commands` executa o workflow completo. Nenhuma
 falha local de import/integração instalada é convertida em skip.
 
 ## Gates ainda bloqueantes
@@ -135,7 +149,7 @@ falha local de import/integração instalada é convertida em skip.
 
 ### Validação desta frente
 
-Execute `node tests/contributor-stage.test.js` para reproduzir allowlist/hashes,
+Execute `node tests/contributor-stage.test.js --commands` para reproduzir allowlist/hashes,
 bytes vendor, destinação/imutabilidade/links/hardlinks, extras/tamper, CLI a partir
 de outro cwd, npm test com child real, sintaxe/standalone/core e MIME loopback.
 Execução direta concluída em **04/11/2026, Node 24.18.0**:

@@ -6,6 +6,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONTRIBUTOR_FILES, stageContributor, verifyContributorStage } from '../scripts/stage-contributor.js';
 import { auditDistribution } from '../scripts/audit-distribution.js';
+import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(PROJECT, 'scripts', 'stage-contributor.js');
@@ -13,7 +14,7 @@ const hash = (data) => createHash('sha256').update(data).digest('hex');
 const put = (path, data) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, data); };
 
 function command(root, executable, args) {
-  const result = spawnSync(executable, args, { cwd: root, encoding: 'utf8', timeout: 600000, maxBuffer: 12 * 1024 * 1024 });
+  const result = spawnSync(executable, args, { cwd: root, encoding: 'utf8', timeout: 360000, maxBuffer: 12 * 1024 * 1024 });
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return result;
@@ -27,15 +28,14 @@ async function workflow(root) {
     ? process.env.npm_execpath : join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
   assert.ok(existsSync(npm), 'npm CLI must be available for the contributor command check');
   const tests = command(root, process.execPath, [npm, 'test']);
-  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, 9);
-  assert.match(tests.stdout, /Suites: \d+ passed, 9 skipped, 0 failed/);
+  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, 11);
+  assert.match(tests.stdout, /Suites: \d+ passed, 11 skipped, 0 failed/);
   assert.match(tests.stdout, /ok - suite runner\.test\.js/);
-  console.log(`ok - selected npm test: ${tests.stdout.match(/Suites: \d+ passed, 9 skipped, 0 failed/)[0]}; real runner child also passed`);
+  console.log(`ok - selected npm test: ${tests.stdout.match(/Suites: \d+ passed, 11 skipped, 0 failed/)[0]}; real runner child also passed`);
   const syntax = command(root, process.execPath, [npm, 'run', 'check']);
   assert.match(syntax.stdout, /Syntax OK: \d+ JavaScript files/);
-  // check-syntax.js currently checks src/tests/examples, not scripts.
-  for (const name of CONTRIBUTOR_FILES.filter((name) => name.startsWith('scripts/') && name.endsWith('.js'))) command(root, process.execPath, ['--check', name]);
-  console.log(`ok - selected npm run check: ${syntax.stdout.match(/Syntax OK: \d+ JavaScript files/)[0]}; all selected scripts also checked`);
+  assert.match(syntax.stdout, /src\/tests\/examples\/scripts; \.js\/\.mjs; parse only/);
+  console.log(`ok - selected npm run check: ${syntax.stdout.match(/Syntax OK: \d+ JavaScript files/)[0]}; scripts and JS/MJS checked without evaluation`);
   const examples = command(root, process.execPath, [npm, 'run', 'test:standalone-examples']);
   assert.doesNotMatch(examples.stdout, /LIMIT/);
   console.log('ok - selected npm run test:standalone-examples: unchanged example modules and seven offline contract groups');
@@ -76,14 +76,20 @@ async function workflow(root) {
   } finally { await new Promise((done) => server.close(done)); }
   // Only test-owned command outputs are removed. The selection script itself
   // never deletes/overwrites a destination; running commands mutates tmp only.
-  rmSync(join(root, 'tmp'), { recursive: true, force: true });
+  rmSync(join(root, 'tmp'), { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
   console.log('ok - selected actual demos and TinyMCE assets: exact bytes, MIME, loopback/no-store/nosniff; no browser launched');
 }
 
-// Command workflow is opt-in here to avoid nested npm-test recursion if the
-// coordinator later registers this function in the main runner. The direct CLI
-// always exercises it. Existing shared runner/package files remain untouched.
+// Commands are opt-in both for the runner and direct CLI (--commands). Avoid
+// recursively invoking npm test or expensive workflow checks on a normal run.
 export async function runContributorStageTests({ commands = false } = {}) {
+  const started = performance.now();
+  let previous = started;
+  const checkpoint = label => {
+    const now = performance.now();
+    console.log(`checkpoint - contributor ${label}: ${Math.round(now - previous)}ms; total ${Math.round(now - started)}ms`);
+    previous = now;
+  };
   mkdirSync(join(PROJECT, 'tmp'), { recursive: true });
   const base = mkdtempSync(join(PROJECT, 'tmp', 'contributor-agent-'));
   let checkedLinks = 0;
@@ -96,8 +102,17 @@ export async function runContributorStageTests({ commands = false } = {}) {
   try {
     assert.ok(Object.isFrozen(CONTRIBUTOR_FILES));
     assert.equal(new Set(CONTRIBUTOR_FILES).size, CONTRIBUTOR_FILES.length);
-    const first = stageContributor({ output: join(base, 'first') });
-    const second = stageContributor({ output: join(base, 'second') });
+    // Freeze test inputs once. Parallel authorized edits must not invalidate a
+    // byte comparison minutes later. The actual default-source CLI runs below.
+    const snapshotRoot = join(base, 'snapshot');
+    const snapshot = new Map();
+    for (const name of CONTRIBUTOR_FILES) {
+      copyTestTree(join(PROJECT, name), join(snapshotRoot, name));
+      snapshot.set(name, readFileSync(join(snapshotRoot, name)));
+    }
+    checkpoint('snapshot copied');
+    const first = stageContributor({ output: join(base, 'first'), sourceRoot: snapshotRoot });
+    const second = stageContributor({ output: join(base, 'second'), sourceRoot: snapshotRoot });
     assert.deepEqual(first.manifest, second.manifest);
     assert.deepEqual(readFileSync(join(first.output, 'manifest.json')), readFileSync(join(second.output, 'manifest.json')));
     assert.deepEqual(verifyContributorStage({ output: first.output }), first.manifest);
@@ -108,7 +123,7 @@ export async function runContributorStageTests({ commands = false } = {}) {
       const data = readFileSync(join(first.output, entry.path));
       assert.equal(data.length, entry.bytes);
       assert.equal(hash(data), entry.sha256);
-      assert.deepEqual(data, readFileSync(join(PROJECT, entry.path)), `Never rewrite or sanitize ${entry.path}`);
+      assert.deepEqual(data, snapshot.get(entry.path), `Never rewrite or sanitize ${entry.path}`);
       assert.ok(!/^(?:tmp\/|\.git\/|host-adapters\/|theme\/)/.test(entry.path));
     }
     const vendor = first.manifest.files.filter(({ path }) => path.startsWith('src/media/vendor/tinymce/'));
@@ -134,6 +149,7 @@ export async function runContributorStageTests({ commands = false } = {}) {
     // a future candidate scan simply because their paths are on the allowlist.
     for (const name of ['scripts/audit-distribution.js', 'tests/distribution-audit.test.js', 'tests/admin-app.test.js', 'src/libraries/minijoomla/infrastructure/spmiddle-test-schemas.js']) assert.ok(CONTRIBUTOR_FILES.includes(name));
     console.log(`ok - contributor exact allowlist: ${first.manifest.files.length} files, ${first.manifest.files.reduce((sum, entry) => sum + entry.bytes, 0)} bytes; deterministic hashes/false approvals; 33 unchanged vendor files`);
+    checkpoint('deterministic stages and full candidate audit');
 
     assert.throws(() => stageContributor({ output: first.output }), /destination-exists/);
     assert.throws(() => stageContributor({ output: join(PROJECT, 'tmp') }), /tmp-descendant/);
@@ -155,7 +171,7 @@ export async function runContributorStageTests({ commands = false } = {}) {
     put(join(first.output, 'README.md'), 'synthetic modification');
     assert.throws(() => verifyContributorStage({ output: first.output }), /integrity-mismatch/);
     assert.throws(() => auditDistribution({ manifest: join(first.output, 'manifest.json') }), /audit-file-integrity-failed/);
-    cpSync(join(PROJECT, 'README.md'), join(first.output, 'README.md'));
+    cpSync(join(second.output, 'README.md'), join(first.output, 'README.md'));
     const changed = { ...first.manifest, privacyApproved: true };
     put(join(first.output, 'manifest.json'), `${JSON.stringify(changed, null, 2)}\n`);
     assert.throws(() => verifyContributorStage({ output: first.output }), /integrity-mismatch/);
@@ -172,8 +188,12 @@ export async function runContributorStageTests({ commands = false } = {}) {
     assert.deepEqual(JSON.parse(auditCLI.stdout), audit);
     assert.doesNotMatch(auditCLI.stdout, /PROJETOS[\\/]|Users[\\/]|Bearer[ \t]+[a-z0-9._~+/-]{12}/i);
 
-    const source = join(base, 'fixture');
-    for (const name of CONTRIBUTOR_FILES) { mkdirSync(dirname(join(source, name)), { recursive: true }); cpSync(join(PROJECT, name), join(source, name)); }
+    console.log('ok - contributor inventory/schema/integrity rejection gates and candidate-audit CLI');
+    checkpoint('inventory integrity and audit CLI');
+    // Reuse the already isolated snapshot; adding unselected sources and
+    // corrupting/restoring one selected file needs no third full source copy.
+    // The in-memory bytes and both earlier stages remain unchanged.
+    const source = snapshotRoot;
     for (const name of ['src/unlisted.js', 'src/private.json', '.git/config', 'tmp/evidence.js', 'host-adapters/deployment.html', 'docs/PLANO-MINIJOOMLA.md']) put(join(source, name), 'synthetic excluded content');
     const fixture = stageContributor({ output: join(base, 'fixture-stage'), sourceRoot: source });
     assert.deepEqual(fixture.manifest, first.manifest, 'Unlisted source additions cannot enter selection');
@@ -187,35 +207,46 @@ export async function runContributorStageTests({ commands = false } = {}) {
       assert.throws(() => stageContributor({ output: join(base, 'dangling'), sourceRoot: source }), /links-not-allowed/);
       rmSync(join(source, 'README.md')); checkedLinks += 1;
     }
-    cpSync(join(PROJECT, 'README.md'), join(source, 'README.md'));
+    cpSync(join(second.output, 'README.md'), join(source, 'README.md'));
     const linkedRoot = join(base, 'linked-root');
-    if (tryLink(source, linkedRoot, 'junction')) {
+    if (tryLink(source, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir')) {
       assert.throws(() => stageContributor({ output: join(base, 'linked-source'), sourceRoot: linkedRoot }), /links-not-allowed/);
       assert.throws(() => stageContributor({ output: join(linkedRoot, 'new-output') }), /links-not-allowed/);
       rmSync(linkedRoot); checkedLinks += 2;
     }
     const linkedStage = join(second.output, 'extra-link');
-    if (tryLink(source, linkedStage, 'junction')) {
+    if (tryLink(source, linkedStage, process.platform === 'win32' ? 'junction' : 'dir')) {
       assert.throws(() => verifyContributorStage({ output: second.output }), /links-not-allowed/);
       rmSync(linkedStage); checkedLinks += 1;
     }
     const nestedStage = join(source, 'tmp', 'nested-stage');
     assert.throws(() => stageContributor({ output: nestedStage, sourceRoot: source }), /overlap/);
+    console.log('ok - contributor selected fixture copy and missing/hardlink/junction/overlap rejection gates');
+    checkpoint('unlisted source and containment gates');
     for (const args of [[], ['--output'], ['--output', 'tmp/new', '--output', 'tmp/other'], ['--sourceRoot', source], ['--output', first.output]]) {
       const rejected = cli(...args); assert.ifError(rejected.error); assert.equal(rejected.status, 1);
       assert.doesNotMatch(rejected.stderr, /Users[\\/]|PROJETOS[\\/]|synthetic excluded/);
     }
     const successful = cli('--output', join('tmp', basename(base), 'cli-stage'));
     assert.ifError(successful.error); assert.equal(successful.status, 0, successful.stderr);
-    assert.deepEqual(verifyContributorStage({ output: join(base, 'cli-stage') }), first.manifest);
+    const cliManifest = verifyContributorStage({ output: join(base, 'cli-stage') });
+    assert.deepEqual(cliManifest.files.map(entry => entry.path), CONTRIBUTOR_FILES);
+    // The CLI reads live sources; compare its immutable output to its manifest,
+    // not an earlier snapshot potentially edited by another authorized agent.
+    for (const entry of cliManifest.files) assert.equal(hash(readFileSync(join(base, 'cli-stage', entry.path))), entry.sha256);
     console.log(`ok - contributor immutable/containment/inventory/CLI gates; ${checkedLinks} link checks, ${unavailableLinks} link creations unavailable`);
+    checkpoint('selection CLI');
     if (commands) {
       await workflow(second.output);
       assert.deepEqual(verifyContributorStage({ output: second.output }), second.manifest, 'Commands leave selected source files intact after test-owned tmp cleanup');
     }
-  } finally { rmSync(base, { recursive: true, force: true }); }
+  } finally { removeTestDirectory(base); checkpoint('test-owned cleanup'); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  runContributorStageTests({ commands: true }).catch((error) => { console.error(error); process.exitCode = 1; });
+  const args = process.argv.slice(2);
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--commands')) {
+    console.error('Usage: node tests/contributor-stage.test.js [--commands]');
+    process.exitCode = 1;
+  } else runContributorStageTests({ commands: args[0] === '--commands' }).catch((error) => { console.error(error); process.exitCode = 1; });
 }

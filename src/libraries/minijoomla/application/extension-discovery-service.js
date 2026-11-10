@@ -87,8 +87,13 @@ export function createTemplateDiscoveryService(fileClient) {
         sameSiteModuleUrl(entryPointUrl);
         const normalizedStyles = templateStyles(data.styles);
         const styles = typeof data.styles === 'string' ? data.styles.trim() : normalizedStyles;
-        found.push({ key, title, version, type: 'Template', entryPointUrl, styles, positions, discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: null });
-      } catch (error) { found.push({ key, title: key, version: '', type: null, entryPointUrl: null, styles: '', positions: [], discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: error.message }); }
+        // `paramDefinitions` (Gap B, pivô de empacotamento): opcional —
+        // mesma validação já usada para Module/Plugin (normalizeParamDefinitions),
+        // permitindo que um template instalado declare seus próprios
+        // parâmetros de estilo sem exigir um import estático no MINIJOOMLA.
+        const paramDefinitions = normalizeParamDefinitions(data.paramDefinitions);
+        found.push({ key, title, version, type: 'Template', entryPointUrl, styles, positions, paramDefinitions, discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: null });
+      } catch (error) { found.push({ key, title: key, version: '', type: null, entryPointUrl: null, styles: '', positions: [], paramDefinitions: [], discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: error.message }); }
     }
     return found;
   }

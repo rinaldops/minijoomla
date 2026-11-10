@@ -22,7 +22,9 @@ export async function loadTemplateDiscoveryPage({ adminService, discoveryService
           try {
             await adminService.templates.create({
               title: entry.title, key: entry.key, version: entry.version, entryPointUrl: entry.entryPointUrl,
-              styles: entry.styles, positions: structuredClone(entry.positions), discoveredFrom: entry.discoveredFrom, enabled: true
+              styles: entry.styles, positions: structuredClone(entry.positions),
+              ...(Array.isArray(entry.paramDefinitions) && entry.paramDefinitions.length ? { paramDefinitions: structuredClone(entry.paramDefinitions) } : {}),
+              discoveredFrom: entry.discoveredFrom, enabled: true
             });
             if (isCurrent()) await router.navigate(link('/templates/discover'));
           } catch (error) {

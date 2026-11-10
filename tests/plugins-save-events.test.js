@@ -76,6 +76,39 @@ export async function runPluginsSaveEventsTests() {
   const result = await admin.articles.batch([{ id: fresh.id, etag: fresh.etag }], 'unpublish');
   assert.equal(result.failed.length, 0);
   assert.equal((await articles.findById(fresh.id)).state, 'Draft');
+
+  // Successful SPMIDDLE MERGE 204 yields null, not a mapped write response.
+  // Read once for afterSave, preserve null return and specific submitted ETag.
+  const noContent = repo();
+  const original = await noContent.create({ title: 'Original', alias: 'original', introtext: 'kept' });
+  const observed204 = [];
+  const reads = [];
+  let failedRead = false;
+  const noContentRepository = { ...noContent,
+    async update(id, patch, options) { await noContent.update(id, patch, options); return null; },
+    async findById(id) { reads.push(id); if (failedRead) throw new Error('private read failure'); return noContent.findById(id); }
+  };
+  const noContentManager = createPluginManager().register({ name: 'observer204', events: {
+    onContentBeforeSave: (value) => ({ ...value, title: `${value.title}!` }),
+    onContentAfterSave(value, context) {
+      observed204.push({ id: value.id, title: value.title, introtext: value.introtext, etag: value.etag, enumerable: Object.keys(value).includes('etag'), action: context.action });
+      value.serverMetadata.unchanged = false;
+      throw new Error('private observer failure');
+    }
+  } });
+  const noContentAdmin = createAdminService({ articles: noContentRepository }, { pluginManager: noContentManager });
+  assert.equal(await noContentAdmin.articles.update(original.id, { title: 'Changed' }, { etag: original.etag }), null);
+  const updated204 = await noContent.findById(original.id);
+  assert.notEqual(updated204.etag, original.etag);
+  assert.deepEqual(reads, [original.id]);
+  assert.deepEqual(observed204, [{ id: original.id, title: 'Changed!', introtext: 'kept', etag: updated204.etag, enumerable: false, action: 'update' }]);
+  assert.equal(updated204.serverMetadata.unchanged, true);
+  await assert.rejects(() => noContentAdmin.articles.update(original.id, { title: 'Stale' }, { etag: original.etag }), (error) => error.code === 'concurrency-conflict');
+  assert.equal(reads.length, 1, 'failed write must not read or observe');
+  failedRead = true;
+  assert.equal(await noContentAdmin.articles.update(original.id, { title: 'Saved without observation' }, { etag: updated204.etag }), null);
+  assert.equal((await noContent.findById(original.id)).title, 'Saved without observation!');
+  assert.equal(observed204.length, 1, 'failed reread skips observers, never sends a fabricated patch snapshot');
   assert.throws(() => createAdminService({ articles }, { pluginManager: {} }), TypeError);
   console.log('ok - article save hooks: transform/veto, post-save isolation, duplicate/batch and captured non-enumerable ETags');
 }
