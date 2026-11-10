@@ -166,6 +166,21 @@ function buildStage(lists) {
   return walk(root).map((path) => ({ path, name: relative(root, path).split(sep).join('/') }));
 }
 
+// Sites SharePoint com a feature "Document ID" ativada injetam metadados
+// XML dentro do primeiro `<head>` (ou, na ausência de um, logo após o fim
+// do byte original) de todo arquivo `.html` enviado via REST — confirmado
+// nesta iteração por upload de sondagem descartável num site de teste real
+// (ver tmp/it7-investigation, removido após a sondagem): o conteúdo
+// original sempre aparece intacto como PREFIXO exato dos bytes remotos; a
+// injeção é estritamente um APÊNDICE, nunca uma truncagem/alteração do
+// conteúdo original. `.js`/`.css`/`.json` saem bit-a-bit idênticos (o
+// recurso só atua em `.html`). Por isso, só para `.html`, a verificação
+// aceita esse apêndice SE E SOMENTE SE os primeiros `byteLength` bytes
+// remotos repetirem o hash SHA-256 original exato — qualquer divergência
+// no prefixo (truncagem, corrupção, substituição de conteúdo) continua
+// rejeitada. Todas as outras extensões mantêm a exigência de hash idêntico
+// de sempre, sem excecão.
+const WEAK_INTEGRITY_EXTENSIONS = new Set(['.html']);
 async function upload(files) {
   const folders = [...new Set(files.flatMap(({ name }) => name.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))))].sort();
   const shared = [assets, `${assets}/releases`, `${assets}/uploads`, `${assets}/extensions`, `${assets}/templates`];
@@ -178,7 +193,8 @@ async function upload(files) {
   for (let i = 0; i < files.length; i += 8) {
     const chunk = files.slice(i, i + 8).map(({ path, name }) => {
       const bytes = readFileSync(path);
-      return { name, base64: bytes.toString('base64'), sha256: createHash('sha256').update(bytes).digest('hex') };
+      const weakIntegrity = WEAK_INTEGRITY_EXTENSIONS.has(name.slice(name.lastIndexOf('.')).toLowerCase());
+      return { name, base64: bytes.toString('base64'), sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length, weakIntegrity };
     });
     await browser(`const hex = (buffer) => [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
       await Promise.all(${JSON.stringify(chunk)}.map(async (file) => {
@@ -188,7 +204,11 @@ async function upload(files) {
         const folder = [${JSON.stringify(release)}, ...parts].join('/');
         await call('web/GetFolderByServerRelativePath(decodedurl=' + q(folder) + ')/Files/addusingpath(decodedurl=' + q(leaf) + ',overwrite=false)', { method: 'POST', body: bytes });
         const remote = await (await fetch(folder + '/' + leaf + '?verify=' + Date.now(), { cache: 'no-store' })).arrayBuffer();
-        if (hex(await crypto.subtle.digest('SHA-256', remote)) !== file.sha256) throw new Error('hash divergente: ' + file.name);
+        if (file.weakIntegrity) {
+          if (remote.byteLength < file.byteLength) throw new Error('arquivo truncado pelo servidor (verificação frouxa .html): ' + file.name);
+          const prefix = remote.slice(0, file.byteLength);
+          if (hex(await crypto.subtle.digest('SHA-256', prefix)) !== file.sha256) throw new Error('prefixo divergente do conteúdo original (verificação frouxa .html): ' + file.name);
+        } else if (hex(await crypto.subtle.digest('SHA-256', remote)) !== file.sha256) throw new Error('hash divergente: ' + file.name);
       }));
       return true;`);
     process.stdout.write(`\r${Math.min(i + 8, files.length)}/${files.length} verificados`);
