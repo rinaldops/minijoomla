@@ -29,6 +29,7 @@ import { createJoomlaDiscoveryService } from '../application/joomla-discovery.js
 import { createJoomlaExtensionInstaller } from '../application/joomla-extension-installer.js';
 import { createSampleDataService } from '../application/sample-data-service.js';
 import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
+import { assertJoomlaPackageAssets } from '../application/joomla-package-assets.js';
 
 /*
  * `mediaFileClientFactory`, quando informado, segue o MESMO padrão de
@@ -42,7 +43,7 @@ import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
  * `data:` URI inline.
  */
 export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, importModule, sampleDataPackageLoader, sampleDataJournalStore,
-  joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, ...appOptions } = {}) {
+  joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, approvedPackageAssets, ...appOptions } = {}) {
   const app = createMiniJoomlaSharePointApp(appOptions);
   // An explicitly injected manager (including null to opt out) has precedence;
   // never load persisted plugins into a caller-owned/public manager. Deliberate
@@ -56,8 +57,12 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
   const legacy = fileClient ? createExtensionDiscoveryService(fileClient) : null;
   if (!Array.isArray(joomlaDiscoveryRoots)) throw new TypeError('joomlaDiscoveryRoots deve ser uma lista.');
   if (joomlaDiscoveryRoots.length && typeof joomlaFileClientFactory !== 'function') throw new TypeError('Raizes XML requerem joomlaFileClientFactory.');
-  const discovery = joomlaDiscoveryRoots.length ? createJoomlaDiscoveryService({ legacy,
+  const xmlDiscovery = joomlaDiscoveryRoots.length ? createJoomlaDiscoveryService({ legacy,
     roots: joomlaDiscoveryRoots.map((root) => ({ ...root, files: joomlaFileClientFactory({ webUrl: appOptions.webUrl, root }) })) }) : legacy;
+  const discovery = xmlDiscovery && approvedPackageAssets ? Object.freeze({ ...xmlDiscovery,
+    async verify(candidate, options) { const descriptor=await xmlDiscovery.verify(candidate,options);assertJoomlaPackageAssets(approvedPackageAssets,[descriptor]);return descriptor; },
+    async verifyRevision(metadata, options) { const descriptor=await xmlDiscovery.verifyRevision(metadata,options);assertJoomlaPackageAssets(approvedPackageAssets,[descriptor]);return descriptor; }
+  }) : xmlDiscovery;
   const templates = fileClient ? createTemplateDiscoveryService(fileClient) : null;
   const installer = joomlaDiscoveryRoots.length ? createJoomlaExtensionInstaller({ discovery, admin, repositories: app.repositories, assertAtomicKey: assertAtomicExtensionKey }) : null;
   const discoveryWithTemplates = discovery ? Object.freeze({ ...discovery, templates, ...(installer ? { installer } : {}) }) : null;

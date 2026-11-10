@@ -8,6 +8,8 @@ import { resolveInstallationContext } from './installation-context.js';
 const PRECONFIGURED = /* MINIJOOMLA_CONFIG */ null;
 // Generic copied package has null; deployment may inject one explicit object.
 let CONFIG = PRECONFIGURED ?? {};
+let extensionRootsService;
+const GENERIC_INSTALLATION = !PRECONFIGURED?.lists;
 const SITE_ROOT = '[data-minijoomla-site]';
 const ADMIN_ROOT = '[data-minijoomla-admin-root]';
 
@@ -83,8 +85,9 @@ async function mountAdmin(root) {
   const app = createMiniJoomlaAdminApp({
     webUrl: CONFIG.webUrl,
     transportFactory: ({ webUrl }) => createSharePointRestClient({ webUrl: webUrl || '/' }),
-    extensionsFileClientFactory: fileClient,
+    extensionsFileClientFactory: GENERIC_INSTALLATION ? undefined : fileClient,
     joomlaDiscoveryRoots: CONFIG.joomlaDiscoveryRoots ?? [],
+    approvedPackageAssets: GENERIC_INSTALLATION ? {moduleStyles:CONFIG.moduleStyles,moduleStyleRevisions:CONFIG.moduleStyleRevisions} : undefined,
     joomlaFileClientFactory: ({ webUrl, root }) => {
       const client = createSharePointFileClient({ transport: toSharePointFileTransport(createSharePointRestClient({ webUrl: webUrl || '/' })), libraryPath: root.baseUrl });
       return { listFolders: client.listFoldersAll, listFiles: client.listFilesAll, downloadFile: client.downloadFile };
@@ -102,6 +105,7 @@ async function mountAdmin(root) {
     discoveryService: app.discovery,
     mediaService: app.media,
     sampleDataService: app.sampleData,
+    extensionRootsService,
     documentRef: { body: root, documentElement: null, title: '' },
     richTextEditorFactory: (elementId, options) => attachRichTextEditor(elementId, {
       vendorBaseUrl: new URL('../media/vendor/tinymce', import.meta.url).pathname,
@@ -134,6 +138,26 @@ try {
     const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('../media/installation/installation.css',import.meta.url).href;document.head.append(style);
     await mountInstallationPage({root,service,publicView:root.matches(SITE_ROOT),onInstalled:async configuration=>{
       CONFIG=configuration;
+      const [{createSharePointExtensionRootsPort},{createExtensionRootsService}]=await Promise.all([
+        import('../libraries/minijoomla/infrastructure/sharepoint-extension-roots.js'),
+        import('../libraries/minijoomla/application/extension-roots-service.js')
+      ]);
+      const [{createSharePointFileClient},{toSharePointFileTransport}]=await Promise.all([
+        import('../libraries/vendor/spmiddle/sharepoint-files/src/files.js'),
+        import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js')
+      ]);
+      const rootsPort=createSharePointExtensionRootsPort({...context,transport,
+        mutationTransportFactory:guard=>createSharePointRestClient({webUrl:context.webUrl,fetchImpl:(url,init)=>{guard();return fetch(url,init);}}),
+        fileClientFactory:({webUrl,root})=>{
+          const client=createSharePointFileClient({transport:toSharePointFileTransport(createSharePointRestClient({webUrl:webUrl || '/'})),libraryPath:root.baseUrl});
+          return {listFolders:client.listFoldersAll,downloadFile:client.downloadFile};
+        }
+      });
+      extensionRootsService=createExtensionRootsService({port:rootsPort});
+      const extensions=await extensionRootsService.inspect();
+      if(extensions.status!=='ready')throw new TypeError('Configuração de extensões não pôde ser verificada.');
+      const approved=extensions.configuration;
+      CONFIG={...configuration,joomlaDiscoveryRoots:approved.joomlaDiscoveryRoots,moduleStyles:approved.moduleStyles,moduleStyleRevisions:approved.moduleStyleRevisions};
       style.remove();
       await (root.matches(ADMIN_ROOT)?mountAdmin(root):mountSite(root));
     }});

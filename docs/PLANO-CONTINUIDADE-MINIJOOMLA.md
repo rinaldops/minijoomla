@@ -45,6 +45,11 @@ SharePoint real segue pendente de destino vazio específico, e raízes/extensõe
 pós-instalação ainda precisam de desenvolvimento.
 [Resultados e limites](CICLO-INSTALACAO-CONTINUIDADE.md).
 
+**Checkpoint enviado:** `765e174` na branch step2, confirmado no remoto após
+autorização explícita. Próximo incremento de raízes pelo painel implementado e
+validado localmente (112/0/0 e 339 JS/MJS): arquivo separado, aprovações/ETags/CSS de revisão preservados,
+sem instalar extensões ao aprovar. [Ciclo atual](CICLO-RAIZES-EXTENSOES.md).
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados

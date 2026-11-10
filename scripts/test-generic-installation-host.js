@@ -83,7 +83,7 @@ async function loadHost(rootPath, inventory, server, storage, kind) {
     const text = result.status === 204 ? '' : JSON.stringify(result.data);
     return { ok: result.status >= 200 && result.status < 300, status: result.status,
       headers: { get: name => name.toLowerCase() === 'etag' ? result.etag ?? null : null },
-      text: async () => text, json: async () => parse(text) };
+      text: async () => text, json: async () => parse(text), arrayBuffer: async () => new TextEncoder().encode(text).buffer };
   };
   context.fetch = async (url, init = {}) => {
     try {
@@ -158,6 +158,11 @@ async function loadHost(rootPath, inventory, server, storage, kind) {
 function serverFixture(webUrl = WEB) {
   const server = createInstallationMemoryServer({ webUrl });
   server.hook = call => {
+    if (call.url.includes('/GetFileByServerRelativePath(') && decodeURIComponent(call.url).includes(`${server.libraryPath}/extensions-host.json`)) {
+      assert.equal(call.method,'GET','Unconfigured extension overlay is never written on mount');
+      if(server.extensionsOverlay) return {status:200,etag:'"overlay-1"',data:call.url.includes('/$value')?server.extensionsOverlay:{Exists:true,ServerRelativeUrl:`${server.libraryPath}/extensions-host.json`,ETag:'"overlay-1"'}};
+      return {status:404,data:{}};
+    }
     if (call.url.includes('/GetFolderByServerRelativePath(') && decodeURIComponent(call.url).includes(`${server.libraryPath}/uploads`)) {
       assert.equal(call.method, 'GET', 'Media navigation never creates the uploads folder');
       return { status: 404, data: {} };
@@ -256,6 +261,20 @@ export async function verifyGenericInstallationHost(rootPath) {
   assert.match(savedSite.document.root.innerHTML, /data-template="cassiopeia"/); assert.doesNotMatch(savedSite.document.root.innerHTML, /Artigos recentes|camap-hero/);
   assert.deepEqual(values, stored); assert.equal(writes(server).length, count + 1);
   console.log('ok - generic host: real configuration form retains full installed defaults, explicit save only, public reload consumes first configuration row');
+  const approvedBase = `${LIBRARY}/packages/example-v1/`;
+  server.extensionsOverlay = {format:'minijoomla-extensions-host-v1',webUrl:WEB,libraryPath:LIBRARY,
+    joomlaDiscoveryRoots:[{id:'example-v1',baseUrl:approvedBase,immutable:true,inventoryHash:'a'.repeat(64),discover:false}],
+    moduleStyles:{'example.mod_message':[`${approvedBase}media/mod_message/css/message.css`]},
+    moduleStyleRevisions:{'example.mod_message':{[`${approvedBase}modules/mod_message/mod_message.js`]:[`${approvedBase}media/mod_message/css/message.css`]}}
+  };
+  const preservedRows = plain([...server.lists]);
+  const overlayAdmin = await loadHost(rootPath,inventory,server,storage,'admin');
+  await overlayAdmin.navigate('#/installer/roots');
+  assert.match(overlayAdmin.document.root.innerHTML,/example-v1|Retida para revisão\/rollback/);
+  const overlaySite = await loadHost(rootPath,inventory,server,storage,'site');
+  assert.match(overlaySite.document.root.innerHTML,/data-template="cassiopeia"/);
+  assert.equal(writes(server).length,count+1);assert.deepEqual(plain([...server.lists]),preservedRows);assert.deepEqual(values,stored);
+  server.extensionsOverlay = null;
   const rootServer = serverFixture('/'), rootValues = new Map();
   const rootStorage = { getItem: key => rootValues.get(key) ?? null, setItem: (key, value) => rootValues.set(key, String(value)) };
   const rootAdmin = await loadHost(rootPath, inventory, rootServer, rootStorage, 'admin');
