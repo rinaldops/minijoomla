@@ -13,6 +13,8 @@ import { bindMenuTree } from '../../modules/mod_menu/tmpl/default.js';
 import { articlesLatestModule } from '../../modules/mod_articles_latest/mod_articles_latest.js';
 import { articlesCategoryModule } from '../../modules/mod_articles_category/mod_articles_category.js';
 import { articlesNewsModule } from '../../modules/mod_articles_news/mod_articles_news.js';
+import { articlesFeaturedModule } from '../../modules/mod_articles_featured/mod_articles_featured.js';
+import { selectFeaturedArticles } from '../../modules/mod_articles_featured/tmpl/default.js';
 import { tagsSimilarModule } from '../../modules/mod_tags_similar/mod_tags_similar.js';
 import { tagsPopularModule } from '../../modules/mod_tags_popular/mod_tags_popular.js';
 import { articlesArchiveModule } from '../../modules/mod_articles_archive/mod_articles_archive.js';
@@ -78,6 +80,7 @@ export function createApplication({
   const externalStyles = createModuleStyles({ moduleStyles, moduleStyleRevisions, documentRef });
   const templateKey = template ?? siteConfig.templateKey;
   let activeRenderer = templateKey === 'camap' ? renderCamapShell : renderShell;
+  let featuredOwnership;
   let renderConfig=siteConfig;
   let cleanupShell = () => {};
   function renderPage(args) {
@@ -105,10 +108,11 @@ export function createApplication({
   const PLACEHOLDER = /\{(?:loadmodule|loadposition)\b[^}]*\}/g;
 
   // Cards das listagens: plugins de conteúdo só sobre a introdução (módulos só rodam se citados no texto).
-  async function prepareCards(result, moduleContext, renderedModules) {
+  async function prepareCards(result, moduleContext, renderedModules, allowModuleExpansion = true) {
     if (!Array.isArray(result?.items)) return result;
     const items = await Promise.all(result.items.map(async (item) => {
-      const text = await plugins.prepareContent(item.introtext, { ...pluginContext(item, 'introtext', moduleContext, renderedModules), card: true });
+      const context=pluginContext(item,'introtext',moduleContext,renderedModules);
+      const text = await plugins.prepareContent(item.introtext, { ...context, ...(!allowModuleExpansion?{renderModule:()=>'',renderPosition:()=>''}:{}), card: true });
       return { ...item, introtext: String(text ?? '').replace(PLACEHOLDER, '') };
     }));
     return { ...result, items };
@@ -175,6 +179,9 @@ export function createApplication({
       ]);
       if (navigationId !== latestNavigation) return;
       menus = menuRows;
+      const legacyFeatured = Array.isArray(extensions) && extensions.some(row=>row?.key==='articles-featured'&&row.type==='Module');
+      if(featuredOwnership===undefined){featuredOwnership=legacyFeatured?'registered':'native';if(!legacyFeatured)modules.register('articles-featured',articlesFeaturedModule);}
+      if(featuredOwnership==='native'&&legacyFeatured)throw new TypeError('Chave nativa em conflito com extensão registrada; recarregue para preservar sua origem.');
       selectedTemplate = await templateRuntime.resolve(templateKey, templates);
       if (navigationId !== latestNavigation) return;
       renderConfig=siteConfig;
@@ -311,6 +318,7 @@ export function createApplication({
         menus, activePath: menuActivePath,
         articles: await withCategoryAlias((await adapter.listArticles({ pageSize: 50 })).items),
         featuredArticles: (await adapter.listArticles({ featured: true, pageSize: 50 })).items,
+        articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
         similarArticles, tags: await adapter.listTags({ popular: true }), months: await content.archiveMonths(), link,
         siteName: siteConfig.siteName, session: siteConfig.session, article: pendingArticle,
         categories: Object.values(entries).flat().some((entry) => entry.name === 'articles-categories') ? flattenCategories(await content.categoriesTree()) : []
@@ -324,6 +332,12 @@ export function createApplication({
           if (entry.name === 'articles-category' && entry.settings?.category) {
             const category = await content.category(entry.settings.category, { pageSize: entry.settings.limit });
             context = { ...moduleContext, items: category?.items ?? [] };
+          }
+          if(entry.name==='articles-featured'&&featuredOwnership==='native'){
+            const selected=selectFeaturedArticles(moduleContext.featuredArticles,entry.settings);
+            const prepared=await prepareCards({items:selected},moduleContext,{},false);
+            if(navigationId!==latestNavigation)return;
+            context={...moduleContext,featuredArticles:prepared.items,componentParams:componentParams?.content};
           }
           fragments.push(modules.renderPosition(position, [entry], context));
         }

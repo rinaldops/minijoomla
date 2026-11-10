@@ -1,0 +1,17 @@
+import {createAdminService}from'../libraries/minijoomla/application/admin-service.js';
+import {createAdminApplication}from'../administrator/components/com_minijoomla/app.js';
+import {createApplication}from'../index.js';
+import {createSPMiddleAdapter}from'../libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+const domains=Object.fromEntries(['articles','categories','tags','menu','extensions','templates','moduleInstances','siteConfig'].map(d=>[d,new Map()]));
+let rev=0;const writes=[];
+const repos=Object.fromEntries(Object.entries(domains).map(([domain,rows])=>[domain,{findMany:async()=>({items:structuredClone([...rows.values()])}),findById:async id=>structuredClone(rows.get(id)??null),create:async input=>{const row={...structuredClone(input),id:Math.max(0,...rows.keys())+1,etag:'"memory-'+(++rev)+'"'};rows.set(row.id,row);writes.push({domain,action:'create'});return structuredClone(row);},update:async(id,input,{etag})=>{if(rows.get(id)?.etag!==etag)throw Object.assign(Error('ETag'),{code:'concurrency-conflict'});const row={...rows.get(id),...structuredClone(input),etag:'"memory-'+(++rev)+'"'};rows.set(id,row);writes.push({domain,action:'update'});return structuredClone(row);}}]));
+const initial={siteName:'Prova de destaque nativo',templateKey:'cassiopeia',homeView:'featured',homeCategory:'',timezone:'UTC',pageSize:10};
+const media=document.querySelector('[data-featured-proof-image]').dataset.featuredProofImage;
+for(const [id,featured]of [[1,true],[2,true],[3,false]])domains.articles.set(id,{id,etag:'"fixture-article"',title:`Artigo de prova ${id} <seguro>`,alias:`proof-${id}`,introtext:`<p>Resumo de prova ${id}</p>`,fulltext:'<p>Texto completo</p>',state:'Published',featured,attribsJson:JSON.stringify({images:{image_intro:media,image_intro_alt:'Imagem do artigo de prova',image_intro_caption:'Legenda de prova'}})});
+const admin=createAdminService(repos,{initialSiteConfig:initial});
+const root=document.querySelector('#featured-app'),status=document.querySelector('#featured-status');let app,module;
+const doc={body:root,head:document.head,baseURI:document.baseURI,createElement:document.createElement.bind(document)};
+document.querySelector('#featured-edit').addEventListener('click',async()=>{try{app?.stop();if(!module)module=await admin.moduleInstances.create({title:'Destaques em cards',extensionKey:'articles-featured',position:'main-top',enabled:true,settings:{limit:3}});app=createAdminApplication({adminService:admin,documentRef:doc,autoStart:false});await app.start();await app.router.navigate('#/moduleInstances/'+module.id);status.textContent='Configure somente em memória';}catch(e){status.textContent='Falha: '+e.message;}});
+document.querySelector('#featured-public').addEventListener('click',async()=>{try{app?.stop();app=createApplication({documentRef:doc,autoStart:false,config:initial,adapter:createSPMiddleAdapter({articleRepository:repos.articles,categoryRepository:repos.categories,tagRepository:repos.tags,menuRepository:repos.menu}),getModuleInstances:async()=>(await repos.moduleInstances.findMany()).items,getExtensions:async()=>[],getTemplate:async()=>[]});await app.start();await app.router.navigate('#/');status.textContent='Destaque nativo no site de prova';}catch(e){status.textContent='Falha: '+e.message;}});
+globalThis.__featuredProof={admin,repos,domains,writes,readModule:()=>domains.moduleInstances.get(module?.id),stop:()=>app?.stop()};
+status.textContent='Pronto; sem alteração nas listas';

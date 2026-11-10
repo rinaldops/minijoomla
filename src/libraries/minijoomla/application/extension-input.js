@@ -8,7 +8,7 @@ export const TEMPLATE_POSITIONS = STRUCTURAL_TEMPLATE_POSITIONS;
 export function isWellFormedPositionName(value) {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(value) && !['constructor', 'prototype', '__proto__'].includes(value);
 }
-export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
+export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'articles-featured', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
 
 export const NATIVE_PLUGIN_KEYS = Object.freeze(['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation']);
 export const NATIVE_PLUGIN_URLS = Object.freeze(NATIVE_PLUGIN_KEYS.map((key) => `native:${key}`));

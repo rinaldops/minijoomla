@@ -75,6 +75,13 @@ não relacionados corrigida. Ensaio real SharePoint isolado em memória passou,
 no recorte. XML e demais deltas da principal seguem pendentes, sem merge automático.
 [Ciclo de parâmetros](CICLO-TEMPLATES-PARAMETROS.md).
 
+**Checkpoint de templates enviado:** `4029c48`. Próximo incremento nativo
+`articles-featured` com imagem/resumo reconciliado da principal, sem substituir
+`articles-news` ou chaves previamente registradas. Ensaio isolado SharePoint
+com memória passou, 48 registros/ETags/páginas/host preservados; reauditoria e
+regressão após correções **120/0/0**, parse 354 JS/MJS, contributor 448 caminhos.
+[Ciclo do destaque](CICLO-ARTICLES-FEATURED-NATIVO.md).
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados

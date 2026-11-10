@@ -24,6 +24,8 @@ export const TEST_SUITES = Object.freeze([
   ['installed-template-params.test.js', 'runInstalledTemplateParamsTests'],
   ['installed-template-params-admin.test.js', 'runInstalledTemplateParamsAdminTests'],
   ['installed-template-params-spmiddle.test.js', 'runInstalledTemplateParamsSPMiddleTests', true],
+  ['articles-featured.test.js', 'runArticlesFeaturedTests'],
+  ['articles-featured-integration.test.js', 'runArticlesFeaturedIntegrationTests'],
   ['sample-data-service.test.js', 'runSampleDataServiceTests'],
   ['sample-data-journal.test.js', 'runSampleDataJournalTests'],
   ['sample-data-package.test.js', 'runSampleDataPackageTests'],

@@ -754,9 +754,9 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     }
     if (settings.headerTag !== undefined && !['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p'].includes(settings.headerTag)) throw new ValidationError('headerTag inválida.');
     let rows = [];
-    if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey)) {
+    if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey) || normalized.extensionKey==='articles-featured') {
       rows = repositories.extensions ? await listAll(requireRepository(repositories, 'extensions')) : [];
-      if (!rows.some((row) => row.key === normalized.extensionKey && row.type === 'Module')) throw new ValidationError('extensionKey deve identificar um módulo nativo ou Module registrado.');
+      if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey) && !rows.some((row) => row.key === normalized.extensionKey && row.type === 'Module')) throw new ValidationError('extensionKey deve identificar um módulo nativo ou Module registrado.');
     }
     const type = moduleTypeCatalog(rows).find((entry) => entry.key === normalized.extensionKey);
     normalizeParamValues([...(type?.params ?? []), ...MODULE_ADVANCED_PARAMS], settings);
