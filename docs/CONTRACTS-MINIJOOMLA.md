@@ -37,6 +37,16 @@ Guards customizados que retornam valor/Promise são inválidos. Rejeições de P
 normal são observadas sem `await`, mas Promises com constructor/species adulterado
 e proxies não fazem parte do contrato suportado nem de uma promessa de sandbox.
 
+Na composição administrativa, `pluginManager: null` é opt-out explícito;
+manager ausente permite o runtime persistido somente se o repositório de extensões
+estiver configurado. Omissão deliberada do repositório mantém a composição parcial
+sem plugins; falha de catálogo configurado bloqueia saves. Apenas plugins do grupo
+`content` com os eventos administrativos de save entram nesse runtime. Lifecycle
+exige `adminLifecycle: true` no **código exportado**; `onAppInit` público não é esse
+opt-in. Módulos aprovados ainda executam seu código top-level ao importar, por isso
+isolamento de eventos não significa sandbox. Não promover plugins nativos de
+exibição a plugins de save automaticamente.
+
 ### Consultas reconciliadas na consolidação
 
 `resolveContentQuery` conserva compatibilidade de chamadas da principal usando
@@ -51,6 +61,13 @@ Os testes da principal foram preservados em regressão distinta, sem substituir
 os testes/guardas atuais. Integração SPMIDDLE tem entrada explícita e não mascara
 ausência/falha do irmão. Não houve emissão de SEO no host, migração automática
 ou regravação da configuração por essa compatibilidade.
+
+Precisão dos defaults existentes: `listArticles` no port, sem `searchMode`, mantém
+matching literal **`exact`**; a busca do `ContentService`, sem escolha salva/rota,
+usa **`all`**. `all` exige todos os tokens, `any` algum token, `exact` a frase
+contígua. Unicode/NFC e whitespace são normalizados sem interpretar regex ou
+emitir SEO no host. Esta explicitação da contribuição da principal não altera
+os defaults nem a implementação já testada.
 
 Este documento congela o contrato de leitura que qualquer adapter de
 conteúdo — hoje o `FakeAdapter` (`src/libraries/minijoomla/infrastructure/fake-adapter.js`) e um

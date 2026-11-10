@@ -26,6 +26,22 @@ reconcilia somente essa parte da contribuição local da principal.
 Nenhuma nova coluna é necessária para posições. Não registrar, habilitar ou
 selecionar template automaticamente; usar as ações administrativas explícitas.
 
+### Contrato do entrypoint JavaScript
+
+O módulo exporta `renderShell` preferencialmente, ou uma função `default`. O
+runtime fornece `{ config, menus, breadcrumbs, content, modules, busy }` e espera
+o fragmento HTML do shell. Posições próprias alimentam `modules`; parâmetros
+declarados/defaults/estilo selecionado chegam por `config.templateParams`, mantendo
+desconhecidos próprios. O renderer deve escapar dados textuais e consumir o HTML
+preparado pelos componentes conforme seu contrato.
+
+`bindShell(root)` é opcional e deve ser função quando declarado. Pode devolver
+uma função de cleanup; o aplicativo a chama antes de substituir o shell e no
+stop, sem executar novamente o bind de uma navegação obsoleta. Não é contrato PHP.
+Assets relativos são resolvidos contra `documentRef.baseURI` (ou `import.meta.url`
+como fallback), **não contra o manifesto**. Use URLs explícitas aprovadas para
+pacotes publicados e não prometer resolução por manifesto sem implementação.
+
 ## Limites deste checkpoint
 
 **Incremento de parâmetros declarado posteriormente:** definições e CSS juntos

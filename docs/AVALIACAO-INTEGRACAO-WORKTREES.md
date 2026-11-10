@@ -329,3 +329,59 @@ não existem branches locais extras nomeadas de recuperação nesta observação
 **Nenhum merge, stash/reset ou exclusão de worktree foi executado.** A autorização
 de retirada permanece condicional; o bloqueio real agora inclui os novos contratos
 genéricos de templates e a preservação operacional atualizada, não apenas Git.
+
+## Reconciliação posterior — publicação 0.16.1 e preview local
+
+Fonte de empacotamento `e0e4e67`, publicação/estimativa documentadas em `0717a4c`;
+branch step2 enviada. As duas páginas agora usam **0.16.1**, publicadas/sem checkout
+como observado no preflight corrente. 48 registros/ETags, configuração/raízes/pins
+preservados. Histórico de rascunho/0.15.0 acima permanece histórico, não alvo para
+rollback. A publicação não consolida a principal nem autoriza retirar árvores.
+
+Nova captura privada, exclusiva e reverificada da principal: **68 arquivos /
+1.038.925 bytes**, status/diff/index/HEAD e hashes. Original `main` continua dirty
+em `231560b`; releitura posterior não encontrou bytes alterados nesses 68 caminhos.
+Isso é estabilidade de duas observações, **não congelamento durável ou captura
+atômica de todos os outputs ignorados**.
+
+Comparação semântica da contribuição nativa restante: consultas/metadata,
+plugins administrativos, prévia de migração, catálogo/posições/parâmetros de
+templates e `articles-featured` já estão reconciliados na candidata. Versões
+inteiras da principal retirariam negativos/cancelamento/guardas mais recentes;
+não reaplicá-las. Parser XML de plugins/templates e executor de migração não
+estão na principal para importar: são desenvolvimento futuro com contratos próprios.
+
+Contribuição real ainda ausente: preview local com pacotes montados e seleção de
+template registrado. Primeiro recorte implementa só o servidor, sem alterar
+seeds/defaults/host: prefixos canônicos explícitos, HTTP readonly e bloqueios de
+raiz/alias/links/traversal. Dois P2 de revisão foram corrigidos e retestados; provas
+nativas locais e iframe SharePoint passaram com preservação de dados/páginas/host.
+Não incorporados seed/template CAMAP-V3, coluna `paramDefinitionsJson` antiga,
+SVG/módulos específicos da demo ou catálogo implícito de novas extensões.
+
+Seleção por catálogo do preview, classificação documental final e caminhos
+operacionais continuam tarefas delimitadas. Depois de terminar a reconciliação,
+validar checkout Git novo, cessar geração de outputs e produzir suplemento imutável
+integral dos ignorados antes de reavaliar ff/push main e retirada wt01/wt02.
+**Nenhum stash/reset/merge/descarte/exclusão foi feito nesta continuidade.**
+
+Preservação adicional dos quatro ciclos mais recentes (FullBleed/publicação,
+empacotamento/prova, release 0.16.1 e preview local): suplemento privado novo,
+**976 arquivos / 14.621.922 bytes**, hashes de origem/destino reverificados e
+inventário selado. Zero links seguidos, zero perfis de navegador copiados;
+pointers internos ficam como evidência histórica, não autoridade ativa. Esse
+suplemento **não cobre todos os ignorados atuais da wt02** e não libera retirada.
+Testes continuam gerando outputs; suplemento integral final requer cessar isso.
+
+Classificação documental da principal concluída por recortes, sem copiar nove
+documentos inteiros: preservada precisão dos defaults de busca (`exact` no port,
+`all` no serviço), opt-out/lifecycle administrativo dos plugins e ABI/cleanup de
+template instalado. Contratos antigos de `paramDefinitionsJson`, resolução de
+assets pelo manifesto e contagens/aceites históricos não substituem os atuais.
+Seleção de template registrado no preview continua o próximo delta funcional.
+
+Regressão final sequencial do recorte: **122 passes / zero skips/falhas**, parse
+358 JS/MJS e contributor 456 caminhos; testes nativos local/SharePoint e negativos
+de revisão retestados. O timeout de uma repetição concorrente não foi contabilizado
+como aprovação. Tooling/documentação deste checkpoint não alteram os assets da
+release ativa 0.16.1 nem satisfazem o checkout novo da futura integração main.

@@ -84,6 +84,57 @@ storage origin. Use synthetic content only. To reset **only** the demo dataset,
 remove that key in the local origin's storage, not the entire browser profile.
 Unavailable/corrupt storage produces a visible bootstrap error.
 
+### Explicit local package mounts
+
+A trusted package can be previewed without copying it into the project:
+
+```sh
+node scripts/serve-local.js --port 8081 --extra-root "packages/probe=../package-dedicated-directory"
+```
+
+This opt-in mounts that directory at `/packages/probe/`. Repeat the flag for
+different IDs, up to ten. Prefixes are canonical lowercase `packages/<id>`;
+duplicates, subprefixes, reserved IDs and source-route shadowing are refused.
+Source/private root aliases and duplicate or overlapping physical roots are
+rejected. Generated dedicated packages below
+`tmp/` are allowed, but `tmp/` itself is never a mount. Private/dot-named roots
+or ancestors are denied (except an ancestor `tmp` used for generated fixtures).
+These additional gates were added after review reproduced an alias exposing
+project scripts and reserved IDs that created unreachable mounts. Corrected
+version passed both local native and readonly SharePoint proof retests.
+
+CLI paths are resolved locally; the API `extraRoots` requires absolute directories.
+Roots and their ancestors cannot be symlinks/junctions; request-time checks cover descendants
+too. GET/HEAD, MIME, `no-store`, `nosniff`, private-path/traversal/ADS restrictions
+also apply to mounts. Invalid configuration fails before listening. Decimal port
+syntax and the default no-mount behavior are retained.
+
+Only mount a **dedicated public-asset directory you trust**. This is not a sandbox,
+a remote package installer, an inventory-signature verifier, a race-resistant
+filesystem boundary or permission to expose credentials elsewhere in a package.
+Imported JavaScript runs with the preview origin's privileges. Nothing registers
+or activates an extension/template, changes demo seeds or selects its default.
+The public demo's template query still accepts only its existing builtin choices;
+catalog-selected template preview is a later increment. No server mount exists
+in SharePoint: production assets use their explicit immutable published paths.
+
+Validation of this server increment: real loopback HTTP including raw encoded
+negatives and mount/API/CLI checks; native local FIORI-AUTO import/CSS/image,
+Enter and 320/768/1366 reflow with unchanged demo storage. The same small synthetic
+asset closure was uploaded to a new immutable SharePoint proof and mounted only
+in a disposable iframe. Relative imports/CSS/image passed and the iframe was
+removed; 48 records/ETags, both page records and active host 0.16.1 remained
+unchanged. That proof validates asset portability, **not production mounts or
+installed-template selection**. No tenant provisioning/settings/editor writes.
+
+One integrated run completed with 122 passes. A concurrently running repetition
+reached the external 900-second tool timeout before its final summary; that
+incomplete run is not a pass. Final sequential validation completed with
+**122 passed, 0 skipped, 0 failed**, using a larger external execution budget
+without relaxing assertions, hashes or skips. Syntax: 358 JS/MJS (parse only).
+Contributor: 456 exact paths with deterministic inventory/hash/containment gates.
+The seven standalone example contract groups also passed separately.
+
 In the corporate workspace, all browser opening/inspection/automation, including
 these loopback pages, must use FIORI-AUTO and a session-owned instance/profile.
 The coordinator owns the browser validation for this task. The separate

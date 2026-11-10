@@ -129,7 +129,7 @@ não mede paridade integral Joomla nem constitui promessa de data.
 | Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias |
 | Integração final, documentação e margem para correções | 4–7 dias |
 
-As faixas se sobrepõem parcialmente; não somar como cronograma serial fechado.
+O total é esforço agregado; não é um cronograma serial com datas fixas.
 Dependências externas podem alongar o calendário: destino SharePoint **vazio e
 especificamente autorizado**, janela sem edição concorrente na `main`, acesso e
 decisões para testes com writes. Revisão jurídica/proveniência/marcas, privacidade/
@@ -142,6 +142,27 @@ pacotes, contribuição nativa da principal ainda ausente. Principal novamente
 preservada: 68 arquivos / 1.038.925 bytes, sem alterar originais. Runtime nativo
 restante parece já reconciliado na comparação semântica; não é freeze ou gate
 automático de merge. CAMAP-V3/Videoteca/Forum não são importados.
+
+**Desenvolvimento → teste no site do preview local:** `serve-local` agora monta
+somente pacotes explicitamente selecionados sob `packages/<id>`, sem shadowing,
+links/ancestors, traversal ou writes. API/CLI e negativos HTTP bruto passaram;
+FIORI-AUTO local importou JS relativo/CSS/imagem, Enter/reflow 320/768/1366 e
+storage preservado. Mesmo fechamento sintético em iframe SharePoint passou,
+48 registros/ETags/páginas/host 0.16.1 intactos. Não é seleção por catálogo nem
+mount de produção. [Contrato local](LOCAL-DEMO.md#explicit-local-package-mounts).
+
+Revisão do preview encontrou aliases de raízes próprias e IDs privados aceitos;
+corrigidos e negativos ampliados. Reteste local nativo e prova SharePoint readonly
+passaram novamente, sem uploads novos ou writes; reauditoria sem P1/P2 no recorte.
+Não interpretar validação do diretório como prova de direitos/ausência de segredos.
+
+**Validação final do preview concluída:** execução sequencial completa
+**122/0/0**, parse 358 JS/MJS e contributor 456 caminhos; sete grupos standalone
+e regressões focais de consultas/templates/plugins também aprovados. Timeout
+externo anterior mantido como execução incompleta, não passe. Incremento altera
+tooling/documentação, sem nova substituição da release operacional 0.16.1.
+Próximo delta funcional: preview opt-in de template já registrado, sem seeds ou
+defaults corporativos. Merge/retirada continuam condicionados aos gates próprios.
 
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
