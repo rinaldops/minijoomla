@@ -10,7 +10,7 @@
  *     entryPointUrl, description?, author?, group? (Plugin),
  *     params?: [definições], positions?: [...] (Template), styles? (Template) }
  */
-import { ValidationError } from '../core/contracts.js';
+import { ValidationError, ownDataValue } from '../core/contracts.js';
 import { extensionKey, sameSiteModuleUrl, templatePositions, templateStyles } from './extension-input.js';
 import { normalizeParamDefinitions } from './declared-params.js';
 import { BUILTIN_MODULE_KEYS } from './extension-input.js';
@@ -46,7 +46,7 @@ export function parseExtensionManifest(input) {
     entryPointUrl: sameSiteModuleUrl(manifest.entryPointUrl),
     description: text(manifest.description, 'description', 1000, false),
     author: text(manifest.author, 'author', 200, false),
-    params: normalizeParamDefinitions(manifest.params)
+    params: type === 'Template' ? [] : normalizeParamDefinitions(manifest.params)
   };
   if (type === 'Plugin') {
     const group = text(manifest.group ?? 'content', 'group', 40);
@@ -54,6 +54,13 @@ export function parseExtensionManifest(input) {
     result.group = group;
   }
   if (type === 'Template') {
+    const declarations = ownDataValue(manifest, 'paramDefinitions');
+    // Older templates may use params for values rather than declarations. Only
+    // an absent canonical field and an array-shaped alias declare parameters.
+    const alias = Object.hasOwn(manifest, 'paramDefinitions') ? undefined : ownDataValue(manifest, 'params');
+    const definitions = Object.hasOwn(manifest, 'paramDefinitions') ? declarations : Array.isArray(alias) ? alias : undefined;
+    if (definitions !== undefined && !Array.isArray(definitions)) throw new ValidationError('Manifesto: paramDefinitions deve ser uma lista.');
+    result.paramDefinitions = normalizeParamDefinitions(definitions);
     result.positionsJson = templatePositions(manifest.positions);
     result.styles = templateStyles(manifest.styles);
   }

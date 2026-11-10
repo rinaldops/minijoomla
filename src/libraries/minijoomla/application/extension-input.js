@@ -1,7 +1,13 @@
 import { ValidationError } from '../core/contracts.js';
 import { parseJsonObject } from './declared-params.js';
 
-export const TEMPLATE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer', 'component']);
+export const STRUCTURAL_TEMPLATE_POSITIONS = Object.freeze(['topbar', 'below-top', 'menu', 'search', 'banner', 'breadcrumbs', 'top-a', 'top-b', 'main-top', 'sidebar-left', 'sidebar-right', 'main-bottom', 'bottom-a', 'bottom-b', 'footer', 'component']);
+export const TEMPLATE_POSITIONS = STRUCTURAL_TEMPLATE_POSITIONS;
+
+/** Form only; persisted module assignments must also match a registered template. */
+export function isWellFormedPositionName(value) {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(value) && !['constructor', 'prototype', '__proto__'].includes(value);
+}
 export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-category', 'articles-news', 'tags-similar', 'tags-popular', 'articles-archive', 'custom-html', 'search', 'login', 'articles-categories', 'related-items', 'footer', 'articles']);
 
 export const NATIVE_PLUGIN_KEYS = Object.freeze(['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation']);
@@ -61,8 +67,19 @@ export function templatePositions(value) {
   if (typeof positions === 'string') {
     try { positions = JSON.parse(positions); } catch { throw new ValidationError('positionsJson deve ser um array JSON válido.'); }
   }
-  if (!Array.isArray(positions) || !positions.length || positions.some((position) => !TEMPLATE_POSITIONS.includes(position))) throw new ValidationError('positions contém uma posição inválida.');
-  return JSON.stringify([...new Set(positions)]);
+  if (!Array.isArray(positions) || positions.length < 1 || positions.length > 100) throw new ValidationError('positions contém uma posição inválida.');
+  const descriptors = Object.getOwnPropertyDescriptors(positions);
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.length !== positions.length + 1 || keys.some(key => typeof key !== 'string' || key !== 'length' && !/^(0|[1-9]\d*)$/.test(key))) throw new ValidationError('positions deve ser uma lista densa de dados.');
+  const values = [];
+  for (let index = 0; index < positions.length; index++) {
+    const descriptor = descriptors[index];
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw new ValidationError('positions deve ser uma lista densa de dados.');
+    const value = descriptor.value;
+    if (!STRUCTURAL_TEMPLATE_POSITIONS.includes(value) && !isWellFormedPositionName(value)) throw new ValidationError('positions contém uma posição inválida.');
+    values.push(value);
+  }
+  return JSON.stringify([...new Set(values)]);
 }
 
 export function templateStyles(value) {

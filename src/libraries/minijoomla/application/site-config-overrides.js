@@ -33,6 +33,7 @@ export function toSiteConfigOverrides(record) {
   if (record.homeView === 'featured' && record.homeCategory === '') overrides.homeCategory = '';
   overrides.templateParams = resolveTemplateParams(record);
   overrides.templateStyleId = resolveTemplateStyleId(record);
+  if(record.templateStylesJson!==undefined)overrides.templateStylesJson=record.templateStylesJson;
   overrides.componentParams = resolveComponentParams(record);
   overrides.componentParamsJson = record.componentParamsJson;
   overrides.queryParams = resolveQueryParams({ componentParamsJson: record.componentParamsJson });

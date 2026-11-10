@@ -38,7 +38,7 @@ export async function runExtensionDiscoveryServiceTests() {
   };
   const templateService = createTemplateDiscoveryService(templateFileClient);
   const templates = await templateService.scan();
-  assert.deepEqual(templates.find((entry) => entry.key === 'camap'), { key: 'camap', title: 'CAMAP', version: '0.1.0', type: 'Template', entryPointUrl: '/templates/camap.js', styles: '/templates/camap.css', positions: ['menu', 'main-top', 'footer'], discoveredFrom: 'templates/camap.manifest.json', error: null });
+  assert.deepEqual(templates.find((entry) => entry.key === 'camap'), { key: 'camap', title: 'CAMAP', version: '0.1.0', type: 'Template', entryPointUrl: '/templates/camap.js', styles: '/templates/camap.css', positions: ['menu', 'main-top', 'footer'], paramDefinitions: [], discoveredFrom: 'templates/camap.manifest.json', error: null });
   assert.equal(Object.hasOwn(templates[0], 'manifestJson'), false, 'template discovery keeps its distinct contract and validation');
   assert.notEqual(templates.find((entry) => entry.key === 'broken').error, null);
   console.log('ok - template discovery: manifesto válido é descoberto e manifesto incompleto é reportado');
@@ -105,7 +105,7 @@ export async function runExtensionDiscoveryServiceTests() {
 
   const invalidTemplateService = createTemplateDiscoveryService({
     async listFiles() { return { value: [{ Name: 'bad.manifest.json' }, { Name: 'array-css.manifest.json' }] }; },
-    async downloadFile({ fileName }) { return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: fileName === 'bad.manifest.json' ? ['not-a-position'] : ['footer'], styles: ['/template.css'] }); }
+    async downloadFile({ fileName }) { return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: fileName === 'bad.manifest.json' ? ['not a position'] : ['footer'], styles: ['/template.css'] }); }
   });
   const mixedTemplates = await invalidTemplateService.scan();
   assert.ok(mixedTemplates[0].error);

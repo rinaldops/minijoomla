@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Posições de template — prova isolada</title><link rel="stylesheet" href="../media/templates/administrator/atum/css/template.css"></head>
+<body><div class="admin-install"><h1>Prova de posições de template instalado</h1><p>Persistência somente em memória. Nenhum registro do site é alterado.</p><button id="proof-edit-module" type="button">Editar módulo na posição própria</button> <button id="proof-open-public" type="button">Abrir site de prova</button><p id="proof-status" role="status" aria-live="polite"></p></div><main id="proof-app"></main>
+<script type="module">
+import { createAdminService } from '../libraries/minijoomla/application/admin-service.js';
+import { createAdminApplication } from '../administrator/components/com_minijoomla/app.js';
+import { createApplication } from '../index.js';
+import { createSPMiddleAdapter } from '../libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+const rows=Object.fromEntries(['articles','categories','tags','menu','extensions','templates','moduleInstances','siteConfig'].map(d=>[d,new Map()]));
+let revision=0;const writes=[];
+const repositories=Object.fromEntries(Object.entries(rows).map(([domain,records])=>[domain,{
+findMany:async()=>({items:structuredClone([...records.values()])}),findById:async id=>structuredClone(records.get(id)??null),
+create:async input=>{const row={...structuredClone(input),id:Math.max(0,...records.keys())+1,etag:'"memory-'+(++revision)+'"'};records.set(row.id,row);writes.push({domain,action:'create'});return structuredClone(row);},
+update:async(id,input,{etag})=>{if(records.get(id)?.etag!==etag)throw Object.assign(Error('Stale memory ETag'),{code:'concurrency-conflict'});const row={...records.get(id),...structuredClone(input),etag:'"memory-'+(++revision)+'"'};records.set(id,row);writes.push({domain,action:'update'});return structuredClone(row);},
+delete:async(id,{etag})=>{if(records.get(id)?.etag!==etag)throw Error('Stale');records.delete(id);writes.push({domain,action:'delete'});}
+}]));
+const initialSite={siteName:'Site genérico de prova',templateKey:'cassiopeia',homeView:'featured',homeCategory:'',timezone:'UTC',pageSize:10};
+const admin=createAdminService(repositories,{initialSiteConfig:initialSite});
+const templateUrl=new URL('./fixtures/installed-template/template.js',import.meta.url).href;
+// Pre-existing fixture metadata is in-memory only, never a builtin or remote row.
+rows.templates.set(1,{id:1,etag:'"fixture-template"',key:'proof-template',title:'Template genérico externo',version:'1.0.0',entryPointUrl:templateUrl,positionsJson:'["custom-hero","footer","component"]',styles:JSON.stringify([new URL('./fixtures/installed-template/template.css',import.meta.url).href]),enabled:true});
+const root=document.querySelector('#proof-app');let app,module;
+const doc={body:root,head:document.head,baseURI:document.baseURI,createElement:document.createElement.bind(document)};
+const status=document.querySelector('#proof-status');
+document.querySelector('#proof-edit-module').addEventListener('click',async()=>{try{
+app?.stop();if(!module)module=await admin.moduleInstances.create({title:'Módulo em posição própria',extensionKey:'custom-html',position:'custom-hero',enabled:true,settingsJson:JSON.stringify({html:'<p>Conteúdo na posição própria <a href="#/search?q=prova">Link de prova</a></p>'})});
+app=createAdminApplication({adminService:admin,documentRef:doc,autoStart:false});await app.start();await app.router.navigate('#/moduleInstances/'+module.id);status.textContent='Edite e salve o módulo somente em memória.';
+}catch(error){status.textContent='Falha na prova administrativa: '+error.name+': '+error.message;}});
+document.querySelector('#proof-open-public').addEventListener('click',async()=>{try{
+app?.stop();const saved=await admin.siteConfig.get();await admin.siteConfig.save({templateKey:'proof-template'},saved?{etag:saved.etag}:{});
+app=createApplication({documentRef:doc,autoStart:false,config:{...initialSite,templateKey:'proof-template'},adapter:createSPMiddleAdapter({articleRepository:repositories.articles,categoryRepository:repositories.categories,tagRepository:repositories.tags,menuRepository:repositories.menu}),getModuleInstances:async()=>(await repositories.moduleInstances.findMany()).items,getExtensions:async()=>[],getTemplate:async()=>[...rows.templates.values()]});await app.start();await app.router.navigate('#/');status.textContent='Site de prova: template externo e módulo em sua posição.';
+}catch{status.textContent='Falha no site de prova.';}});
+globalThis.__installedTemplateProof={admin,repositories,rows,writes,readModule:()=>rows.moduleInstances.get(module?.id),stop:()=>app?.stop()};
+</script></body></html>

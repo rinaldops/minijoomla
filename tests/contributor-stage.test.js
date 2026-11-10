@@ -102,7 +102,9 @@ export async function runContributorStageTests({ commands = false } = {}) {
     try { symlinkSync(target, path, type); return true; }
     catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; unavailableLinks += 1; return false; }
   };
-  const cli = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8', timeout: 30000 });
+  // Hundreds of exact-path reads/copies can exceed 30s under Windows scanning;
+  // preserve bounded execution and all inventory assertions, not a false pass.
+  const cli = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8', timeout: 120000 });
   try {
     assert.ok(Object.isFrozen(CONTRIBUTOR_FILES));
     assert.equal(new Set(CONTRIBUTOR_FILES).size, CONTRIBUTOR_FILES.length);

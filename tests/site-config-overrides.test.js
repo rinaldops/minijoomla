@@ -7,6 +7,8 @@ export async function runSiteConfigOverridesTests() {
   assert.deepEqual(toSiteConfigOverrides(null), {});
   assert.deepEqual(toSiteConfigOverrides(undefined), {});
   const empty = toSiteConfigOverrides({});
+  const exactStyles='  [{"id":"installed-home","template":"installed","title":"Home","home":true,"params":{"caption":"Saved","future":{"keep":true}}}]\n';
+  assert.equal(toSiteConfigOverrides({templateKey:'installed',templateStylesJson:exactStyles}).templateStylesJson,exactStyles,'Raw template styles survive composition without reserializing');
   assert.equal(empty.siteName, undefined);
   assert.equal(empty.templateKey, undefined);
   for (const field of ['siteName', 'templateKey', 'siteDescription', 'language', 'timezone', 'basePath', 'pageSize']) assert.equal(Object.hasOwn(empty, field), false);

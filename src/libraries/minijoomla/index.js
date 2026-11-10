@@ -4,6 +4,7 @@ import { EventBus } from './core/events.js';
 import { createFakeAdapter } from './infrastructure/fake-adapter.js';
 import { createContentService } from './application/content-service.js';
 import { createTemplateRuntime } from './application/template-runtime.js';
+import { resolveTemplateParams, resolveTemplateStyleId, BUILTIN_TEMPLATES } from './application/template-styles.js';
 import { createModuleStyles } from './application/module-styles.js';
 import { createModuleRegistry, menuModule } from './modules/registry.js';
 import { breadcrumbsModule } from '../../modules/mod_breadcrumbs/mod_breadcrumbs.js';
@@ -77,9 +78,10 @@ export function createApplication({
   const externalStyles = createModuleStyles({ moduleStyles, moduleStyleRevisions, documentRef });
   const templateKey = template ?? siteConfig.templateKey;
   let activeRenderer = templateKey === 'camap' ? renderCamapShell : renderShell;
+  let renderConfig=siteConfig;
   let cleanupShell = () => {};
   function renderPage(args) {
-    try { return activeRenderer(args); }
+    try { return activeRenderer({...args,config:renderConfig}); }
     catch {
       console.warn('MINIJOOMLA: falha no template selecionado.');
       return renderShell({ ...args, content: LOAD_ERROR });
@@ -174,6 +176,13 @@ export function createApplication({
       if (navigationId !== latestNavigation) return;
       menus = menuRows;
       selectedTemplate = await templateRuntime.resolve(templateKey, templates);
+      if (navigationId !== latestNavigation) return;
+      renderConfig=siteConfig;
+      if(!BUILTIN_TEMPLATES.includes(selectedTemplate.key)){
+        const selectedConfig={...siteConfig,templateKey:selectedTemplate.key};
+        const params=resolveTemplateParams(selectedConfig,selectedTemplate.definitions);
+        renderConfig={...selectedConfig,templateParams:params,styleParams:params,templateStyleId:resolveTemplateStyleId(selectedConfig)};
+      }
       await extensionLoader.ensurePluginsRegistered(plugins, extensions, {
         onRegister: (name) => started ? plugins.init({ config: siteConfig }, name) : undefined,
         onRemove: (name) => started ? plugins.finalize({ config: siteConfig }, name) : undefined
@@ -285,7 +294,7 @@ export function createApplication({
         route: location.route?.name,
         categoryAlias: location.route?.name === 'category' ? location.params.alias : undefined,
         menuItemId: resolveActiveMenuItemId(menus, menuActivePath)
-      });
+      }, new Date(), selectedTemplate.positions);
       await plugins.afterRoute(location);
       // A supplied repository is authoritative: removing its last row must remove the module too.
       if (!getModuleInstances) entries.sidebar.push(

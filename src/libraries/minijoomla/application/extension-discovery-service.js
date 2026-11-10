@@ -20,7 +20,7 @@
  * runtime (src/index.js) depois que alguém a registra explicitamente pelo
  * painel, confirmando que o entrypoint é confiável.
  */
-import { ValidationError } from '../core/contracts.js';
+import { ValidationError, ownDataValue } from '../core/contracts.js';
 import { extensionKey, sameSiteModuleUrl, templatePositions, templateStyles } from './extension-input.js';
 import { normalizeParamDefinitions } from './declared-params.js';
 
@@ -87,8 +87,13 @@ export function createTemplateDiscoveryService(fileClient) {
         sameSiteModuleUrl(entryPointUrl);
         const normalizedStyles = templateStyles(data.styles);
         const styles = typeof data.styles === 'string' ? data.styles.trim() : normalizedStyles;
-        found.push({ key, title, version, type: 'Template', entryPointUrl, styles, positions, discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: null });
-      } catch (error) { found.push({ key, title: key, version: '', type: null, entryPointUrl: null, styles: '', positions: [], discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: error.message }); }
+        const declarations = ownDataValue(data, 'paramDefinitions');
+        const alias = Object.hasOwn(data, 'paramDefinitions') ? undefined : ownDataValue(data, 'params');
+        const definitions = Object.hasOwn(data, 'paramDefinitions') ? declarations : Array.isArray(alias) ? alias : undefined;
+        if (definitions !== undefined && !Array.isArray(definitions)) throw new ValidationError(`${key}: paramDefinitions deve ser uma lista.`);
+        const paramDefinitions = normalizeParamDefinitions(definitions);
+        found.push({ key, title, version, type: 'Template', entryPointUrl, styles, positions, paramDefinitions, discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: null });
+      } catch (error) { found.push({ key, title: key, version: '', type: null, entryPointUrl: null, styles: '', positions: [], paramDefinitions: [], discoveredFrom: `${TEMPLATES_FOLDER}/${file.Name}`, error: error.message }); }
     }
     return found;
   }

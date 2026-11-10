@@ -21,13 +21,14 @@
  */
 import { ValidationError, ownDataValue } from '../core/contracts.js';
 import { createConfig } from '../core/config.js';
-import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles } from './extension-input.js';
+import { BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles, isWellFormedPositionName } from './extension-input.js';
 import { normalizeAssignment, normalizeAssignmentTokens, normalizeDateTime } from './module-assignment.js';
 import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
 import { toSiteConfigOverrides } from './site-config-overrides.js';
 import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from './module-catalog.js';
-import { normalizeParamValues, parseJsonObject } from './declared-params.js';
-import { createExtensionAdministration, runBatch, optionalPluginGroup } from './admin-extensions-service.js';
+import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
+import { createExtensionAdministration, runBatch, optionalPluginGroup, MODULE_POSITIONS } from './admin-extensions-service.js';
+import { readTemplateMetadata, packTemplateMetadata } from './template-metadata.js';
 
 function requireRepository(repositories, domain) {
   const repository = repositories?.[domain];
@@ -242,17 +243,40 @@ const EXTENSION_V2_DEFAULTS = Object.freeze({ ordering: 0, folder: '', paramsJso
 const MODULE_V2_DEFAULTS = Object.freeze({ showTitle: true, publishUp: null, publishDown: null, trashed: false, assignment: 'all', assignmentJson: '[]', note: '' });
 const SITE_CONFIG_V2_DEFAULTS = Object.freeze({ offline: false, offlineMessage: '', metaDescription: '', metaKeywords: '', robots: '', sitenamePagetitles: 'none', homeView: 'category', homeCategory: 'noticias', templateStylesJson: '', componentParamsJson: '' });
 
-function normalizeTemplateInput(input = {}, { partial }) {
+function positionData(input, field) {
+  const descriptor = input && Object.getOwnPropertyDescriptor(input, field);
+  if (descriptor && !Object.hasOwn(descriptor, 'value')) throw new ValidationError(`${field} deve ser uma propriedade de dados.`);
+  return descriptor?.value;
+}
+
+function normalizeTemplateInput(input = {}, { partial, existingStyles }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.key !== undefined) result.key = extensionKey(input.key);
   if (!partial || input.version !== undefined) result.version = requireText(input.version, 'version');
   if (!partial || input.entryPointUrl !== undefined) result.entryPointUrl = sameSiteModuleUrl(input.entryPointUrl);
-  if (input.styles !== undefined) result.styles = templateStyles(input.styles);
-  if (input.positions !== undefined) {
-    result.positionsJson = templatePositions(input.positions);
+  const styles = ownDataValue(input, 'styles');
+  const paramDefinitions = ownDataValue(input, 'paramDefinitions');
+  const paramDefinitionsJson = ownDataValue(input, 'paramDefinitionsJson');
+  const declarations = paramDefinitions !== undefined ? paramDefinitions : paramDefinitionsJson;
+  if (paramDefinitions !== undefined || paramDefinitionsJson !== undefined) {
+    const list = typeof declarations === 'string' ? parseStrictJson(declarations, 'paramDefinitions') : declarations;
+    if (!Array.isArray(list)) throw new ValidationError('paramDefinitions deve ser uma lista JSON.');
+    result.styles = packTemplateMetadata(styles, normalizeParamDefinitions(list), existingStyles ?? styles);
+  } else if (styles !== undefined) {
+    const supplied = readTemplateMetadata({ styles });
+    const existing = existingStyles === undefined ? supplied : readTemplateMetadata({ styles: existingStyles });
+    if (supplied.metadataPresent && existingStyles === undefined && typeof styles === 'string') result.styles = styles;
+    else result.styles = supplied.metadataPresent || existing.metadataPresent
+      ? packTemplateMetadata(styles, supplied.metadataPresent ? supplied.definitions : existing.definitions, existingStyles ?? styles)
+      : templateStyles(styles);
   }
-  if (input.positionsJson !== undefined && input.positions === undefined) result.positionsJson = templatePositions(input.positionsJson);
+  const positions = positionData(input, 'positions');
+  const positionsJson = positionData(input, 'positionsJson');
+  if (positions !== undefined) {
+    result.positionsJson = templatePositions(positions);
+  }
+  if (positionsJson !== undefined && positions === undefined) result.positionsJson = templatePositions(positionsJson);
   if (!partial && result.positionsJson === undefined) throw new ValidationError('positions é obrigatório.');
   if (input.discoveredFrom !== undefined) result.discoveredFrom = optionalText(input.discoveredFrom);
   if (input.enabled !== undefined) result.enabled = enabledValue(input.enabled);
@@ -273,9 +297,11 @@ function normalizeModuleInstanceInput(input = {}, { partial }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.extensionKey !== undefined) result.extensionKey = requireText(input.extensionKey, 'extensionKey');
-  if (!partial || input.position !== undefined) {
-    result.position = requireText(input.position, 'position');
-    if (![...TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content'].includes(result.position)) throw new ValidationError('position deve ser uma posição de módulo suportada.');
+  const position = positionData(input, 'position');
+  if (!partial || position !== undefined) {
+    result.position = requireText(position, 'position');
+    // Forma síncrona; declarações do catálogo são verificadas antes da escrita.
+    if (result.position === 'component' || (!MODULE_POSITIONS.includes(result.position) && !isWellFormedPositionName(result.position))) throw new ValidationError('position deve ser uma posição de módulo suportada.');
   }
   if (input.ordering !== undefined) {
     const ordering = Number(input.ordering);
@@ -318,7 +344,7 @@ const SITE_CONFIG_TITLE = 'MiniJoomlaSiteConfig';
 const INITIAL_SITE_FIELDS = Object.freeze(['siteName', 'siteDescription', 'timezone', 'language', 'pageSize', 'templateKey', 'homeView', 'homeCategory', 'offline', 'offlineMessage']);
 const initialSiteFields = (input) => Object.fromEntries(INITIAL_SITE_FIELDS.map((field) => [field, ownDataValue(input, field)]).filter(([, value]) => value !== undefined));
 
-function normalizeSiteConfigInput(input = {}, { homeView } = {}) {
+function normalizeSiteConfigInput(input = {}, { homeView, definitionsByKey } = {}) {
   const result = { title: SITE_CONFIG_TITLE };
   if (input.siteName !== undefined) result.siteName = optionalText(input.siteName);
   if (input.templateKey !== undefined) result.templateKey = optionalText(input.templateKey);
@@ -350,7 +376,14 @@ function normalizeSiteConfigInput(input = {}, { homeView } = {}) {
     if (!result.homeCategory && (result.homeView ?? homeView) !== 'featured') result.homeCategory = 'noticias';
     if (result.homeCategory && !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.homeCategory)) throw new ValidationError('homeCategory deve ser um alias de categoria.');
   }
-  if (input.templateStylesJson !== undefined) result.templateStylesJson = input.templateStylesJson === '' ? '' : validateTemplateStyles(typeof input.templateStylesJson === 'string' ? parseStrictJson(input.templateStylesJson, 'templateStylesJson') : input.templateStylesJson);
+  if (input.templateStylesJson !== undefined) {
+    if(input.templateStylesJson==='')result.templateStylesJson='';
+    else {
+      const text=typeof input.templateStylesJson==='string';
+      const validated=validateTemplateStyles(text?parseStrictJson(input.templateStylesJson,'templateStylesJson'):input.templateStylesJson,definitionsByKey,{preserveValues:text});
+      result.templateStylesJson=text?input.templateStylesJson:validated;
+    }
+  }
   if (input.componentParamsJson !== undefined) result.componentParamsJson = input.componentParamsJson === '' ? '' : jsonObject(input.componentParamsJson, 'componentParamsJson');
   return result;
 }
@@ -695,6 +728,18 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     if (rows.some((row) => row.key === key && row.id !== id)) throw new ValidationError('Já existe um registro com esta chave.');
   }
 
+  async function validatePosition(position) {
+    if (MODULE_POSITIONS.includes(position)) return;
+    const rows = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
+    // Valide todo o catálogo antes de aceitar uma declaração, mesmo quando
+    // outro template já contém a posição. Ausência legada não é corrupção.
+    const declared = rows.filter((row) => !BUILTIN_TEMPLATES.includes(row.key)).map((row) => {
+      const value = positionData(row, 'positionsJson');
+      return value === undefined || value === null || value === '' ? [] : JSON.parse(templatePositions(value));
+    });
+    if (!declared.some((positions) => positions.includes(position))) throw new ValidationError('position deve ser declarada por um template registrado.');
+  }
+
   async function requireModuleConfiguration(input) {
     const normalized = normalizeModuleInstanceInput(input, { partial: false });
     const kind = input.scopeKind || 'All';
@@ -752,14 +797,17 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       await requireUniqueKey('templates', normalized.key);
       return templateCrud.create({ enabled: true, ...normalized });
     },
-    async update(id, input, options) {
+    async update(id, input, options = {}) {
+      requireEtag(options.etag);
       const record = await templateCrud.get(id);
+      if (!record) throw new ValidationError('Template não encontrado.');
       for (const field of ['key', 'entryPointUrl']) {
         if (input[field] !== undefined && input[field] !== record[field]) throw new ValidationError(`${field} pertence ao manifesto registrado e não pode ser alterado.`);
       }
       const config = await currentConfig();
       if (record.key === (config?.templateKey || 'default') && input.enabled === false) throw new ValidationError('Escolha outro template padrão antes de desativar este template.');
-      return templateCrud.update(id, input, options);
+      const normalized = normalizeTemplateInput(input, { partial: true, existingStyles: ownDataValue(record, 'styles') });
+      return requireRepository(repositories, 'templates').update(id, normalized, { etag: options.etag });
     },
     async remove(id, options) {
       const record = await templateCrud.get(id);
@@ -784,10 +832,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     async create(input) {
       await requireModuleConfiguration(input);
       const normalized = normalizeModuleInstanceInput({ enabled: true, ordering: 0, scopeKind: 'All', ...input }, { partial: false });
+      await validatePosition(normalized.position);
       return requireRepository(repositories, 'moduleInstances').create(dropUnprovisionedDefaults(normalized, null, MODULE_V2_DEFAULTS));
     },
     async update(id, input, options = {}) {
       requireEtag(options.etag);
+      const patch = normalizeModuleInstanceInput(input, { partial: true });
       const record = await moduleCrud.get(id);
       if (!record) throw new ValidationError('Módulo não encontrado.');
       // Não permita que um formulário substitua configurações corrompidas
@@ -795,7 +845,10 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       parseJsonObject(record.settingsJson, { strict: true, field: 'settingsJson' });
       normalizeAssignmentTokens(record.assignmentJson);
       await requireModuleConfiguration({ ...record, ...input });
-      const normalized = dropUnprovisionedDefaults(normalizeModuleInstanceInput(input, { partial: true }), record, MODULE_V2_DEFAULTS);
+      // Patches sem mudança de posição preservam módulos cujo template foi
+      // removido/desativado. Criar/duplicar ou mover exige uma declaração atual.
+      if (patch.position !== undefined && patch.position !== record.position) await validatePosition(patch.position);
+      const normalized = dropUnprovisionedDefaults(patch, record, MODULE_V2_DEFAULTS);
       return requireRepository(repositories, 'moduleInstances').update(id, normalized, { etag: options.etag });
     }
   };
@@ -831,7 +884,10 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
         if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (rows.length) requireEtag(etag, 'etag da configuração');
         const record = rows.length ? await repository.findById(rows[0].id) : null;
-        const normalized = { ...(!record ? initialDefaults : undefined), ...normalizeSiteConfigInput(operationalInput, { homeView: record?.homeView ?? initialDefaults?.homeView }) };
+        const definitionsByKey = input.templateStylesJson === undefined ? undefined : Object.fromEntries((repositories.templates
+          ? await listAll(requireRepository(repositories, 'templates')) : []).filter((row) => !BUILTIN_TEMPLATES.includes(row.key))
+          .map((row) => [row.key, readTemplateMetadata(row).definitions]));
+        const normalized = { ...(!record ? initialDefaults : undefined), ...normalizeSiteConfigInput(operationalInput, { homeView: record?.homeView ?? initialDefaults?.homeView, definitionsByKey }) };
         if (input.homeView !== undefined || input.homeCategory !== undefined) createConfig({
           homeView: normalized.homeView ?? record?.homeView ?? initialDefaults?.homeView,
           homeCategory: normalized.homeCategory ?? record?.homeCategory ?? initialDefaults?.homeCategory

@@ -150,7 +150,7 @@ export async function runAdminManagementTests() {
   const createdTemplate = await service.templates.create(validTemplate);
   assert.equal(createdTemplate.positionsJson, '["footer"]');
   assert.equal(createdTemplate.styles, '["./c.css"]');
-  for (const patch of [{ positions: [] }, { positions: ['unknown'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
+  for (const patch of [{ positions: [] }, { positions: ['unknown slot'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
     await assert.rejects(() => service.templates.create({ ...validTemplate, ...patch, key: 'invalid' }), ValidationError);
   }
   const instance = await service.moduleInstances.create({ title: 'Native', extensionKey: 'articles-latest', position: 'main-top', settings: { limit: 3 } });

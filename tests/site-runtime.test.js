@@ -89,8 +89,8 @@ export async function runSiteRuntimeTests() {
   assert.equal(documentRef.links.length, 4);
   assert.ok(documentRef.links.every((link) => link['data-mj-template-style'] === 'camap'));
   await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, entryPointUrl: 'javascript:alert(1)' }]), /inválida/);
-  await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '{"invalid":true}' }]), /lista JSON/);
-  await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '["data:text/css,body{}"]' }]), /inválida/);
+  await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '{"invalid":true}' }]), /lista JSON|metadata/);
+  await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '["data:text/css,body{}"]' }]), /inválida|segura/);
   console.log('ok - template runtime validates registry, exports, assets and owned stylesheet replacement');
 
   for (const templateKey of ['default', 'camap']) {

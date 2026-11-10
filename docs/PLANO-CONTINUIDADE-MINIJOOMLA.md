@@ -58,6 +58,23 @@ wt02 requer suplemento dos outputs ignorados/relocação operacional. **Merge e
 retirada ainda bloqueados; nenhuma worktree removida.**
 [Parecer completo e critérios](AVALIACAO-INTEGRACAO-WORKTREES.md#reavaliação-solicitada--10112026).
 
+**Reconciliação incremental de templates em execução:** posições próprias no
+catálogo/runtime, preservação de posições órfãs na edição e recusa de metadata
+inválida. Ensaio isolado no SharePoint com repositórios em memória passou após
+correções/reteste; 48 registros/ETags, páginas e host preservados. Regressão
+114/0/0, parse 342 JS/MJS e contributor 433 caminhos. Parâmetros
+de estilos e demais contribuições da principal ainda não reconciliados. Captura
+atual de 65 arquivos conservada; não atualizar main/retirar worktrees por este
+incremento parcial. [Ciclo atual](CICLO-TEMPLATES-POSICOES.md).
+
+**Próximo ciclo — parâmetros de templates:** envelope no campo Styles existente,
+sem nova coluna; formulários/runtime ligados e preservação de estilos futuros/
+não relacionados corrigida. Ensaio real SharePoint isolado em memória passou,
+48 registros/ETags/páginas/host preservados. Reteste integrado **118/0/0**, parse
+349 JS/MJS e contributor 441 caminhos; revisão independente sem P1 remanescente
+no recorte. XML e demais deltas da principal seguem pendentes, sem merge automático.
+[Ciclo de parâmetros](CICLO-TEMPLATES-PARAMETROS.md).
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados
