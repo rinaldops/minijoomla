@@ -76,6 +76,12 @@ autorizados pelo usuário na branch step2, mensagem
 Também foi solicitada a avaliação do merge/retirada; essa autorização não elimina
 os gates de reconciliação/preservação da principal nem o aceite SharePoint pendente.
 
+Commit/push concluídos em **`c6c083c`**, remoto step2 conferido. Regressão integrada
+repetida 112/0/0; clone Git novo 95/17 skips SPMIDDLE esperados/0 e limpo. A
+[reavaliação de integração](AVALIACAO-INTEGRACAO-WORKTREES.md#reavaliação-solicitada--10112026)
+mantém merge/retirada bloqueados por delta nativo da principal e preservação dos
+outputs posteriores. Não houve mudança no site nem exclusão de worktrees.
+
 ### Retomada
 
 Use `#/installer/roots`, informe o `host-config.json` de uma única raiz já copiada,

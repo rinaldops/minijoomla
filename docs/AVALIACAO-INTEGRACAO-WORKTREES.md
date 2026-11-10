@@ -242,3 +242,90 @@ Git ou configuração de sites existentes. Templates CAMAP atuais são referênc
 temporária de CAMAP-V3; a retirada será depois de sua conclusão. O fluxo de
 primeira instalação pelo painel está definido no contrato genérico e permanece
 um gate funcional, distinto do instalador de dados de exemplo já existente.
+
+## Reavaliação solicitada — 10/11/2026
+
+**Parecer: commit/push concluídos; merge e exclusão ainda não liberados.**
+O incremento de raízes foi registrado em `c6c083c`
+(`feat: configure approved extension roots from the administrator`) e confirmado
+no remoto step2. `main`/origin main continuam `231560b`; step1 `2ae9443`.
+As duas worktrees de feature estão limpas quanto aos arquivos não ignorados.
+
+### Histórico versus estado de trabalho
+
+`main` é ancestral da candidata: **0 commits exclusivos da principal / 18 da
+step2**. Step1 também é ancestral: não precisa de merge independente. Portanto,
+**fast-forward é possível no histórico**, mas isso não autoriza substituir a
+árvore de trabalho dirty da principal.
+
+A principal possui **50 modificados + 9 untracked = 59 arquivos**. Uma nova
+captura privada preservou todos com bytes/SHA-256, status, diff e index diff,
+sem overwrite das capturas anteriores nem alteração das fontes. O snapshot
+antigo de 57 arquivos estava íntegro, mas não continha os bytes atuais de 20
+caminhos (12 variantes posteriores e oito novos). A captura nova cobre essa
+lacuna; estabilidade em uma passagem não é snapshot atômico/congelamento global.
+
+Comparação readonly dos 59 arquivos: dois coincidem integralmente com blobs
+Git da candidata; mais cinco coincidem após normalizar somente CRLF → LF.
+Os outros **52 têm diferenças substantivas ou estão ausentes**. Essa contagem
+não significa 52 contribuições exclusivas: a candidata já ampliou/corrigiu vários
+fluxos e não deve receber novamente versões antigas inteiras da principal.
+
+**Contribuição nativa ainda não reconciliada:** posições próprias de templates
+instalados, parâmetros declarados de estilos, discovery/runtime administrativo
+e preview local opt-in. Dois arquivos novos da principal não existem na
+candidata: `docs/TEMPLATE-INSTALL-CONTRACT.md` e
+`tests/installed-template-positions.test.js`. São trabalho genérico Joomla-like,
+não autorização para incorporar o template específico CAMAP-V3. A reconciliação
+precisa conservar cancelamento, configuração inicial/raízes aprovadas, JSON e
+ETags já validados na step2.
+
+### Validação da candidata commitada
+
+- Regressões focais de raízes/port/UI/host exato passaram; 339 JS/MJS parse-only.
+- **Regressão integrada repetida: 112 aprovadas, zero skips/falhas.**
+- Clone Git local novo, sem hardlinks, do commit `c6c083c`: **95 aprovadas,
+  17 skips esperados por SPMIDDLE irmão ausente, zero falhas**. Child standalone
+  94/17/0. 339 JS/MJS verificados e checkout permaneceu limpo depois dos testes.
+- Isso valida a candidata, não o futuro resultado da reconciliação com main.
+  Nenhum novo aceite integrado do site, deploy/provisionamento/publicação ocorreu.
+
+### Retirada por árvore
+
+| Árvore | Gate atual |
+| --- | --- |
+| wt01 | Limpa, ancestral e 1.017 arquivos/17.040.161 bytes de `tmp` atuais e arquivados integralmente conferidos. Gate operacional aprovado; retirada condicionada ao fechamento da integração. |
+| wt02 | Limpa em Git, mas novos artefatos ignorados não têm suplemento final. Não excluir. |
+
+Selo histórico: **33/33 pins de controles** reverificados; amostra de 372
+payloads do arquivo wt02 conferida, sem afirmar releitura integral de 55.455
+arquivos. Transferência TD: 390/390 pins de recibos, 186 entradas/33.412
+arquivos preservados; amostra de 466 payloads conferida. Inventários originais
+e mistos continuam intactos. O resolver histórico ainda não incorpora todas
+as placements TD/imports operacionais.
+
+A enumeração operacional durante os testes viu crescimento de artefatos da
+wt02; numa passagem havia **10.735 caminhos/159.696.339 bytes** não cobertos por
+planos original/TD, além de 92 links registrados sem seguir. São números daquela
+observação, não um inventário final estável. Incluem as provas de instalação,
+continuidade/raízes e o clone novo. **Git limpo não implica ausência de dados
+locais a preservar.** Branches step1/step2 conservam checkpoints alcançáveis;
+não existem branches locais extras nomeadas de recuperação nesta observação.
+
+### Critérios para liberar o merge/retirada
+
+1. Reconciliar o delta nativo da principal sobre a candidata, sem apagar fontes
+   atuais ou restaurar snapshots antigos; confirmar janela sem edição concorrente.
+2. Validar o resultado integrado, checkout novo e comportamento no site de modo
+   proporcional, preservando instalação aceita; testes anteriores não transferem
+   aprovação automaticamente à nova árvore.
+3. Encerrar geração de outputs e preservar o delta ignorado em suplemento novo,
+   com recibo final/hashes. Registrar links somente como metadados; classificar
+   helpers históricos versus fluxos que exigem resolução de caminhos.
+4. Só então tratar deliberadamente o delta local, fast-forward/push main e mover
+   a sessão para a principal. Retirar wt01 e depois wt02 sem descarte forçado,
+   conservando branches/checkpoints, arquivos históricos e journals.
+
+**Nenhum merge, stash/reset ou exclusão de worktree foi executado.** A autorização
+de retirada permanece condicional; o bloqueio real agora inclui os novos contratos
+genéricos de templates e a preservação operacional atualizada, não apenas Git.

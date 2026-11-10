@@ -50,6 +50,14 @@ autorização explícita. Próximo incremento de raízes pelo painel implementad
 validado localmente (112/0/0 e 339 JS/MJS): arquivo separado, aprovações/ETags/CSS de revisão preservados,
 sem instalar extensões ao aprovar. [Ciclo atual](CICLO-RAIZES-EXTENSOES.md).
 
+**Reavaliação do merge (10/11):** raízes commitadas/enviadas em `c6c083c`;
+112/0/0 integrado e 95/17 skips esperados/0 num clone Git novo limpo. Histórico
+permite fast-forward, mas main tem 59 arquivos locais, incluindo novo mecanismo
+genérico de templates ainda não reconciliado. Nova captura privada preservada;
+wt02 requer suplemento dos outputs ignorados/relocação operacional. **Merge e
+retirada ainda bloqueados; nenhuma worktree removida.**
+[Parecer completo e critérios](AVALIACAO-INTEGRACAO-WORKTREES.md#reavaliação-solicitada--10112026).
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados
