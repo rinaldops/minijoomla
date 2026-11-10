@@ -108,6 +108,41 @@ ETags, páginas e host ativo intactos antes/depois. Reauditoria sem P1/P2 no rec
 **122/0/0**, parse 358 JS/MJS, contributor 456 caminhos. Release ativa 0.16.0 não
 reescrita; XML/migração/reconciliação main e destino vazio continuam pendentes.
 
+**0.16.1 publicada após nova solicitação:** empacotador de `e0e4e67`, CONFIG
+fresco preservado, 265 arquivos enviados/conferidos e ambas MSE ativas/recarregadas.
+FullBleed/resize/readonly/Enter aprovados; 48 dados/ETags intactos. Não substitui
+aceite de instalação vazia/CRUD/editor/zoom. [Recibo funcional](PUBLICACAO-FULLBLEED-0.16.0.md#atualização-posterior--0161).
+
+### Estimativa de conclusão — após publicação 0.16.1
+
+Solicitada pelo usuário. **Faixa de planejamento: 20–35 dias úteis de esforço
+(aproximadamente 4–7 semanas)** para o CMS mínimo Joomla-like acordado. Inclui
+Desenvolvimento → Teste no site → Análise/correções/reteste → Validação → Documentação;
+não mede paridade integral Joomla nem constitui promessa de data.
+
+| Frente restante | Esforço estimado |
+| --- | --- |
+| Reconciliação final da principal, preview/tooling e preservação das worktrees | 2–4 dias |
+| Perfil XML de plugins, instalação/lifecycle/negativos | 3–5 dias |
+| Perfil XML de templates, estilos/posições/parâmetros/recuperação | 3–5 dias |
+| Migração assistida: executor/UI/diário/falhas parciais/recuperação | 4–7 dias |
+| Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias |
+| Integração final, documentação e margem para correções | 4–7 dias |
+
+As faixas se sobrepõem parcialmente; não somar como cronograma serial fechado.
+Dependências externas podem alongar o calendário: destino SharePoint **vazio e
+especificamente autorizado**, janela sem edição concorrente na `main`, acesso e
+decisões para testes com writes. Revisão jurídica/proveniência/marcas, privacidade/
+histórico e prontidão para distribuição pública não têm data nesta faixa.
+Reestimar após cada bloco, principalmente XML/migração; não prometer conclusão
+enquanto gates externos estiverem indisponíveis.
+
+Próximo incremento iniciado: servidor de preview local com montagem explícita de
+pacotes, contribuição nativa da principal ainda ausente. Principal novamente
+preservada: 68 arquivos / 1.038.925 bytes, sem alterar originais. Runtime nativo
+restante parece já reconciliado na comparação semântica; não é freeze ou gate
+automático de merge. CAMAP-V3/Videoteca/Forum não são importados.
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados

@@ -1,5 +1,30 @@
 # Publicação operacional — 0.16.0 FullBleed
 
+## Atualização posterior — 0.16.1
+
+Usuário solicitou novamente commit/push/publicação. `e0e4e67` confirmado no remoto
+step2, árvore limpa; sem commit vazio ou alterações da principal incluídas. Release
+**0.16.1** gerada pelo empacotador operacional desse commit e enviada exclusivamente:
+264 payloads + manifesto, hashes/bytes/MIME integralmente conferidos.
+
+Delta contra 0.16.0: host passa a `JSON.parse` escapado; outros 19 arquivos
+gerados diferem somente pelo número de versão (loader/entrypoints/XML nativos).
+Nenhuma capacidade XML nova implementada/instalada por mudar o número de versão.
+CONFIG exportado fresco do host 0.16.0, mantido integralmente; oito raízes/maps,
+estilos, pins e desconhecidos não foram reconstruídos. Previews reais público/
+admin montaram antes da ativação. Patch somente da MSE identificada, IF-MATCH,
+readback estrutural e releitura antes do Publish. Ambas páginas publicadas/sem
+checkout antes/depois. Recibos privados de rollback conservados; nenhum replay
+ou restauração de estado concorrente executado.
+
+Reload/resize 768/1366/1920, montagem única, loader 0.16.1, navegação administrativa
+readonly e Enter em 320 aprovados. **48 registros de dados/ETags intactos**; páginas
+mudaram somente pela atualização autorizada. 0.16.0 preservada imutável. Sem
+provisioning, save/upload, Sample Data, roots/extensions novos ou distribuição OSS.
+Tooling de publicação é privado; não embutir CONFIG/pacotes operacionais no Git.
+
+[Pendências e estimativa de planejamento](PLANO-CONTINUIDADE-MINIJOOMLA.md#estimativa-de-conclusão--após-publicação-0161).
+
 ## Commit e autorização
 
 Integração FullBleed commitada e enviada em `20feabc`
