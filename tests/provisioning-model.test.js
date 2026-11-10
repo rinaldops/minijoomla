@@ -26,7 +26,7 @@ const CONTRACT = {
   tags: { name: 'MiniJoomlaTags', version: 2, count: 5, required: ['Title'], indexes: ['Title'], defaults: { State: 'Published' } },
   menu: { name: 'MiniJoomlaMenu', version: 1, count: 5, required: ['Title', 'Path'], indexes: [], defaults: { Published: 'Published' } },
   extensions: { name: 'MiniJoomlaExtensions', version: 2, count: 10, required: ['Title', 'Key', 'Type', 'EntryPointUrl'], indexes: ['Key'], defaults: { Enabled: true, Ordering: 0 } },
-  templates: { name: 'MiniJoomlaTemplates', version: 1, count: 8, required: ['Title', 'Key', 'Version', 'EntryPointUrl'], indexes: ['Key'], defaults: { Enabled: true } },
+  templates: { name: 'MiniJoomlaTemplates', version: 1, count: 9, required: ['Title', 'Key', 'Version', 'EntryPointUrl'], indexes: ['Key'], defaults: { Enabled: true } },
   moduleInstances: { name: 'MiniJoomlaModuleInstances', version: 2, count: 16, required: ['Title', 'ExtensionKey', 'Position'], indexes: [], defaults: { Position: 'sidebar', Ordering: 0, Enabled: true, ScopeKind: 'All', ShowTitle: true, Trashed: false, Assignment: 'all' } },
   siteConfig: { name: 'MiniJoomlaSiteConfig', version: 2, count: 20, required: ['Title'], indexes: [], defaults: { Title: 'MiniJoomlaSiteConfig', Offline: false, SitenamePagetitles: 'none', HomeView: 'category' } }
 };

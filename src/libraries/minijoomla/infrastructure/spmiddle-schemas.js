@@ -145,6 +145,15 @@ export const MiniJoomlaTemplates = defineListSchema({
     { internalName: 'EntryPointUrl', displayName: 'EntryPointUrl', type: 'Text', required: true },
     { internalName: 'Styles', displayName: 'Styles', type: 'MultilineText' },
     { internalName: 'PositionsJson', displayName: 'PositionsJson', type: 'MultilineText' },
+    // Gap B (paramDefinitions declarados por um template instalado,
+    // ver TEMPLATE-INSTALL-CONTRACT.md §3): campo ausente até esta
+    // iteração — admin-service.js's normalizeTemplateInput() já produzia
+    // paramDefinitionsJson, mas o schema nunca o persistia, causando
+    // falha silenciosa ao registrar qualquer template instalado com
+    // paramDefinitions (confirmado nesta iteração registrando camap-v3
+    // 0.6.0 no site de teste real). Aditivo: nenhum registro existente é
+    // afetado (campo novo, opcional).
+    { internalName: 'ParamDefinitionsJson', displayName: 'ParamDefinitionsJson', type: 'MultilineText' },
     { internalName: 'DiscoveredFrom', displayName: 'DiscoveredFrom', type: 'Text' },
     { internalName: 'Enabled', displayName: 'Enabled', type: 'Boolean', defaultValue: true }
   ], indexes: [{ fields: ['Key'], unique: true }]

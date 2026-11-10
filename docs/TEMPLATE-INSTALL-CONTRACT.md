@@ -209,3 +209,42 @@ fixture sintética (`custom-hero`), não `camap-v3` — este arquivo testa o
 `templatePositions()`, roteamento de módulo via `resolveModuleEntries()`
 com/sem o 4º parâmetro, e precedência de `templateParamDefinitions()`
 quando definições instaladas são fornecidas.
+
+## Fechamento — Iteração 7 (mecanismo genérico, exercitado com `camap-v3`)
+
+Publicação real contra o site de teste dedicado (`Comunidades-de-interesse-191`,
+nunca `camap-agp` de produção), com autorização explícita do usuário para a
+etapa de `publishPages()` sem `--prepare-only`. Três correções genéricas
+surgiram ao exercitar o mecanismo de ponta a ponta com um consumidor real
+(`camap-v3`) — nenhuma delas é específica desse template:
+
+1. **`scripts/deploy-sharepoint.mjs`'s `publishPages()`: `getbytitle('Site
+   Pages')` responde 404 de forma consistente neste tenant**, mesmo a lista
+   existindo (confirmado: `GetList(url)` e `$filter=Title eq '...'`
+   funcionam contra a mesma lista — peculiaridade real do SharePoint, não um
+   bug do script). Localizar a página por `web/lists(guid'<Id>')` (via
+   `$filter=BaseTemplate eq 119`) evita `getbytitle` por completo.
+2. **Nome do `.aspx` público nunca hardcodado**: `publishPages()` ganhou a
+   flag `--public-page NomeReal.aspx` (default `'MiniJoomla.aspx'`) — quem
+   decide o nome real da página pública é quem a criou no site de destino
+   (`CAMAP-V3.aspx`, no site de teste usado); o MINIJOOMLA não assume nome
+   de site/template nenhum.
+3. **Gap B estava incompleto**: `admin-service.js`'s `normalizeTemplateInput()`
+   já produzia `paramDefinitionsJson`, mas nem `spmiddle-schemas.js` nem
+   `spmiddle-repositories.js` declaravam o campo — qualquer template
+   instalado com `paramDefinitions` falhava silenciosamente ao registrar
+   ("Não foi possível registrar o template."). Corrigido adicionando
+   `ParamDefinitionsJson` (`MultilineText`) ao schema `MiniJoomlaTemplates` e
+   `paramDefinitionsJson: 'ParamDefinitionsJson'` ao `TEMPLATE_MAPPING`.
+   Aditivo: nenhum registro existente é afetado.
+
+Sequência real executada e confirmada via FIORI-AUTO: pacote `camap-v3`
+0.6.0 publicado em `SiteAssets/minijoomla/templates/camap-v3/0.6.0/`
+(SHA-256 por arquivo) → MINIJOOMLA publicado como release `0.1.4` (fix do
+Gap B) via `publishPages()` real em `CAMAP-V3.aspx` e `Administrator.aspx`
+→ registro via `/templates/discover` no painel admin → confirmado na tela
+Templates (`CAMAP V3`, chave `camap-v3`, versão `0.6.0`, habilitado) e via
+leitura direta da lista `MiniJoomlaTemplates` (14 posições,
+`ParamDefinitionsJson` persistido corretamente). Nenhuma referência a
+`camap-v3` permanece hardcoded em `web-devs/MINIJOOMLA/src/` (grep
+confirmado vazio fora de comentários/docs do mecanismo).

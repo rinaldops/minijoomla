@@ -53,8 +53,8 @@ const FIXTURES = {
     added: 'Offline OfflineMessage MetaDescription MetaKeywords Robots SitenamePagetitles HomeView HomeCategory TemplateStylesJson ComponentParamsJson', clear: 'customHtmlBody'
   },
   templates: {
-    input: { title: 'Template local', key: 'local-template', version: '1.0.0', entryPointUrl: 'templates/local-template/index.js', styles: '["templates/local-template/theme.css"]', positionsJson: '["topbar","sidebar-right","component"]', discoveredFrom: 'local-template/manifest.json', enabled: true },
-    names: 'Title Key Version EntryPointUrl Styles PositionsJson DiscoveredFrom Enabled', added: '', clear: 'discoveredFrom'
+    input: { title: 'Template local', key: 'local-template', version: '1.0.0', entryPointUrl: 'templates/local-template/index.js', styles: '["templates/local-template/theme.css"]', positionsJson: '["topbar","sidebar-right","component"]', paramDefinitionsJson: '[]', discoveredFrom: 'local-template/manifest.json', enabled: true },
+    names: 'Title Key Version EntryPointUrl Styles PositionsJson ParamDefinitionsJson DiscoveredFrom Enabled', added: 'ParamDefinitionsJson', clear: 'discoveredFrom'
   }
 };
 

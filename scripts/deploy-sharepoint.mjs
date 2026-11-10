@@ -3,8 +3,12 @@
  * Publica uma release imutável no SharePoint pela sessão autenticada do FioriAgent.
  * Uso: node scripts/deploy-sharepoint.mjs --version X.Y.Z --web /sites/site --session <id>
  *      [--rpc 47173] [--skip-provision] [--prepare-only] [--expected-origin https://tenant.sharepoint.com]
+ *      [--public-page NomeReal.aspx]
  * Recusa versão já existente. Grava em tmp/deploy/ o canvas anterior (rollback) e o
  * mapa de listas. Nenhum cookie/token é lido ou gravado: todo acesso roda no navegador.
+ * --public-page informa o nome real do .aspx público já criado no site de
+ * destino (default 'MiniJoomla.aspx'); o MINIJOOMLA não assume nenhum nome
+ * específico de site/template.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -21,7 +25,6 @@ import { createSharePointFileClient } from '../../SPMIDDLE/packages/sharepoint-f
 import { createAtomicExtensionKeyGuard } from '../src/libraries/minijoomla/infrastructure/spmiddle-extension-guard.js';
 
 const PROJECT = resolve(fileURLToPath(import.meta.url), '..', '..');
-const PAGES = { 'MiniJoomla.aspx': 'data-minijoomla-site', 'Administrator.aspx': 'data-minijoomla-admin-root' };
 const MODERN_SCRIPT_EDITOR = '3a328f0a-99c4-4b28-95ab-fe0847f657a3';
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(`--${name}`);
@@ -30,6 +33,13 @@ const version = option('version');
 const web = option('web');
 const session = option('session');
 const rpcPort = option('rpc', '47173');
+// Nome real do .aspx público é decidido por quem criou a página no site de
+// destino (pode ser 'MiniJoomla.aspx' num site genérico ou algo específico
+// do site, ex. 'CAMAP-V3.aspx') — nunca hardcodado aqui, o que violaria o
+// confinamento de templates instalados fora do MINIJOOMLA.
+const publicPage = option('public-page', 'MiniJoomla.aspx');
+if (!publicPage.endsWith('.aspx')) throw new TypeError('--public-page requer um nome de arquivo .aspx.');
+const PAGES = { [publicPage]: 'data-minijoomla-site', 'Administrator.aspx': 'data-minijoomla-admin-root' };
 const expectedOrigin = option('expected-origin');
 if (expectedOrigin && (new URL(expectedOrigin).origin !== expectedOrigin || new URL(expectedOrigin).protocol !== 'https:')) throw new TypeError('--expected-origin requer uma origem HTTPS exata.');
 if (!/^\d+\.\d+\.\d+$/.test(version ?? '') || !web?.startsWith('/') || !session || !/^\d+$/.test(rpcPort)) throw new TypeError('Informe --version X.Y.Z --web /sites/site --session <id> [--rpc <porta>].');
@@ -219,8 +229,14 @@ async function upload(files) {
 async function publishPages() {
   for (const [page, attribute] of Object.entries(PAGES)) {
     const script = `<div ${attribute}></div>\n<script src="${release}/host/loader.js"></script>\n`;
-    const locate = `const title = (await call('web/lists?$select=Title&$filter=BaseTemplate eq 119')).body.value[0].Title;
-      const list = 'web/lists/getbytitle(' + q(title) + ')';
+    // getbytitle('Site Pages') responde 404 ("List '...' does not exist") de
+    // forma consistente neste tenant, mesmo a lista existindo (confirmado
+    // nesta iteração: GetList(url) e $filter=Title eq '...' funcionam contra
+    // a mesma lista) — causa raiz real do SharePoint, não um bug deste
+    // script. Localizar por Id (lists(guid'...')) evita o método getbytitle
+    // por completo.
+    const locate = `const listId = (await call('web/lists?$select=Id&$filter=BaseTemplate eq 119')).body.value[0].Id;
+      const list = "web/lists(guid'" + listId + "')";
       const row = (await call(list + '/items?$select=Id,FileRef,FileLeafRef&$filter=FileLeafRef eq ' + q(${JSON.stringify(page)}))).body.value[0];
       const current = await call(list + '/items(' + row.Id + ')?$select=CanvasContent1');`;
     // O rollback precisa existir antes da primeira escrita na página.

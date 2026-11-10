@@ -100,7 +100,7 @@ const TEMPLATE_MAPPING = {
   id: { internalName: 'Id', readOnly: true }, title: { internalName: 'Title', required: true },
   key: { internalName: 'Key', required: true }, version: { internalName: 'Version', required: true },
   entryPointUrl: { internalName: 'EntryPointUrl', required: true }, styles: 'Styles',
-  positionsJson: 'PositionsJson', discoveredFrom: 'DiscoveredFrom', enabled: 'Enabled'
+  positionsJson: 'PositionsJson', paramDefinitionsJson: 'ParamDefinitionsJson', discoveredFrom: 'DiscoveredFrom', enabled: 'Enabled'
 };
 
 const MODULE_INSTANCE_MAPPING = {
