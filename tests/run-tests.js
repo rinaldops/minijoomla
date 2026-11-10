@@ -27,6 +27,7 @@ export const TEST_SUITES = Object.freeze([
   ['articles-featured.test.js', 'runArticlesFeaturedTests'],
   ['articles-featured-integration.test.js', 'runArticlesFeaturedIntegrationTests'],
   ['mse-layout-host.test.js', 'runMseLayoutHostTests'],
+  ['operational-upgrade-stage.test.js', 'runOperationalUpgradeStageTests', true],
   ['sample-data-service.test.js', 'runSampleDataServiceTests'],
   ['sample-data-journal.test.js', 'runSampleDataJournalTests'],
   ['sample-data-package.test.js', 'runSampleDataPackageTests'],

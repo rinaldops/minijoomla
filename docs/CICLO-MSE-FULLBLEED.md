@@ -64,3 +64,9 @@ checkpoint: `feat: integrate publisher-controlled MSE FullBleed with guarded boo
 Publicação exige nova release imutável, configuração/ETags preservados e rollback;
 não provisionar/reinstalar nem publicar conteúdo em rascunho por inferência.
 Demais deltas da principal e XML continuam na fila com ciclo próprio.
+
+**Publicação posterior executada:** `20feabc` enviado; release operacional
+0.16.0 com CONFIG completo preservado ativa nas duas páginas. Preflight corrente
+mostrou ambas publicadas, sem checkout; estado conservado. 48 dados/ETags
+preservados, geometria real/navigation readonly conferidas. ETags de páginas
+mudaram pela atualização autorizada. [Relatório e limites](PUBLICACAO-FULLBLEED-0.16.0.md).

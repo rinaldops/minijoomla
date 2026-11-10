@@ -52,6 +52,33 @@ CSS. Copiar todos os assets declarados no inventário, não só o atributo.
 Páginas existentes sem wrapper permanecem legadas até alteração autorizada.
 [Ciclo e limites do ensaio](CICLO-MSE-FULLBLEED.md).
 
+## Empacotar atualização de uma instalação operacional existente
+
+Esse caminho é **distinto da primeira instalação vazia**. Para um host legado
+pré-configurado, exporte privadamente o CONFIG atual inteiro para `tmp/`, sem
+credenciais. O empacotador requer as dependências locais SPMIDDLE usadas pelo
+pacote SharePoint completo:
+
+```powershell
+node scripts/stage-operational-upgrade.js --version X.Y.Z --output tmp/upgrade-novo --configuration tmp/config-operacional-private.json
+```
+
+A CLI lê JSON regular UTF-8, limitado a 256 KiB, recusando escapes de `tmp/` e
+links/junctions na cadeia do caminho. Valida contexto/oito identidades de listas
+e aprovações de extensões, preserva CONFIG inteiro sem normalização destrutiva
+(inclusive `discover:false`, ordem CSS, revisões/pins e chaves futuras), injeta
+JSON sem alterar protótipos e recalcula o inventário do host. Recusa output existente.
+Não é endurecimento contra corrida local de atacante nem verificação remota de
+que os GUIDs apontam para a instalação certa.
+
+O resultado contém configuração específica da instalação: manter em `tmp/`, não
+commitar/distribuir publicamente. Não publica páginas, provisiona, cria receipts,
+instala Sample Data ou muda roots/settings. Snippets permanecem modelos com
+placeholders; resolver a base da nova release e identificar a MSE antes de publicar.
+Inventário/ETags frescos, prévia com dados reais, preservação e plano de rollback
+são gates separados. Não usar o deploy antigo como atalho automático.
+[Publicação 0.16.0 e ciclo do tooling](PUBLICACAO-FULLBLEED-0.16.0.md).
+
 ## Separação dos projetos
 
 | Material | Responsabilidade |

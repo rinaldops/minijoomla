@@ -93,6 +93,21 @@ Validação posterior FullBleed: **121/0/0**, parse 356 JS/MJS e contributor 453
 caminhos; reauditoria sem P1/P2 no recorte. Integração ainda local, sem mudar
 as páginas aceitas nem a configuração de publicação do SPMIDDLE.
 
+**Publicação autorizada FullBleed 0.16.0:** integração enviada em `20feabc`;
+CONFIG legado inteiro/raízes/pins preservados, sem provisioning ou writes no
+CMS. Ambas páginas já estavam publicadas no preflight fresco e continuam assim,
+com snippets FullBleed atualizados e ETags de página deliberadamente novos.
+48 registros/ETags de dados preservados, mount/resize/navegação readonly reais
+conferidos. [Resultado e próximo tooling](PUBLICACAO-FULLBLEED-0.16.0.md).
+
+**Continuidade do empacotamento operacional validada:** ferramenta offline
+reutilizável preserva CONFIG/roots/CSS/pins/chaves futuras; corrigidos ancestor
+junction e semântica `__proto__`, sem alterar o bootstrap genérico vazio.
+Pacote CONFIG-injetado em nova prova SharePoint montou site/admin; 48 registros/
+ETags, páginas e host ativo intactos antes/depois. Reauditoria sem P1/P2 no recorte;
+**122/0/0**, parse 358 JS/MJS, contributor 456 caminhos. Release ativa 0.16.0 não
+reescrita; XML/migração/reconciliação main e destino vazio continuam pendentes.
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados
