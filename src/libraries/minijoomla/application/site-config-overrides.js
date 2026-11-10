@@ -20,14 +20,17 @@ import { ownEnumerableData } from '../core/contracts.js';
 export function toSiteConfigOverrides(record) {
   if (!record) return {};
   record = ownEnumerableData(record);
-  const overrides = {
-    siteName: record.siteName, templateKey: record.templateKey, siteDescription: record.siteDescription, language: record.language,
-    timezone: record.timezone, basePath: record.basePath, pageSize: record.pageSize
-  };
+  // Missing persisted values must not erase the initial operational defaults.
+  // Empty strings, unlike missing/null fields, are explicit saved values here.
+  const overrides = {};
+  for (const field of ['siteName', 'templateKey', 'siteDescription', 'language', 'timezone', 'basePath', 'pageSize']) {
+    if (record[field] !== undefined && record[field] !== null) overrides[field] = record[field];
+  }
   if (record.customHtmlBody) overrides.customHtml = { title: record.customHtmlTitle || undefined, html: record.customHtmlBody };
   for (const field of ['offline', 'offlineMessage', 'metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles', 'homeView', 'homeCategory']) {
     if (record[field] !== undefined && record[field] !== null && record[field] !== '') overrides[field] = record[field];
   }
+  if (record.homeView === 'featured' && record.homeCategory === '') overrides.homeCategory = '';
   overrides.templateParams = resolveTemplateParams(record);
   overrides.templateStyleId = resolveTemplateStyleId(record);
   overrides.componentParams = resolveComponentParams(record);

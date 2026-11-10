@@ -81,7 +81,7 @@ export function createExtensionAdministration({ repositories, extensions, module
     async catalog() { return moduleTypeCatalog(await extensionRows()); },
     async positions(templateKey) {
       const catalog = await templateCatalog();
-      const key = templateKey || (await siteConfig.get())?.templateKey || 'default';
+      const key = templateKey || (await siteConfig.get())?.templateKey || siteConfig.defaults?.templateKey || 'default';
       const template = catalog.find((entry) => entry.key === key) ?? catalog[0];
       return { template: template.key, positions: template.positions, all: MODULE_POSITIONS };
     },
@@ -178,7 +178,7 @@ export function createExtensionAdministration({ repositories, extensions, module
     async list() {
       const [config, catalog] = await Promise.all([siteConfig.get(), templateCatalog()]);
       const titles = Object.fromEntries(catalog.map((entry) => [entry.key, entry.title]));
-      const activeKey = config?.templateKey || 'default';
+      const activeKey = config?.templateKey || siteConfig.defaults?.templateKey || 'default';
       const styles = effectiveTemplateStyles(config?.templateStylesJson, catalog.filter((entry) => entry.enabled || entry.key === activeKey).map((entry) => entry.key), titles, { strict: true })
         .map((style) => ({ ...style, templateTitle: titles[style.template] ?? style.template, isDefault: style.template === activeKey && style.home }));
       return { etag: config?.etag, templateKey: activeKey, styles, catalog };

@@ -51,7 +51,7 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
   let admin;
   const adminPlugins = pluginManager === undefined && app.repositories.extensions
     ? createAdminPluginsRuntime({ importModule, getPlugins: () => admin.extensions.list() }) : null;
-  admin = createAdminService(app.repositories, { pluginManager: adminPlugins ?? pluginManager });
+  admin = createAdminService(app.repositories, { pluginManager: adminPlugins ?? pluginManager, initialSiteConfig: appOptions.config });
   const fileClient = typeof extensionsFileClientFactory === 'function' ? extensionsFileClientFactory({ webUrl: appOptions.webUrl }) : null;
   const legacy = fileClient ? createExtensionDiscoveryService(fileClient) : null;
   if (!Array.isArray(joomlaDiscoveryRoots)) throw new TypeError('joomlaDiscoveryRoots deve ser uma lista.');

@@ -1,5 +1,12 @@
 # Evolução XML — contratos e gates aprovados
 
+> **Diretriz posterior de separação:** Videoteca/Forum são extensões específicas
+> do projeto TD e não integram a instalação genérica MINIJOOMLA. A ordem antiga
+> abaixo é histórica. O painel deve instalar primeiro o CMS nativo; extensões e
+> templates são escolhas posteriores do administrador. CAMAP atuais são apenas
+> referência transitória do template externo CAMAP-V3. Ver o
+> [contrato genérico](INSTALACAO-GENERICA-MINIJOOMLA.md).
+
 Data: 06/11/2026. Complementa o [relatório de escopo](AVALIACAO-E-ESCOPO-2026-11-06.md)
 e o [perfil de módulos implementado](EXTENSOES-JOOMLA.md). **Contrato de evolução,
 não anúncio de suporte já implementado**. A descoberta atual continua restrita

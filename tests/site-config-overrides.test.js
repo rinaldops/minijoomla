@@ -9,6 +9,7 @@ export async function runSiteConfigOverridesTests() {
   const empty = toSiteConfigOverrides({});
   assert.equal(empty.siteName, undefined);
   assert.equal(empty.templateKey, undefined);
+  for (const field of ['siteName', 'templateKey', 'siteDescription', 'language', 'timezone', 'basePath', 'pageSize']) assert.equal(Object.hasOwn(empty, field), false);
   assert.ok('templateParams' in empty);
   assert.ok('templateStyleId' in empty);
   assert.ok('componentParams' in empty);
@@ -133,6 +134,14 @@ export async function runSiteConfigOverridesTests() {
   assert.equal('homeView' in legacyOverrides, false, 'homeView ausente no registro legado não deve aparecer como override');
   assert.equal('homeCategory' in legacyOverrides, false, 'homeCategory ausente no registro legado não deve aparecer como override');
   const { createConfig } = await import('../src/libraries/minijoomla/core/config.js');
+  const initial = {siteName:'Site recém-instalado',siteDescription:'Descrição inicial',timezone:'UTC',pageSize:10,templateKey:'cassiopeia',homeView:'featured',homeCategory:''};
+  const partialSaved = toSiteConfigOverrides({siteName:undefined,timezone:null,siteDescription:'',homeView:'featured',homeCategory:''});
+  const continued = createConfig({...initial,...partialSaved});
+  assert.equal(continued.siteName,initial.siteName);
+  assert.equal(continued.timezone,'UTC');
+  assert.equal(continued.siteDescription,'','Explicit saved blank remains authoritative');
+  assert.equal(continued.homeCategory,'');
+  assert.equal(continued.pageSize,10);
   const migratedConfig = createConfig(legacyOverrides);
   assert.equal(migratedConfig.homeView, 'category', 'config aplica o default category quando o registro legado não declara homeView');
   assert.equal(migratedConfig.homeCategory, 'noticias', 'config aplica o default noticias quando o registro legado não declara homeCategory');

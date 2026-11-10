@@ -226,3 +226,19 @@ validado; main permanece em `231560b` e worktrees01/02 preservadas. A próxima
 ação exige janela real de edição cessada e reconciliação do novo delta, validação
 proporcional no site, depois fast-forward e retirada dos diretórios. Branches de
 recuperação e evidências privadas não são apagadas.
+
+### Transferência posterior de extensões específicas para TD
+
+O usuário determinou transferir Videoteca/Forum para TD e manter MINIJOOMLA
+genérico Joomla-like. Os dois arquivos parciais ativos de Videoteca e o documento
+do ciclo foram movidos para TD, com conferência de bytes, sem completar seus
+pins/fixtures. O núcleo não possui implementação ativa de Forum. O material
+histórico desses módulos em snapshots é transferido por unidade para não
+amputar inventários ou falsificar a preservação. Referências antigas e recibos
+de transferência conservam a cronologia; não são dependências da instalação.
+
+Essa separação não autoriza editar/apagar CAMAP2, mse-platform, branch/histórico
+Git ou configuração de sites existentes. Templates CAMAP atuais são referência
+temporária de CAMAP-V3; a retirada será depois de sua conclusão. O fluxo de
+primeira instalação pelo painel está definido no contrato genérico e permanece
+um gate funcional, distinto do instalador de dados de exemplo já existente.

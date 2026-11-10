@@ -160,10 +160,11 @@ function buildStage(lists) {
   execFileSync(process.execPath, ['scripts/stage-release.js', '--version', version, '--output', stage, '--target', 'all'], { cwd: PROJECT, stdio: 'inherit' });
   const root = join(PROJECT, stage);
   const host = readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'host.js'), 'utf8')
-    .replace('__CONFIG__', () => JSON.stringify({ webUrl: web, libraryPath: assets, lists, ...extensionConfig }));
-  if (host.includes('__CONFIG__')) throw new Error('Host com configuração não substituída.');
+    .replace('/* MINIJOOMLA_CONFIG */ null', () => JSON.stringify({ webUrl: web, libraryPath: assets, lists, ...extensionConfig }));
+  if (host.includes('/* MINIJOOMLA_CONFIG */ null')) throw new Error('Host com configuração não substituída.');
   mkdirSync(join(root, 'host'), { recursive: true });
   writeFileSync(join(root, 'host', 'host.js'), host);
+  writeFileSync(join(root, 'host', 'installation-context.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'installation-context.js')));
   writeFileSync(join(root, 'host', 'loader.js'), `import(${JSON.stringify(`${release}/host/host.js`)}).catch((error) => console.error('MINIJOOMLA: falha ao importar o host.', error));\n`);
   writeFileSync(join(root, 'host', 'admin.scoped.css'), scopedAdminCss(readFileSync(join(PROJECT, 'src', 'media', 'templates', 'administrator', 'atum', 'css', 'template.css'), 'utf8')));
   return walk(root).map((path) => ({ path, name: relative(root, path).split(sep).join('/') }));

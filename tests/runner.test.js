@@ -13,7 +13,8 @@ const OPTIONAL_FILES = [
   'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
   'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js',
-  'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js'
+  'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js',
+  'sharepoint-installation.test.js', 'generic-installation-package.test.js', 'generic-installation-host.test.js'
 ];
 
 function put(path, content) {
@@ -60,15 +61,17 @@ export async function runRunnerTests({ completeStandalone = true } = {}) {
   // These DOM helpers are exercised by registered suites/browser fixtures, not
   // independent Node suites. Everything else must be registered explicitly.
   const helpers = ['admin-errors-dom.test.js', 'admin-layout-dom.test.js', 'admin-management-dom.test.js', 'final-acceptance-dom.test.js'];
-  const suspended = ['videoteca-adaptation.test.js'];
   const discovered = readdirSync(join(PROJECT, 'tests')).filter(file => file.endsWith('.test.js'));
-  assert.deepEqual(discovered.filter(file => !TEST_SUITES.some(suite => suite.file === file)).sort(), [...helpers, ...suspended.filter(file => discovered.includes(file))].sort(), 'No unregistered test suites except explicit helper/suspended fixtures');
+  assert.deepEqual(discovered.filter(file => !TEST_SUITES.some(suite => suite.file === file)).sort(), [...helpers].sort(), 'No unregistered test suites except explicit DOM helpers');
   for (const suite of TEST_SUITES) {
     assert.ok(existsSync(join(PROJECT, 'tests', suite.file)), `Declared suite must exist: ${suite.file}`);
     assert.match(readFileSync(join(PROJECT, 'tests', suite.file), 'utf8'), new RegExp(`export (?:(?:async )?function ${suite.entryPoint}\\b|\\{\\s*${suite.entryPoint}\\s*\\} from )`), `Declared entry point must be exported: ${suite.file}`);
   }
-  for (const file of ['scripts/prepare-videoteca-adaptation.js', 'tests/videoteca-adaptation.test.js']) assert.ok(!CONTRIBUTOR_FILES.includes(file), 'Suspended Videoteca must not enter standalone/contributor selection');
-  assert.ok(!TEST_SUITES.some(suite => /camap-v3|camapv3|videoteca/.test(suite.file)), 'Suspended suites must not execute');
+  for (const file of ['scripts/prepare-videoteca-adaptation.js', 'tests/videoteca-adaptation.test.js', 'scripts/prepare-forum-adaptation.js', 'tests/forum-adaptation.test.js']) {
+    assert.ok(!CONTRIBUTOR_FILES.includes(file), 'TD-specific sources must not enter generic contributor selection');
+    assert.ok(!existsSync(join(PROJECT, file)), 'TD-specific source belongs in TD, not MINIJOOMLA');
+  }
+  assert.ok(!TEST_SUITES.some(suite => /camap-v3|camapv3|videoteca|forum/.test(suite.file)), 'TD-specific and experimental suites must not execute');
   assert.ok(!CONTRIBUTOR_FILES.some(file => /camap-v3|camapv3/.test(file)), 'Suspended CAMAPv3 sources must not enter contributor selection');
   for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js', 'query-options-main-regression.test.js', 'extension-migration-plan.test.js', 'tooling-validation.test.js']) {
     assert.equal(TEST_SUITES.find((suite) => suite.file === file).requiresSPMiddle, false);

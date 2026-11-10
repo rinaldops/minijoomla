@@ -2,6 +2,14 @@
 
 ## Prioridade vigente — finalizar somente o Joomla padrão
 
+**Separação de produto explicitada posteriormente:** Videoteca/Forum e seus
+materiais específicos são transferidos para TD. Instalação deve ser genérica:
+cópia fiel do pacote no SharePoint, duas páginas MSE e instalação inicial pelo
+painel; extensões/templates são escolhidos somente depois. CAMAP atuais são
+referência transitória do template definitivo externo CAMAP-V3 e serão retirados
+depois de sua conclusão, não antecipadamente. Ver
+[contrato de instalação genérica](INSTALACAO-GENERICA-MINIJOOMLA.md).
+
 Diretriz posterior do usuário: **Videoteca e Forum não devem ser desenvolvidos
 neste momento; foco somente nos itens padrões do Joomla original.** Esta diretriz
 prevalece sobre a fila de expansão externa abaixo. Interrompida a frente de
@@ -19,6 +27,30 @@ anteriores (i18n, SEO integrado ao host, histórico e check-in/check-out de
 artigos) permanecem, até decisão explícita diferente.
 
 ### Seis blocos para o fechamento nativo
+
+**Generalização prioritária em andamento:** primeira instalação independente do
+dashboard/listas anteriores, infraestrutura vazia e configuração operacional
+exclusiva. Engine/port/UI/bootstrap/pacote implementados localmente; revisão
+orientou correções de cancelamento/dispatch, marcador de configuração e inspeção
+instalada sem journal. Teste no site e instalação em destino vazio continuam
+gates separados. [Ciclo desta generalização](CICLO-GENERALIZACAO-INSTALACAO.md).
+
+**Continuidade do incremento validada localmente:** primeiro salvamento
+completo/parcial agora preserva os ajustes iniciais; configuração do painel,
+estilos e home vazia permanecem coerentes. Host exato do pacote executado offline
+com SPMIDDLE real e REST simulado (subsite e raiz `/`); Mídia vazia não cria pasta,
+primeiro upload explícito cria somente `uploads`. UI nativa da configuração em
+memória passou; **109 suítes / 0 skips / 0 falhas**, parse 333 JS/MJS. Instalação
+SharePoint real segue pendente de destino vazio específico, e raízes/extensões
+pós-instalação ainda precisam de desenvolvimento.
+[Resultados e limites](CICLO-INSTALACAO-CONTINUIDADE.md).
+
+**Requisito transversal da instalação genérica:** bootstrap independente de
+listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
+nativa vazia e extensão/template somente após a instalação. O botão de dados
+de exemplo não é o instalador inicial. A auditoria identificou essa lacuna e o
+conflito de Sample Data com configuração inicial já existente; resolver por
+contrato explícito, não sobrescrever config/dados do administrador.
 
 **Gate anterior aos novos blocos:** avaliar/consolidar agora as branches e o
 trabalho local, preservando contribuições da principal e artefatos das worktrees.
@@ -76,7 +108,7 @@ auditar/concluir bloco 1 antes dos perfis XML, sem trabalho novo de Videoteca/Fo
 > desta retomada ainda sem novo commit/push.
 > **Videoteca iniciada localmente**, após fechar Documentation: 16 campos,
 > URLs/mídia/dados inertes e apresentação estática honesta em desenvolvimento.
-> [Ciclo individual](CICLO-VIDEOTECA-ISOLADO.md). Nenhum asset Videoteca enviado,
+> Ciclo individual transferido para TD. Nenhum asset Videoteca enviado,
 > registro/raiz configurado ou módulo instalado por essa preparação.
 
 > **Documentation — gate local / bloqueio upstream (09/11/2026):** preparação

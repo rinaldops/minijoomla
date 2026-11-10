@@ -7,6 +7,24 @@ O novo target `contributor-local` não é uma versão de release/host.
 
 ## Consolidação local — 09/11/2026
 
+**Checkpoint posterior de generalização:** seleção atual com 418 caminhos
+exatos, quatro arquivos de bootstrap genérico (host, contexto e dois snippets),
+109 suítes registradas, 17 integrações SPMIDDLE opcionais somente quando o irmão
+está ausente. Regressão integrada completa aprovada, 333 JS/MJS parse-only;
+contador de upload não é baseline fixo da ordem de suítes.
+[Ciclo e limites atuais](CICLO-INSTALACAO-CONTINUIDADE.md). Os resultados abaixo
+continuam sendo registros históricos da consolidação anterior.
+
+> **Separação posterior:** fontes/teste/documentação específicos de Videoteca
+> foram transferidos para TD; Forum não tem implementação ativa neste núcleo.
+> O runner não permite mais exceção para fixtures suspensas TD na pasta tests.
+> CAMAP permanece referência transitória até o template externo CAMAP-V3 estar
+> pronto, não parte da instalação padrão. O
+> [contrato genérico](INSTALACAO-GENERICA-MINIJOOMLA.md) integra a seleção.
+> Contagens abaixo são snapshots históricos, não metas fixas.
+> A nova suíte de escopo genérico verifica ausência de implementações TD na
+> seleção/pasta ativa e mantém explícito o aceite real pendente em SharePoint/MSE.
+
 As contagens de 04/11 abaixo são **históricas**, não o inventário desta worktree.
 O grafo step2 (sample data, pilotos/adaptações XML e Documentation) é preservado;
 o tooling útil do snapshot MAIN é integrado sem ativar CAMAPv3. Videoteca parcial

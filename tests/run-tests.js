@@ -6,6 +6,15 @@ import { pathToFileURL } from 'node:url';
 // Adapter-contract and error-translation tests use local implementations only.
 export const TEST_SUITES = Object.freeze([
   ['runner.test.js', 'runRunnerTests'],
+  ['generic-installation-scope.test.js', 'runGenericInstallationScopeTests'],
+  ['installation-view.test.js', 'runInstallationViewTests'],
+  ['installation-context.test.js', 'runInstallationContextTests'],
+  ['installation-service.test.js', 'runInstallationServiceTests'],
+  ['sharepoint-installation.test.js', 'runSharePointInstallationTests', true],
+  ['generic-installation-package.test.js', 'runGenericInstallationPackageTests', true],
+  ['generic-installation-host.test.js', 'runGenericInstallationHostTests', true],
+  ['installation-config-continuity.test.js', 'runInstallationConfigContinuityTests'],
+  ['sharepoint-media-folder.test.js', 'runSharePointMediaFolderTests'],
   ['sample-data-service.test.js', 'runSampleDataServiceTests'],
   ['sample-data-journal.test.js', 'runSampleDataJournalTests'],
   ['sample-data-package.test.js', 'runSampleDataPackageTests'],

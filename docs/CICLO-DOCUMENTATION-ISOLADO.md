@@ -524,3 +524,10 @@ Mantém-se a ressalva textual do mapa de ordem XML/schema (ordens reais iguais),
 para correção em eventual versão nova sem tocar pacotes imutáveis. Próximo ciclo:
 **Videoteca**, desenvolvimento individual, sem adoção em lote ou consumo de raízes.
 Nenhum novo commit/push foi realizado por esta retomada.
+
+### Separação posterior dos produtos
+
+O início suspenso de Videoteca/Forum foi transferido para TD; esses módulos
+não pertencem à instalação genérica MINIJOOMLA. O antigo “próximo ciclo” desta
+cronologia não é fila vigente. Templates CAMAP permanecem somente referência
+temporária do template externo CAMAP-V3, com retirada após sua conclusão.

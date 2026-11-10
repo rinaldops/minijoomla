@@ -128,7 +128,13 @@ export async function runContributorStageTests({ commands = false } = {}) {
       assert.equal(data.length, entry.bytes);
       assert.equal(hash(data), entry.sha256);
       assert.deepEqual(data, snapshot.get(entry.path), `Never rewrite or sanitize ${entry.path}`);
-      assert.ok(!/^(?:tmp\/|\.git\/|host-adapters\/|theme\/)/.test(entry.path));
+      assert.ok(!/^(?:tmp\/|\.git\/|theme\/)/.test(entry.path));
+      if(entry.path.startsWith('host-adapters/'))assert.ok([
+        'host-adapters/modern-script-editor/host.js',
+        'host-adapters/modern-script-editor/installation-context.js',
+        'host-adapters/modern-script-editor/public-installation-snippet.html',
+        'host-adapters/modern-script-editor/administrator-installation-snippet.html'
+      ].includes(entry.path),'Only the four reviewed generic bootstrap files are included, never host runbooks or operational config');
     }
     const vendor = first.manifest.files.filter(({ path }) => path.startsWith('src/media/vendor/tinymce/'));
     assert.equal(vendor.length, 33);

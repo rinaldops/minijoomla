@@ -128,7 +128,9 @@ export async function runAdminJoomlaFormsTests() {
   await uploadButton.dispatch('click');
   assert.equal(uploads.length, 1);
   assert.equal(uploads[0].folderPath, 'uploads');
-  assert.equal(articleDoc.inputs.get('images:image_fulltext').value, '/sites/x/uploads/img-1-1.png', 'URL enviada preenche o campo');
+  assert.match(uploads[0].fileName, /^img-1-\d+\.png$/);
+  const uploadedUrl = `/sites/x/uploads/${uploads[0].fileName}`;
+  assert.equal(articleDoc.inputs.get('images:image_fulltext').value, uploadedUrl, 'A URL confirmada pelo upload preenche o campo, independentemente de uploads anteriores');
   assert.equal(preview.hidden, false);
   assert.match(articleDoc.imageStatus.textContent, /Salve o artigo/);
   fileInput.files = [{ type: 'application/pdf', size: 4, arrayBuffer: async () => new ArrayBuffer(4) }];
@@ -140,7 +142,7 @@ export async function runAdminJoomlaFormsTests() {
   articleDoc.inputs.set('urls:urla', element({ value: 'https://example.org/a' }));
   await articleDoc.form.dispatch('submit');
   const saved = JSON.parse((await service.articles.get(article.id)).attribsJson);
-  assert.deepEqual(saved.images, { image_intro: '/uploads/old.png', float_intro: 'left', image_fulltext: '/sites/x/uploads/img-1-1.png', image_intro_alt: 'Texto alt' });
+  assert.deepEqual(saved.images, { image_intro: '/uploads/old.png', float_intro: 'left', image_fulltext: uploadedUrl, image_intro_alt: 'Texto alt' });
   assert.deepEqual(saved.urls, { urla: 'https://example.org/a' });
   assert.equal(saved.show_title, 1);
   assert.deepEqual(saved.future, { keep: true });

@@ -19,7 +19,8 @@
  * responsabilidade de src/libraries/minijoomla/security/sanitize.js no momento de renderizar,
  * não de persistir).
  */
-import { ValidationError } from '../core/contracts.js';
+import { ValidationError, ownDataValue } from '../core/contracts.js';
+import { createConfig } from '../core/config.js';
 import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles } from './extension-input.js';
 import { normalizeAssignment, normalizeAssignmentTokens, normalizeDateTime } from './module-assignment.js';
 import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
@@ -314,8 +315,10 @@ function normalizeModuleInstanceInput(input = {}, { partial }) {
 }
 
 const SITE_CONFIG_TITLE = 'MiniJoomlaSiteConfig';
+const INITIAL_SITE_FIELDS = Object.freeze(['siteName', 'siteDescription', 'timezone', 'language', 'pageSize', 'templateKey', 'homeView', 'homeCategory', 'offline', 'offlineMessage']);
+const initialSiteFields = (input) => Object.fromEntries(INITIAL_SITE_FIELDS.map((field) => [field, ownDataValue(input, field)]).filter(([, value]) => value !== undefined));
 
-function normalizeSiteConfigInput(input = {}) {
+function normalizeSiteConfigInput(input = {}, { homeView } = {}) {
   const result = { title: SITE_CONFIG_TITLE };
   if (input.siteName !== undefined) result.siteName = optionalText(input.siteName);
   if (input.templateKey !== undefined) result.templateKey = optionalText(input.templateKey);
@@ -343,8 +346,9 @@ function normalizeSiteConfigInput(input = {}) {
     if (!['category', 'featured'].includes(result.homeView)) throw new ValidationError('homeView deve ser category ou featured.');
   }
   if (input.homeCategory !== undefined) {
-    result.homeCategory = optionalText(input.homeCategory).trim() || 'noticias';
-    if (!/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.homeCategory)) throw new ValidationError('homeCategory deve ser um alias de categoria.');
+    result.homeCategory = optionalText(input.homeCategory).trim();
+    if (!result.homeCategory && (result.homeView ?? homeView) !== 'featured') result.homeCategory = 'noticias';
+    if (result.homeCategory && !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.homeCategory)) throw new ValidationError('homeCategory deve ser um alias de categoria.');
   }
   if (input.templateStylesJson !== undefined) result.templateStylesJson = input.templateStylesJson === '' ? '' : validateTemplateStyles(typeof input.templateStylesJson === 'string' ? parseStrictJson(input.templateStylesJson, 'templateStylesJson') : input.templateStylesJson);
   if (input.componentParamsJson !== undefined) result.componentParamsJson = input.componentParamsJson === '' ? '' : jsonObject(input.componentParamsJson, 'componentParamsJson');
@@ -477,10 +481,14 @@ async function snapshots(crud, rows) {
   return result;
 }
 
-export function createAdminService(repositories, { pluginManager } = {}) {
+export function createAdminService(repositories, { pluginManager, initialSiteConfig } = {}) {
   if (pluginManager && (typeof pluginManager.beforeSave !== 'function' || typeof pluginManager.afterSave !== 'function')) {
     throw new TypeError('pluginManager deve expor beforeSave e afterSave.');
   }
+  // Pure host metadata: never a row, never an ETag, never a write on mount.
+  const initialDefaults = initialSiteConfig === undefined ? undefined : Object.freeze(initialSiteFields(normalizeSiteConfigInput(
+    initialSiteFields(createConfig({ offline: false, offlineMessage: '', ...initialSiteFields(initialSiteConfig) }))
+  )));
   const articleRows = async () => (repositories.articles ? listAll(requireRepository(repositories, 'articles')) : []);
   const categoryRows = async () => (repositories.categories ? listAll(requireRepository(repositories, 'categories')) : []);
 
@@ -766,7 +774,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       if (!record.enabled) throw new ValidationError('Habilite o template antes de torná-lo padrão.');
       const repository = requireRepository(repositories, 'siteConfig');
       const config = await currentConfig();
-      if (!config) return repository.create(normalizeSiteConfigInput({ templateKey: record.key }));
+      if (!config) return siteConfig.save({ templateKey: record.key });
       requireEtag(configEtag, 'etag da configuração');
       return repository.update(config.id, { templateKey: record.key }, { etag: configEtag });
     }
@@ -793,6 +801,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
   };
 
   const siteConfig = {
+      defaults: initialDefaults,
       /*
        * Achado real (validado contra o tenant real): o
        * `createRepository.findMany()` do SPMIDDLE (data-core) nunca anexa
@@ -818,20 +827,24 @@ export function createAdminService(repositories, { pluginManager } = {}) {
         const repository = requireRepository(repositories, 'siteConfig');
         const operationalInput = { ...input };
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) delete operationalInput[field];
-        const normalized = normalizeSiteConfigInput(operationalInput);
-        if (normalized.templateKey && !BUILTIN_TEMPLATES.includes(normalized.templateKey)) {
-          const templates = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
-          if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
-        }
         const rows = await listAll(repository);
         if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (rows.length) requireEtag(etag, 'etag da configuração');
         const record = rows.length ? await repository.findById(rows[0].id) : null;
+        const normalized = { ...(!record ? initialDefaults : undefined), ...normalizeSiteConfigInput(operationalInput, { homeView: record?.homeView ?? initialDefaults?.homeView }) };
+        if (input.homeView !== undefined || input.homeCategory !== undefined) createConfig({
+          homeView: normalized.homeView ?? record?.homeView ?? initialDefaults?.homeView,
+          homeCategory: normalized.homeCategory ?? record?.homeCategory ?? initialDefaults?.homeCategory
+        });
+        if (normalized.templateKey && !BUILTIN_TEMPLATES.includes(normalized.templateKey)) {
+          const templates = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
+          if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
+        }
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) {
           const existing = field === 'sitenamePagetitles' ? record?.[field] || 'none' : record?.[field] ?? '';
           if (input[field] !== undefined && optionalText(input[field]) !== existing) throw new ValidationError('Metadados e SEO indisponíveis: não há contrato para alterar os metadados globais do host. Os valores existentes foram preservados.');
         }
-        if (!rows.length) return repository.create(dropUnprovisionedDefaults(normalized, null, SITE_CONFIG_V2_DEFAULTS));
+        if (!rows.length) return repository.create({ ...dropUnprovisionedDefaults(normalized, null, SITE_CONFIG_V2_DEFAULTS), ...(initialDefaults ? initialSiteFields(normalized) : undefined) });
         return repository.update(rows[0].id, dropUnprovisionedDefaults(normalized, record, SITE_CONFIG_V2_DEFAULTS), { etag });
       },
       toConfigOverrides: toSiteConfigOverrides

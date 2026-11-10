@@ -330,7 +330,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     if (location.path === '/' || location.path === '') return { html: renderOverviewPage(await adminService.overview(), link) };
     const isCurrent = () => navigationId === latestNavigation;
     if (location.path === '/sampledata') return loadSampleDataPage({ sampleDataService, documentRef, router, shell, isCurrent });
-    const extensionPage = await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(location);
+    const extensionPage = location.path === '/config' ? null : await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(location);
     if (extensionPage) return extensionPage;
     const contentPage = await createContentPages({ adminService, documentRef, router, shell, mediaService, clock, isCurrent }).render(location);
     if (contentPage) return contentPage;
@@ -338,7 +338,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     if (location.path === '/config') {
       const record = await adminService.siteConfig.get();
       const templates = adminService.templates?.available === false ? [] : await adminService.templates?.list?.() ?? [];
-      return { html: renderConfigPage(record, link, templates, shell), etag: record?.etag };
+      return { html: renderConfigPage(record, link, templates, shell, adminService.siteConfig.defaults), etag: record?.etag };
     }
     if (location.path === '/templates/discover') {
       return loadTemplateDiscoveryPage({ adminService, discoveryService, documentRef, router, shell, isCurrent: () => navigationId === latestNavigation });

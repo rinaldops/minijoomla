@@ -1,5 +1,10 @@
 # Matriz de adoção dos dez módulos CAMAP
 
+> **Separação vigente dos produtos:** Videoteca/Forum pertencem ao TD, fora
+> da instalação genérica MINIJOOMLA. Esta matriz é registro histórico de análise,
+> não catálogo a instalar no CMS padrão. Templates CAMAP são referência
+> transitória do template externo CAMAP-V3 e serão retirados depois de concluído.
+
 > **Expansão suspensa por steering posterior:** Videoteca e Forum não devem ser
 > desenvolvidos neste momento. Foco somente no fechamento nativo Joomla-like;
 > os módulos externos pendentes não bloqueiam essa fila. Preservar ensaios e

@@ -1,5 +1,11 @@
 # Preparação individual de módulos CAMAP
 
+> **Ferramenta de referência histórica, não instalação genérica:** a preparação
+> de módulos CAMAP não é etapa obrigatória para instalar o MINIJOOMLA. Videoteca
+> e Forum pertencem ao TD; o catálogo histórico abaixo não autoriza desenvolver
+> ou instalar esses módulos no núcleo. O administrador escolhe extensões externas
+> somente após instalar o CMS. [Contrato padrão](INSTALACAO-GENERICA-MINIJOOMLA.md).
+
 ## Escopo e gate
 
 `scripts/prepare-module-adoption.js` prepara **um módulo por pacote**, a partir
