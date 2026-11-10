@@ -5,6 +5,7 @@
  * O painel é escolhido pelo contêiner da página, nunca pela URL.
  */
 import { resolveInstallationContext } from './installation-context.js';
+import { prepareMseLayout } from './mse-layout.js';
 const PRECONFIGURED = /* MINIJOOMLA_CONFIG */ null;
 // Generic copied package has null; deployment may inject one explicit object.
 let CONFIG = PRECONFIGURED ?? {};
@@ -118,8 +119,12 @@ async function mountAdmin(root) {
 }
 
 const root = await waitForRoot();
+let layoutController;
+const disposeLayout=()=>{layoutController?.dispose();layoutController=null;};
 try {
   if (!root) throw new TypeError('Contêiner do MINIJOOMLA ausente.');
+  layoutController=await prepareMseLayout({root,documentRef:document});
+  if(layoutController)globalThis.addEventListener('pagehide',disposeLayout,{once:true});
   if (!CONFIG.lists) {
     const context = resolveInstallationContext({configured:CONFIG,pageContext:globalThis._spPageContextInfo,locationRef:location,releaseUrl:new URL('../',import.meta.url).href});
     const [{createSharePointRestClient},{createSharePointInstallationPort},{createInstallationService},{createInstallationJournal},{mountInstallationPage}]=await Promise.all([
@@ -137,6 +142,7 @@ try {
     const service=createInstallationService({port,journalStore});
     const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('../media/installation/installation.css',import.meta.url).href;document.head.append(style);
     await mountInstallationPage({root,service,publicView:root.matches(SITE_ROOT),onInstalled:async configuration=>{
+      try {
       CONFIG=configuration;
       const [{createSharePointExtensionRootsPort},{createExtensionRootsService}]=await Promise.all([
         import('../libraries/minijoomla/infrastructure/sharepoint-extension-roots.js'),
@@ -160,11 +166,15 @@ try {
       CONFIG={...configuration,joomlaDiscoveryRoots:approved.joomlaDiscoveryRoots,moduleStyles:approved.moduleStyles,moduleStyleRevisions:approved.moduleStyleRevisions};
       style.remove();
       await (root.matches(ADMIN_ROOT)?mountAdmin(root):mountSite(root));
+      layoutController?.refresh();
+      } catch(error){disposeLayout();globalThis.removeEventListener?.('pagehide',disposeLayout);throw error;}
     }});
   } else {
   await (root.matches(ADMIN_ROOT) ? mountAdmin(root) : mountSite(root));
+  layoutController?.refresh();
   }
 } catch (error) {
+  disposeLayout();globalThis.removeEventListener?.('pagehide',disposeLayout);
   console.error('MINIJOOMLA: falha ao iniciar no host.', error);
   if (root) {
     root.textContent = 'Não foi possível iniciar o MINIJOOMLA.';

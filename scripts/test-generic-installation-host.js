@@ -68,14 +68,24 @@ function documentContract(kind, release) {
   return document;
 }
 
-async function loadHost(rootPath, inventory, server, storage, kind) {
+async function loadHost(rootPath, inventory, server, storage, kind, wrapped = false) {
   const web = server.webUrl === '/' ? '' : server.webUrl;
   const release = `https://tenant.example${server.libraryPath}/releases/0.1.0/`;
-  const document = documentContract(kind, release), diagnostics = [], requests = [], violations = [], events = new Map();
-  const context = vm.createContext({ URL, URLSearchParams, TextEncoder, TextDecoder, crypto: webcrypto, AbortController, AbortSignal,
+  const document = documentContract(kind, release), diagnostics = [], requests = [], violations = [], events = new Map(), pagehideListeners=new Set();
+  let wrapper;
+  if(wrapped){
+    const values=new Map(),classes=new Set();
+    document.documentElement.clientWidth=1366;
+    document.defaultView={addEventListener:(name,handler)=>events.set(name,handler),removeEventListener:name=>events.delete(name)};
+    wrapper={ownerDocument:document,isConnected:true,parentElement:{closest:()=>null},matches:selector=>selector==='[data-spmiddle-host]',getAttribute:()=> 'FullBleed',classList:{contains:name=>classes.has(name),toggle(name,on){if(on)classes.add(name);else classes.delete(name);}},style:{getPropertyValue:name=>values.get(name)??'',getPropertyPriority:()=>'',setProperty:(name,value)=>values.set(name,value),removeProperty:name=>values.delete(name)},getBoundingClientRect(){const left=200+(parseFloat(values.get('--spmiddle-host-margin-left'))||0),right=1166-(parseFloat(values.get('--spmiddle-host-margin-right'))||0);return {left,right,width:right-left};}};
+    document.root.closest=()=>wrapper;
+    document.styles.push({tagName:'LINK',rel:'stylesheet',href:`${release}host/spmiddle-layout/layout.css`,sheet:{}});
+    document.querySelectorAll=selector=>selector==='link[rel="stylesheet"]'?document.styles:[];
+  }
+  const context = vm.createContext({ URL, URLSearchParams, TextEncoder, TextDecoder, crypto: webcrypto, AbortController, AbortSignal, setTimeout, clearTimeout,
     document, localStorage: storage, location: { origin: 'https://tenant.example', href: document.baseURI, pathname: new URL(document.baseURI).pathname, hash: '#/', search: '' },
     _spPageContextInfo: { webServerRelativeUrl: server.webUrl },
-    addEventListener: (name, handler) => events.set(name, handler), removeEventListener(name, handler) { if (events.get(name) === handler) events.delete(name); },
+    addEventListener: (name, handler) => name==='pagehide'?pagehideListeners.add(handler):events.set(name, handler), removeEventListener(name, handler) { if(name==='pagehide')pagehideListeners.delete(handler);else if (events.get(name) === handler) events.delete(name); },
     console: Object.fromEntries(['warn', 'error', 'log'].map(level => [level, (...args) => diagnostics.push([level, ...args])]))
   });
   const parse = vm.runInContext('(text) => JSON.parse(text)', context);
@@ -152,7 +162,7 @@ async function loadHost(rootPath, inventory, server, storage, kind) {
     for (const style of document.styles) { const url = new URL(style.href); assert.ok(url.href.startsWith(release)); assert.ok(inventory.has(url.pathname.slice(new URL(release).pathname.length)), 'Styles belong to exact package'); }
   };
   clean();
-  return { document, loaded, requests, clean, moduleUrl, async navigate(hash) { context.location.hash = hash; assert.ok(events.has('hashchange')); await events.get('hashchange')(); clean(); } };
+  return { document, loaded, requests, clean, moduleUrl, wrapper, disposeLayout(){for(const listener of [...pagehideListeners])listener();}, async navigate(hash) { context.location.hash = hash; assert.ok(events.has('hashchange')); await events.get('hashchange')(); clean(); } };
 }
 
 function serverFixture(webUrl = WEB) {
@@ -290,6 +300,13 @@ export async function verifyGenericInstallationHost(rootPath) {
   assert.ok(rootServer.calls.every(call => call.url.startsWith('/_api/') && !call.url.includes('//')));
   assert.equal(writes(rootServer).length, rootCount); assert.deepEqual(rootValues, rootSaved);
   assert.ok([...rootServer.lists.values()].every(list => list.ItemCount === 0 && list.rows.length === 0));
+  for(const kind of ['admin','site']){
+    const wrappedHost=await loadHost(rootPath,inventory,rootServer,rootStorage,kind,true);
+    assert.equal(wrappedHost.wrapper.getBoundingClientRect().width,1366,'Actual staged official adapter receives publisher wrapper before CMS mounting');
+    assert.ok([...wrappedHost.loaded.keys()].some(path=>path.endsWith('/host/spmiddle-layout/layout.js')));
+    assert.equal(writes(rootServer).length,rootCount);assert.deepEqual(rootValues,rootSaved);
+    wrappedHost.disposeLayout();assert.equal(wrappedHost.wrapper.getBoundingClientRect().width,966,'pagehide restores only wrapper margins');
+  }
   unchanged();
   console.log('Generic installation host: 8 offline contract groups passed; exact staged all payload, real VM modules/REST client/UI submit/reload, root web/media, no browser/editor/tenant acceptance');
 }

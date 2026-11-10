@@ -1,8 +1,7 @@
-<!-- Generic copied release: this page opens the initial installation before querying CMS lists. -->
-<div data-minijoomla-admin-root></div>
-<script type="module">
-  const releaseBase = '__RELEASE_BASE__';
-  const entry = new URL(`${releaseBase.replace(/\/$/, '')}/host/host.js`, document.baseURI);
-  if (entry.origin !== location.origin || /__[A-Z_]+__/.test(releaseBase)) throw new TypeError('Configure a release local do MINIJOOMLA.');
-  await import(entry.href);
-</script>
+<!-- Replace __RELEASE_BASE__; the panel offers initial CMS installation.
+     Layout changes only the external wrapper, never the CMS or SharePoint data. -->
+<link rel="stylesheet" data-minijoomla-mse-layout href="__RELEASE_BASE__/host/spmiddle-layout/layout.css">
+<div data-spmiddle-host data-spmiddle-instance="minijoomla-admin" data-spmiddle-layout="FullBleed">
+  <div data-minijoomla-admin-root></div>
+</div>
+<script src="__RELEASE_BASE__/host/loader.js"></script>

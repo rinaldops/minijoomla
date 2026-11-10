@@ -41,6 +41,17 @@ O caminho do site, biblioteca e base dos assets são dados de instalação, não
 constantes corporativas no núcleo. Novas revisões são imutáveis e usam seus
 próprios hashes/assets; migrar o código não publica páginas automaticamente.
 
+## Largura de publicação — FullBleed
+
+Os snippets genéricos agora preparam o wrapper oficial MSE/SPMIDDLE com
+`data-spmiddle-layout="FullBleed"` e raiz CMS filha. Para preservar largura
+contida, o publicador escolhe `Contained`. Só o adaptador oficial controla
+expansão: não adicionar escapes `100vw` nem remover limites internos de templates.
+Bootstrap é externo clássico; o módulo de layout é importado somente após seu
+CSS. Copiar todos os assets declarados no inventário, não só o atributo.
+Páginas existentes sem wrapper permanecem legadas até alteração autorizada.
+[Ciclo e limites do ensaio](CICLO-MSE-FULLBLEED.md).
+
 ## Separação dos projetos
 
 | Material | Responsabilidade |

@@ -26,6 +26,16 @@ export async function runGenericInstallationPackageTests() {
   assert.equal(installation.infrastructureCreated,false);
   assert.deepEqual(installation.initialTemplates,{site:'cassiopeia',administrator:'atum'});
   assert.ok(paths.includes(installation.publicSnippet)&&paths.includes(installation.administratorSnippet));
+  assert.equal(installation.mseLayout.default,'FullBleed');
+  for(const name of ['layout.js','layout.css','spmiddle-mse-host.js']){
+    const path=`host/spmiddle-layout/${name}`;assert.ok(paths.includes(path));
+    assert.deepEqual(await readFile(resolve(built.output,path)),await readFile(resolve(PROJECT,'../SPMIDDLE/host-adapters/modern-script-editor',name)),'Preserve official adapter bytes');
+  }
+  for(const snippet of [installation.publicSnippet,installation.administratorSnippet]){
+    const html=await readFile(resolve(built.output,snippet),'utf8');
+    assert.ok(html.includes('data-spmiddle-layout="FullBleed"'));assert.ok(html.includes('data-minijoomla-mse-layout'));assert.ok(!html.includes('type="module"'));assert.ok(html.includes('/host/loader.js'));
+    assert.ok(!html.includes('src="__RELEASE_BASE__/host/spmiddle-layout/spmiddle-mse-host.js"'),'CMS loader gates official layout import after CSS, without competing autostart');
+  }
   await assert.rejects(stageGenericInstallation({version:'1.0.0',output:'tmp/'+container.split(/[\\/]/).at(-1)+'/package'}),/Existing output/);
   console.log('ok - generic installation package: host/UI/bootstrap inventoried with exact hashes, new immutable output and no TD modules; no site acceptance');
 }

@@ -165,6 +165,7 @@ function buildStage(lists) {
   mkdirSync(join(root, 'host'), { recursive: true });
   writeFileSync(join(root, 'host', 'host.js'), host);
   writeFileSync(join(root, 'host', 'installation-context.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'installation-context.js')));
+  writeFileSync(join(root, 'host', 'mse-layout.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'mse-layout.js')));
   writeFileSync(join(root, 'host', 'loader.js'), `import(${JSON.stringify(`${release}/host/host.js`)}).catch((error) => console.error('MINIJOOMLA: falha ao importar o host.', error));\n`);
   writeFileSync(join(root, 'host', 'admin.scoped.css'), scopedAdminCss(readFileSync(join(PROJECT, 'src', 'media', 'templates', 'administrator', 'atum', 'css', 'template.css'), 'utf8')));
   return walk(root).map((path) => ({ path, name: relative(root, path).split(sep).join('/') }));

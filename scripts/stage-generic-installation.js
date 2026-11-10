@@ -26,7 +26,9 @@ export async function stageGenericInstallation({version,output}={}) {
   const files=new Map([
     ['host/host.js',hostBytes],
     ['host/installation-context.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/installation-context.js'))],
-    ['host/loader.js',Buffer.from("import('./host.js').catch(()=>console.error('MINIJOOMLA: host indisponível.'));\n")],
+    ['host/mse-layout.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/mse-layout.js'))],
+    ['host/loader.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/loader.js'))],
+    ...await Promise.all(['layout.js','layout.css','spmiddle-mse-host.js'].map(async name=>[`host/spmiddle-layout/${name}`,await readFile(resolve(PROJECT,'../SPMIDDLE/host-adapters/modern-script-editor',name))])),
     ['host/admin.scoped.css',Buffer.from('@scope ([data-minijoomla-admin-root]) {\n'+(await readFile(resolve(PROJECT,'src/media/templates/administrator/atum/css/template.css'),'utf8')).replace(/^(:root|body)\s*\{/gm,':scope{')+'\n}\n')],
     ['host/public-snippet.html',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/public-installation-snippet.html'))],
     ['host/administrator-snippet.html',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/administrator-installation-snippet.html'))],
@@ -36,6 +38,7 @@ export async function stageGenericInstallation({version,output}={}) {
       bootstrap:'host/loader.js',publicSnippet:'host/public-snippet.html',administratorSnippet:'host/administrator-snippet.html',
       configuration:'<web>/SiteAssets/minijoomla/installation.json',
       initialTemplates:{site:'cassiopeia',administrator:'atum'},
+      mseLayout:{default:'FullBleed',attribute:'data-spmiddle-layout',values:['Contained','FullBleed'],css:'host/spmiddle-layout/layout.css',host:'host/spmiddle-layout/spmiddle-mse-host.js'},
       infrastructureCreated:false,sampleDataAutomatic:false,extensionsAutomatic:false,
       publicationApproved:false
     },null,2)+'\n')]

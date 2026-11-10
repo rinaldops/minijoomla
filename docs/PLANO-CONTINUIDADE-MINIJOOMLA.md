@@ -82,6 +82,17 @@ com memória passou, 48 registros/ETags/páginas/host preservados; reauditoria e
 regressão após correções **120/0/0**, parse 354 JS/MJS, contributor 448 caminhos.
 [Ciclo do destaque](CICLO-ARTICLES-FEATURED-NATIVO.md).
 
+**Destaque enviado em `e70067e`. FullBleed informado pelo usuário:** integração
+dos snippets com wrapper oficial SPMIDDLE, sem alterar o algoritmo/ancestrais
+ou as páginas aceitas. Prova temporária SharePoint com dois wrappers, Enter,
+resize e cleanup passou; regressão completa aprovada após correções. Não é ativação MSE
+persistida ou remoção dos limites internos dos templates.
+[Ciclo FullBleed](CICLO-MSE-FULLBLEED.md).
+
+Validação posterior FullBleed: **121/0/0**, parse 356 JS/MJS e contributor 453
+caminhos; reauditoria sem P1/P2 no recorte. Integração ainda local, sem mudar
+as páginas aceitas nem a configuração de publicação do SPMIDDLE.
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados
