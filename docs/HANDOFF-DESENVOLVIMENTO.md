@@ -1,5 +1,8 @@
 # Handoff operacional — MINIJOOMLA
 
+> **Manual de instalação em site SharePoint novo (11/11/2026):**
+> [MANUAL-INSTALACAO-SHAREPOINT.md](MANUAL-INSTALACAO-SHAREPOINT.md).
+
 ## Retomada após restart — estado local — 04/11/2026
 
 - O servidor reiniciou e notificou cancelamento de agentes/previews históricos.

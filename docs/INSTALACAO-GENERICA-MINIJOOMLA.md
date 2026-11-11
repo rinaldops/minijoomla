@@ -1,5 +1,12 @@
 # MINIJOOMLA — contrato de instalação genérica SharePoint
 
+> **Manual passo a passo para site novo:** [MANUAL-INSTALACAO-SHAREPOINT.md](MANUAL-INSTALACAO-SHAREPOINT.md)
+> cobre a instalação completa em um site SharePoint sem listas/arquivos —
+> cópia do pacote, criação das duas páginas `.aspx` com a webpart Modern
+> Script Editor e o código exato de cada página. Este documento aqui fixa o
+> **contrato** (o que o mecanismo deve garantir); aquele é o **procedimento**
+> (o que o instalador deve fazer, passo a passo).
+
 > **Desenvolvimento posterior:** bootstrap, engine/port e UI de primeira
 > instalação implementados localmente. Primeiro incremento: 106 suítes locais
 > e UI nativa em memória aprovadas. A continuidade dos ajustes iniciais e o host

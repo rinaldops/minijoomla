@@ -1,5 +1,10 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Manual de instalação em site SharePoint novo:**
+> [docs/MANUAL-INSTALACAO-SHAREPOINT.md](MANUAL-INSTALACAO-SHAREPOINT.md)
+> (criado 11/11/2026) — procedimento completo passo a passo, com o código
+> exato das duas páginas MSE (site/painel) e o fluxo de instalação inicial.
+
 > **Convenção de versionamento (desde 0.17.1, 11/11/2026):** `package.json`
 > "version" deve ser sempre igual ao `--version` da última release imutável
 > publicada via `scripts/deploy-sharepoint.mjs`/`scripts/stage-release.js`.
