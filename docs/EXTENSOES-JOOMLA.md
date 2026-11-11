@@ -2,8 +2,12 @@
 
 > Evolução incluída em 06/11/2026: adoção dos outros dez módulos, perfis XML de
 > plugins/templates e migração assistida. [Contratos e gates](CONTRATOS-EVOLUCAO-XML.md).
-> O suporte descrito abaixo continua sendo o perfil de módulos implementado;
-> planejamento não habilita novos tipos nem converte dados automaticamente.
+> **Atualização 11/11/2026:** os perfis XML de plugin e de template já foram
+> implementados e publicados (ver seção "Perfis adicionais: plugins e
+> templates" abaixo), junto com um executor de migração assistida
+> (`extension-migration-executor.js`). O texto abaixo descreve em detalhe o
+> perfil de módulos, que continua sendo o mais completo e o modelo seguido
+> pelos demais.
 >
 > **Fila vigente:** finalizar os recursos nativos após consolidar as branches.
 > Videoteca/Forum e expansão externa suspensos conforme
@@ -53,10 +57,57 @@ estar no pacote aprovado. Descobrir nao copia arquivos nem importa JavaScript.
 | Remocao | Bloqueada quando existem instancias; nao apaga arquivos do pacote |
 | PHP, SQL, scriptfile e DTD | Recusados; nao ha interpretador PHP nem execucao de instaladores |
 | Campos customizados, required/multiple, filtros/validadores, showon | Recusados quando requerem comportamento nao implementado |
-| Plugins/templates XML, componentes externos, idiomas e ZIP | Fora deste primeiro perfil; fluxos legados permanecem |
+| Plugins/templates XML | Ver secao propria abaixo — implementado |
+| Componentes externos, idiomas e ZIP | Fora deste perfil; fluxos legados permanecem |
 
 Isto e compatibilidade de estrutura e fluxo, nao compatibilidade binaria com
 extensoes PHP do Joomla. Novos tipos de extensao exigem contratos proprios.
+
+## Perfis adicionais: plugins e templates
+
+O mesmo parser compartilhado (`joomla-manifest.js`) tambem aceita
+`<extension type="plugin" group="...">` e `<extension type="template"
+client="site|administrator">`, reaproveitando validacao/limites/integridade
+ja descritos acima — nao e um segundo parser nem um segundo motor de scan.
+
+**Plugins:** convencao `plugins/<group>/<nome>/<nome>.xml`, `group` validado
+contra os seis grupos suportados (`content`, `system`, `search`, `editors`,
+`user`, `extension`), identidade `plugin:<group>::<nome>`. `joomla-discovery.js`
+varre `plugins/<group>/` como pastas opcionais (ausência não falha o scan
+inteiro). Parâmetros do plugin ficam em `paramsJson` da própria linha de
+extensão (não há instâncias separadas, diferente de módulo). Instalação,
+atualização e reversão seguem o mesmo contrato por ETag/revisão aprovada do
+perfil de módulos, incluindo os aliases nativos reservados
+(`emailcloak`/`pagebreak`/`loadmodule`/`pagenavigation`).
+
+**Templates:** convenção `templates/<nome>/templateDetails.xml` (site) ou
+`administrator/templates/<nome>/templateDetails.xml` (admin). `<positions>`
+é obrigatório e reaproveita a mesma validação do mecanismo de template
+instalado via JSON (`docs/TEMPLATE-INSTALL-CONTRACT.md`); nomes de pasta
+aceitam hífen (ex. `camap-v3`), diferente de módulo/plugin. Builtins
+(`default`/`cassiopeia`/`camap`) continuam reservados como aliases nativos
+e nunca são candidatos de descoberta. O instalador de template é
+**register-only** (sem upgrade/rollback ainda — gate futuro, não lacuna
+silenciosa) e registra pelo mesmo `admin.templates.create()` já usado pelo
+fluxo de descoberta JSON existente (`com_templates/src/Controller/discover.js`).
+
+Detalhes completos, incluindo os testes reais que cobrem os três perfis lado
+a lado, estão em
+[PLANO-COMPATIBILIDADE-EXTENSOES-JOOMLA.md](PLANO-COMPATIBILIDADE-EXTENSOES-JOOMLA.md)
+e [CONTRATOS-EVOLUCAO-XML.md](CONTRATOS-EVOLUCAO-XML.md).
+
+## Migração assistida
+
+Um executor dedicado (`extension-migration-executor.js`) aplica, sobre uma
+prévia pura já existente (`extension-migration-plan.js`), os sete gates do
+contrato de migração: confirmação explícita, revalidação contra leituras
+frescas com ETag, diário durável com marcador `pending` antes de cada
+escrita, sequência estrita (extensão, depois cada instância), retomada sem
+repetir uma escrita já confirmada, e rollback manual que nunca sobrescreve
+uma edição concorrente. Ainda cobre somente módulos (mesmo escopo da
+prévia) e não tem UI de painel conectada — ambos são limites documentados,
+não lacunas silenciosas. Detalhes em
+[CONTRATOS-EVOLUCAO-XML.md §4](CONTRATOS-EVOLUCAO-XML.md#4-migra%C3%A7%C3%A3o-assistida-json--xml-e-par%C3%A2metros-incompat%C3%ADveis).
 
 ## Aprovacao e integridade
 

@@ -6,16 +6,11 @@
 > ao TD. CAMAP é referência temporária do template externo CAMAP-V3, não default
 > de instalação. [Contrato e gates reais](docs/INSTALACAO-GENERICA-MINIJOOMLA.md).
 
-> **Instalação genérica — incremento local validado:** bootstrap sem listas,
-> plano/diário de infraestrutura vazia, UI própria e pacote copiável implementados;
-> 106 suítes aprovadas. Teste nativo da UI em memória passou, mas instalação real
-> sob SharePoint/MSE ainda não aceita. [Ciclo e limites](docs/CICLO-GENERALIZACAO-INSTALACAO.md).
-
-> **Continuidade pós-instalação validada localmente:** ajustes iniciais conservados
-> no primeiro save/recarga; host exato do pacote passa offline em subsite e raiz,
-> Mídia vazia/primeiro upload explícito tratados. 109 suítes aprovadas; teste real
-> SharePoint depende de destino vazio específico.
-> [Resultados desta rodada](docs/CICLO-INSTALACAO-CONTINUIDADE.md).
+> **Aceite real em destino vazio concluído (11/11/2026):** instalação pelo
+> painel, Sample Data, editor/upload/CRUD e acessibilidade estrutural
+> validados contra um site SharePoint real autorizado (não mais apenas
+> local/em memória). 124 suítes aprovadas, 0 falhas.
+> [Evidência completa](docs/CICLO-ACEITE-DESTINO-VAZIO.md).
 
 > **Prioridade atual: finalizar o Joomla padrão.** Videoteca e Forum suspensos;
 > expansão externa não é pré-condição do fechamento nativo. Trabalho parcial
