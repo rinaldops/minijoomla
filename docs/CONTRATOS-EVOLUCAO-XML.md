@@ -186,6 +186,25 @@ Schemas que redeclaram parâmetros avançados do runtime, inclusive XML nativo,
 são recusados, não duplicados/mesclados silenciosamente. Templates/plugins terão
 planos próprios quando seus perfis e dependências forem implementados.
 
+### Segundo incremento local implementado: executor
+
+`src/libraries/minijoomla/application/extension-migration-executor.js` expõe
+`createExtensionMigrationExecutor({ admin, repositories, journalStore })` com
+`inspect/apply/rollback`, implementando os sete gates acima sobre a prévia pura
+(inalterada). `apply` exige `confirm: true`, revalida o plano aprovado contra
+leituras frescas com ETag antes de cada escrita, grava um diário durável com
+snapshot de reversão e uma entrada `pending` antes de cada escrita individual
+(extensão, depois cada instância em sequência estrita), e só limpa o `pending`
+após confirmar a escrita com um ETag novo válido. Falha parcial preserva o
+diário para retomada idempotente (nunca repete uma escrita já confirmada,
+nunca usa `*`). `rollback` só lê o snapshot de reversão do próprio diário —
+nunca deriva de uma nova prévia — e é bloqueado (não destrutivo) se qualquer
+linha envolvida mudou desde a migração. Ver registro de progresso datado em
+[PLANO-COMPATIBILIDADE-EXTENSOES-JOOMLA.md](PLANO-COMPATIBILIDADE-EXTENSOES-JOOMLA.md).
+Limites: ainda só módulos; nenhuma UI de painel consome o executor ainda; sem
+janela de manutenção/guarda multi-sessão real (fora do alcance do runtime
+atual).
+
 ## 5. Exclusões e publicação
 
 i18n, SEO integrado ao host, histórico e check-in/check-out de artigos permanecem

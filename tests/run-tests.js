@@ -38,6 +38,7 @@ export const TEST_SUITES = Object.freeze([
   ['plugins-save-events.test.js', 'runPluginsSaveEventsTests'],
   ['admin-plugins-runtime.test.js', 'runAdminPluginsRuntimeTests', true],
   ['extension-migration-plan.test.js', 'runExtensionMigrationPlanTests'],
+  ['extension-migration-executor.test.js', 'runExtensionMigrationExecutorTests'],
   ['admin-joomla-content.test.js', 'runAdminJoomlaContentTests'],
   ['admin-menu-model.test.js', 'runAdminMenuModelTests'],
   ['admin-article-model.test.js', 'runAdminArticleModelTests'],

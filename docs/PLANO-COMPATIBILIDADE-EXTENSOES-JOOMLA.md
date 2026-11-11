@@ -59,6 +59,44 @@
 > tela `/templates/discover` (que continua no fluxo JSON existente; ligar o
 > novo `discoveryService` XML a essa tela é tarefa de composição separada).
 
+> **Executor de migração assistida implementado (11/11):** novo
+> `src/libraries/minijoomla/application/extension-migration-executor.js`
+> (`createExtensionMigrationExecutor`) implementa os sete gates do
+> [contrato de migração](CONTRATOS-EVOLUCAO-XML.md#4-migra%C3%A7%C3%A3o-assistida-json--xml-e-par%C3%A2metros-incompat%C3%ADveis)
+> sobre a prévia pura já existente (`extension-migration-plan.js`, inalterada).
+> Confirmação explícita obrigatória (`confirm: true`); toda chamada revalida
+> o plano aprovado contra leituras frescas de extensão e todas as instâncias
+> (ETag exato) antes de escrever, nunca confiando no snapshot antigo da
+> prévia. Diário durável (`journalStore.read/write`, mesmo contrato
+> `withLock` do `sample-data-service.js`) grava: journal inicial com
+> snapshot de reversão (valores "antes" exatos) antes de qualquer escrita;
+> uma entrada `pending` antes de cada escrita individual (extensão, depois
+> cada instância em sequência) que só é limpa após a escrita ser confirmada
+> e reverificada (ETag novo válido); progresso por `receipts` com ETag
+> capturado, nunca repetido em uma chamada seguinte. Escrita da extensão usa
+> `repositories.extensions.update` direto (não `admin.extensions.update`,
+> que recusa mudar `entryPointUrl` de propósito — mesma exceção que
+> `joomla-extension-installer.js` já usa para upgrade/rollback); instâncias
+> usam `admin.moduleInstances.update` normal. Falha parcial (exceção de
+> transporte) marca `status: 'partial'` e preserva o `pending`: uma chamada
+> seguinte com o mesmo plano aprovado retoma exatamente do próximo item,
+> nunca repetindo uma escrita já confirmada. `rollback` só lê o snapshot de
+> reversão do próprio journal (nunca deriva de uma nova prévia), rejeitado
+> com `blocked`/`instance-changed` ou `extension-changed` se qualquer linha
+> mudou desde a migração — nunca sobrescreve uma edição concorrente.
+> Abandono de tela (`isCurrent`) interrompe antes de qualquer nova escrita.
+> Teste real (`tests/extension-migration-executor.test.js`, 10 cenários):
+> aplicação completa com ETags novos e idempotência num segundo `apply`;
+> edição concorrente da extensão antes/durante a escrita; falha de
+> transporte intermitente numa instância com retomada correta; rollback
+> bem-sucedido e rollback bloqueado por edição concorrente pós-migração;
+> abandono de navegação; indisponibilidade de dependências. Regressão
+> completa **124 suítes / 0 falhas**, `npm run check` ok (361 arquivos).
+> Limites deste incremento: ainda só módulos (mesmo escopo da prévia);
+> nenhuma UI de painel consome o executor ainda (próximo item de composição,
+> fora deste incremento); sem janela de manutenção/guarda multi-sessão real
+> (fora do alcance do runtime atual, documentado como limitação).
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.
