@@ -501,13 +501,13 @@ async function runPersistedOptionsRegressionTests() {
   await service.templateStyles.save('cassiopeia-default', { title: 'Não alterar', params: { colorName: 'alternative', siteTitle: 'Site preservado' } }, { etag: etag() });
   const storedStyle = () => JSON.parse(repositories.siteConfig.rows.get(1).templateStylesJson).find((style) => style.id === 'cassiopeia-default');
   const preserved = structuredClone(storedStyle());
-  await service.templateStyles.save('camap-default', { title: 'Outro estilo' }, { etag: etag() });
+  await service.templateStyles.save('default-default', { title: 'Outro estilo' }, { etag: etag() });
   assert.deepEqual(storedStyle(), preserved, 'save preserva outro estilo e seus parâmetros');
-  const copyId = await service.templateStyles.duplicate('camap-default', { etag: etag() });
+  const copyId = await service.templateStyles.duplicate('default-default', { etag: etag() });
   assert.deepEqual(storedStyle(), preserved, 'duplicate preserva outro estilo e seus parâmetros');
   await service.templateStyles.setDefault(copyId, { etag: etag() });
   assert.deepEqual(storedStyle(), preserved, 'setDefault preserva estilo de outro template e seus parâmetros');
-  await service.templateStyles.remove('camap-default', { etag: etag() });
+  await service.templateStyles.remove('default-default', { etag: etag() });
   assert.deepEqual(storedStyle(), preserved, 'remove preserva outro estilo e seus parâmetros');
   assert.deepEqual(JSON.parse(repositories.siteConfig.rows.get(1).componentParamsJson).search, searchParams);
   console.log('ok - admin extensions: gravações bem-sucedidas preservam opções de outros componentes e estilos');
@@ -565,7 +565,7 @@ export async function runAdminExtensionsServiceTests() {
     const before = repositorySnapshot(repositories);
     const service = createAdminService(repositories);
     await assert.rejects(() => service.moduleInstances.positions(), (error) => error === failure);
-    assert.equal((await service.moduleInstances.positions('camap')).template, 'camap', 'explicit template does not require reading site configuration');
+    assert.equal((await service.moduleInstances.positions('cassiopeia')).template, 'cassiopeia', 'explicit template does not require reading site configuration');
     assert.deepEqual(repositorySnapshot(repositories), before);
   }
   // Parâmetros declarativos
@@ -668,10 +668,10 @@ export async function runAdminExtensionsServiceTests() {
   assert.equal(duplicateId, 'cassiopeia-2');
   config = await service.siteConfig.get();
   await assert.rejects(() => service.templateStyles.remove('cassiopeia-default', { etag: config.etag }), ValidationError);
-  await service.templateStyles.setDefault('camap-default', { etag: config.etag });
+  await service.templateStyles.setDefault('default-default', { etag: config.etag });
   config = await service.siteConfig.get();
-  assert.equal(config.templateKey, 'camap');
-  assert.deepEqual(Object.keys(resolveTemplateParams(config)).sort(), templateParamDefinitions('camap').map((definition) => definition.name).sort());
+  assert.equal(config.templateKey, 'default');
+  assert.deepEqual(Object.keys(resolveTemplateParams(config)).sort(), templateParamDefinitions('default').map((definition) => definition.name).sort());
   await service.templateStyles.setDefault('cassiopeia-2', { etag: config.etag });
   config = await service.siteConfig.get();
   assert.equal(service.siteConfig.toConfigOverrides(config).templateStyleId, 'cassiopeia-2');

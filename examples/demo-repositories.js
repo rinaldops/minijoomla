@@ -34,9 +34,7 @@ function initialData() {
     ],
     templates: [
       { id: 1, title: 'Cassiopeia', key: 'cassiopeia', version: '1.0.0', entryPointUrl: new URL('../src/templates/cassiopeia/index.js', import.meta.url).href, styles: '', enabled: true },
-      { id: 2, title: 'CAMAP', key: 'camap', version: '1.0.0', entryPointUrl: new URL('../src/templates/camap/index.js', import.meta.url).href, styles: '', enabled: true },
-      // `camap-v3` (pivô de empacotamento, Iteração 4.0): não é mais um
-      // builtin do MINIJOOMLA — é um template INSTALADO, confinado em
+      // `camap-v3` (pivô de empacotamento, Iteração 4.0): não é builtin do
       // web-devs/CAMAP-V3/minijoomla-template/, publicado neste preview
       // local sob o prefixo `/pkg/camap-v3/` por
       // `scripts/serve-local.js --extra-root pkg/camap-v3=../CAMAP-V3/minijoomla-template`

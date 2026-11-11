@@ -1,13 +1,11 @@
 import { renderShell, bindShell as bindCassiopeiaShell } from '../../../templates/cassiopeia/index.js';
-import { renderCamapShell, bindShell as bindCamapShell } from '../../../templates/camap/index.js';
 import { ownDataValue } from '../core/contracts.js';
 import { templatePositions } from './extension-input.js';
 import { readTemplateMetadata } from './template-metadata.js';
 
 const BUILTINS = Object.freeze({
   default: { render: renderShell, bind: bindCassiopeiaShell, styles: ['../../../media/templates/site/cassiopeia/css/template.css'] },
-  cassiopeia: { render: renderShell, bind: bindCassiopeiaShell, styles: ['../../../media/templates/site/cassiopeia/css/template.css'] },
-  camap: { render: renderCamapShell, bind: bindCamapShell, styles: ['../../../media/templates/site/cassiopeia/css/template.css', '../../../media/templates/site/camap/css/template.css', '../../../media/templates/site/camap/css/layout.css', '../../../media/templates/site/camap/css/responsive.css'] }
+  cassiopeia: { render: renderShell, bind: bindCassiopeiaShell, styles: ['../../../media/templates/site/cassiopeia/css/template.css'] }
 });
 
 function assetUrl(value, base, extension) {

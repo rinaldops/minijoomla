@@ -173,10 +173,10 @@ export async function verifyStandaloneSnapshot(root) {
   assert.doesNotMatch(await site.navigate('#/article/boas-vindas'), /Nota acrescentada pelo plugin demonstrativo/);
   console.log('ok - standalone examples: actual local dynamic plugin import, enable/disable reconciliation');
 
-  for (const template of ['default', 'cassiopeia', 'camap']) {
+  for (const template of ['default', 'cassiopeia']) {
     const preview = await loadExample(root, 'index.html', storage, `?template=${template}`);
     assert.deepEqual(preview.diagnostics, [], `${template}: clean preview defaults`);
-    assert.match(preview.document.body.innerHTML, new RegExp(`data-template="${template === 'default' ? 'cassiopeia' : template}"`));
+    assert.match(preview.document.body.innerHTML, new RegExp(`data-template="cassiopeia"`));
     for (const style of preview.document.styles) assert.ok(lstatSync(new URL(style.href)).isFile(), 'Declared template CSS exists in standalone checkout');
     assert.match(await preview.navigate('#/article/boas-vindas'), /Contrato standalone salvo/);
   }
@@ -212,16 +212,15 @@ export async function verifyStandaloneSnapshot(root) {
     componentParamsJson: JSON.stringify({ content: { showIntro: false }, tags: { tagListLimit: 7 } }),
     templateStylesJson: JSON.stringify([
       { id: 'cassiopeia-other', template: 'cassiopeia', title: 'Outro estilo', home: false, params: { siteTitle: 'Não selecionar Cassiopeia' } },
-      { id: 'cassiopeia-home', template: 'cassiopeia', title: 'Estilo Cassiopeia salvo', home: true, params: { brand: 'title', siteTitle: 'Marca Cassiopeia salva', colorName: 'alternative', stickyHeader: true, backTop: false } },
-      { id: 'camap-other', template: 'camap', title: 'Outro estilo', home: false, params: { siteTitle: 'Não selecionar CAMAP' } },
-      { id: 'camap-home', template: 'camap', title: 'Estilo CAMAP salvo', home: true, params: { brand: false, siteTitle: 'Marca CAMAP salva', heroTitle: 'Destaque CAMAP salvo', accentColor: 'blue', fluidContainer: true, backTop: true } }
+      { id: 'cassiopeia-home', template: 'cassiopeia', title: 'Estilo Cassiopeia salvo', home: true, params: { brand: 'title', siteTitle: 'Marca Cassiopeia salva', colorName: 'alternative', stickyHeader: true, backTop: false } }
     ])
   }, { etag: config.etag });
-  for (const savedTemplate of ['cassiopeia', 'camap']) {
+  {
+    const savedTemplate = 'cassiopeia';
     const current = await service.siteConfig.get();
     await service.siteConfig.save({ templateKey: savedTemplate }, { etag: current.etag });
     const savedStorage = new Map(values);
-    for (const template of [null, 'default', 'cassiopeia', 'camap']) {
+    for (const template of [null, 'default', 'cassiopeia']) {
       const preview = await loadExample(root, 'index.html', storage, template ? `?template=${template}` : '');
       const selected = template ?? savedTemplate;
       const html = preview.document.body.innerHTML;
@@ -229,23 +228,16 @@ export async function verifyStandaloneSnapshot(root) {
       assert.equal(preview.document.title, 'Portal standalone salvo');
       assert.equal(preview.document.documentElement.lang, 'en-GB');
       assert.match(html, /<h1>Portal standalone salvo<\/h1><p>Descrição global salva<\/p>/);
-      assert.match(html, new RegExp(`data-template="${selected === 'default' ? 'cassiopeia' : selected}"`));
+      assert.match(html, new RegExp(`data-template="cassiopeia"`));
       assert.doesNotMatch(html, /Não selecionar/);
-      if (selected === 'camap') {
-        assert.match(html, /Marca CAMAP salva/);
-        assert.match(html, /Destaque CAMAP salvo/);
-        assert.match(html, /camap-template__header-main--no-brand/);
-        assert.match(html, /camap-template--fluid/);
-        assert.match(html, /--camap-accent:#006298/);
-        assert.doesNotMatch(html, /Marca Cassiopeia salva/);
-      } else if (selected === 'cassiopeia') {
+      if (selected === 'cassiopeia') {
         assert.match(html, /Marca Cassiopeia salva/);
         assert.match(html, /data-color-name="alternative"/);
         assert.match(html, /position-sticky sticky-top/);
-        assert.doesNotMatch(html, /id="back-top"|Marca CAMAP salva|Destaque CAMAP salvo/);
+        assert.doesNotMatch(html, /id="back-top"/);
       } else {
         assert.match(html, /data-color-name="standard"/);
-        assert.doesNotMatch(html, /Marca Cassiopeia salva|Marca CAMAP salva|Destaque CAMAP salvo/);
+        assert.doesNotMatch(html, /Marca Cassiopeia salva/);
       }
       const articleHtml = await preview.navigate('#/article/boas-vindas');
       assert.match(articleHtml, /Contrato standalone salvo/);
@@ -256,7 +248,7 @@ export async function verifyStandaloneSnapshot(root) {
     assert.match(resumed.document.body.innerHTML, new RegExp(`data-template="${savedTemplate}"`));
     assert.deepEqual(values, savedStorage, 'No-query reload still uses the saved template without persisting preview selection');
   }
-  console.log('ok - standalone examples: all three previews use owned source/CSS without diagnostics, select their own saved styles/defaults and preserve persisted configuration');
+  console.log('ok - standalone examples: all previews use owned source/CSS without diagnostics, select their own saved styles/defaults and preserve persisted configuration');
 
   for (const page of ['index.html', 'admin.html']) {
     await assert.rejects(loadExample(root, page, { getItem: () => '{broken', setItem() {} }), /swallowed bootstrap/);
@@ -275,7 +267,7 @@ export async function verifyStandaloneSnapshot(root) {
     writeFileSync(page, original.replace("'../src/index.js'", "'../src/missing-entry.js'"));
     await assert.rejects(loadExample(root, 'index.html', storage), /ENOENT/);
     writeFileSync(page, original.replace('const repositories =', "console.warn('Synthetic standalone diagnostic'); const repositories ="));
-    await assert.rejects(loadExample(root, 'index.html', storage, '?template=camap'), /swallowed bootstrap/);
+    await assert.rejects(loadExample(root, 'index.html', storage, '?template=cassiopeia'), /swallowed bootstrap/);
   } finally { writeFileSync(page, original); }
   console.log('ok - standalone examples: sibling/external/missing-entry and warning negative controls fail, never accepted as successful rendering');
   console.log('Standalone examples: 8 contract groups passed; browser, rich editor, integration, distribution/legal acceptance not exercised');

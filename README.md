@@ -414,7 +414,7 @@ categoria), ou `homeView: 'featured'` para artigos em destaque de todas as
 categorias. Ambos os modos usam a paginação do site. Sem configuração explícita,
 a categoria `noticias` continua sendo a página inicial.
 
-Use `examples/index.html?template=cassiopeia` ou `?template=camap` para comparar
+Use `examples/index.html?template=cassiopeia` para comparar
 os layouts sem alterar o padrão salvo. O painel administrativo usa a paleta
 Joomla/Atum. **Cassiopeia neutro está publicado no público 0.2.11**, com paletas azul/bordô,
 gradiente, superfícies neutras e fonte de sistema/Roboto instalado. Rótulos dos
@@ -437,7 +437,7 @@ a pixel nem aceite integral de zoom/leitor de tela.
   desativação/exclusão do padrão ativo.
 - Catálogo dos componentes nativos e suas capacidades, sem anunciar instalação
   de componentes PHP ou execução arbitrária de código.
-- Cassiopeia e CAMAP com 15 posições de módulos, colunas condicionais,
+- Cassiopeia com 15 posições de módulos, colunas condicionais,
   navegação responsiva e links de foco que não alteram a rota.
 - Instâncias configuradas são a fonte autoritativa dos módulos: desativar ou
   excluir a última instância realmente remove sua apresentação.
@@ -451,9 +451,8 @@ a pixel nem aceite integral de zoom/leitor de tela.
 - Salvar aguarda sincronização/uploads e usa o ETag da abertura. Metadados,
   campos desconhecidos e datas intactas são preservados; não há ACL/histórico.
 
-Contratos e limites em [`docs/ADMINISTRATION-EXTENSIONS.md`](docs/ADMINISTRATION-EXTENSIONS.md),
-[`docs/CASSIOPEIA.md`](docs/CASSIOPEIA.md) e
-[`docs/CAMAP-TEMPLATE.md`](docs/CAMAP-TEMPLATE.md).
+Contratos e limites em [`docs/ADMINISTRATION-EXTENSIONS.md`](docs/ADMINISTRATION-EXTENSIONS.md) e
+[`docs/CASSIOPEIA.md`](docs/CASSIOPEIA.md).
 
 Para montar o site com os repositories reais, use
 `createMiniJoomlaSiteApplication()` em
@@ -510,7 +509,7 @@ O restante da árvore segue os caminhos Joomla padrão:
 - `src/modules/mod_*/`: módulos Joomla nativos (cada um em sua própria pasta,
   com manifesto XML e `tmpl/`).
 - `src/plugins/content/<nome>/`: plugins de conteúdo nativos.
-- `src/templates/{cassiopeia,camap}/`: shell responsivo e posições de módulo do
+- `src/templates/cassiopeia/`: shell responsivo e posições de módulo do
   site público; CSS em `src/media/templates/site/`.
 - `src/administrator/components/com_minijoomla/`: painel administrativo — app
   separado, próprio router/shell, nunca compartilha página com o site público.

@@ -6,7 +6,7 @@ import { parseJsonObject, coerceParam, normalizeParamDefinitions, normalizeParam
 import { moduleTypeCatalog, MODULE_ADVANCED_PARAMS, MODULE_CLASS_PATTERN } from './module-catalog.js';
 import { normalizeAssignment, normalizeAssignmentTokens, ASSIGNMENT_ROUTES } from './module-assignment.js';
 import { sameSiteModuleUrl, templatePositions, templateStyles, extensionKey, TEMPLATE_POSITIONS } from './extension-input.js';
-import { validateTemplateStyles } from './template-styles.js';
+import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
 import { COMPONENT_OPTIONS, resolveComponentParams } from './component-options.js';
 import { createConfig } from '../core/config.js';
 
@@ -233,7 +233,7 @@ function validatePackage(raw) {
       if (definition) coerceParam(definition, value);
     }
   }
-  for (const row of domains.siteConfig) if (row.values.templateKey && !['default', 'cassiopeia', 'camap'].includes(row.values.templateKey) && !domains.templates.some((template) => template.values.key === row.values.templateKey && template.values.enabled !== false)) throw new Error('Template do site não registrado no pacote.');
+  for (const row of domains.siteConfig) if (row.values.templateKey && !BUILTIN_TEMPLATES.includes(row.values.templateKey) && !domains.templates.some((template) => template.values.key === row.values.templateKey && template.values.enabled !== false)) throw new Error('Template do site não registrado no pacote.');
   return { data: { ...data, domains }, plan, total };
 }
 

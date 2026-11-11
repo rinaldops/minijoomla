@@ -501,8 +501,8 @@ export async function runAdminExtensionsAppTests() {
   assert.match(html(), new RegExp(`data-ext-action="restore" data-ext-id="${createdModule.id}"`));
   await app.router.navigate('#/moduleInstances?position=footer&state=*');
   assert.match(html(), /Recentes/);
-  await app.router.navigate('#/templates/positions?template=camap');
-  assert.match(html(), /Posições do template: camap/);
+  await app.router.navigate('#/templates/positions?template=cassiopeia');
+  assert.match(html(), /Posições do template: cassiopeia/);
   assert.match(html(), /class="admin-position-box"/);
   console.log('ok - admin extensions DOM: lista de módulos com filtros, lote, lixeira, duplicar e posições');
 

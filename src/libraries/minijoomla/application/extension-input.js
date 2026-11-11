@@ -2,7 +2,7 @@ import { ValidationError } from '../core/contracts.js';
 import { parseJsonObject } from './declared-params.js';
 
 // Lista reservada, sempre válida, de posições ESTRUTURAIS: usada pelos
-// templates builtin (`default`/`cassiopeia`/`camap`) e como piso mínimo
+// templates builtin (`default`/`cassiopeia`) e como piso mínimo
 // para qualquer template, instalado ou não. Um template INSTALADO
 // (manifesto `<key>.manifest.json`, mecanismo descrito em
 // MINIJOOMLA/docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar suas

@@ -1,8 +1,8 @@
 # Contrato de template instalado (mecanismo genérico)
 
 > Este documento descreve o **mecanismo**, não um template específico. O
-> MINIJOOMLA já nasce com três templates *builtin* (`default`, `cassiopeia`,
-> `camap`), registrados via `import` estático em `BUILTINS` — esses
+> MINIJOOMLA já nasce com dois templates *builtin* (`default`, `cassiopeia`),
+> registrados via `import` estático em `BUILTINS` — esses
 > continuam fora deste contrato, sem mudança de comportamento. Este
 > documento cobre o caminho paralelo, usado por qualquer template
 > **instalado**: nunca editado no código-fonte do MINIJOOMLA, descoberto e
@@ -231,7 +231,7 @@ exemplo), nunca lido de um repositório de projeto fora do site publicado.
 ### Preview local: seleção por catálogo em `examples/index.html`
 
 `examples/index.html`'s `previewTemplate` aceita `?template=<chave>` para
-os três builtins (`default`/`cassiopeia`/`camap`) **ou** qualquer chave
+os dois builtins (`default`/`cassiopeia`) **ou** qualquer chave
 habilitada já existente no catálogo local de templates (por exemplo, um
 template instalado via `serve-local.js --extra-root`, documentado em
 [LOCAL-DEMO.md](LOCAL-DEMO.md)). Chave desconhecida ou desabilitada é

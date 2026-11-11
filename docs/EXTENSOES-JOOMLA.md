@@ -85,7 +85,7 @@ perfil de módulos, incluindo os aliases nativos reservados
 é obrigatório e reaproveita a mesma validação do mecanismo de template
 instalado via JSON (`docs/TEMPLATE-INSTALL-CONTRACT.md`); nomes de pasta
 aceitam hífen (ex. `camap-v3`), diferente de módulo/plugin. Builtins
-(`default`/`cassiopeia`/`camap`) continuam reservados como aliases nativos
+(`default`/`cassiopeia`) continuam reservados como aliases nativos
 e nunca são candidatos de descoberta. O instalador de template é
 **register-only** (sem upgrade/rollback ainda — gate futuro, não lacuna
 silenciosa) e registra pelo mesmo `admin.templates.create()` já usado pelo

@@ -29,7 +29,7 @@ antes de declarar prontidão para produção.
 | Ativar/desativar instância ou extensão; posição, ordem, settings e escopo legado | Consumidos pelo runtime e cobertos pela suíte local | Revalidar a interface final em DOM real |
 | Atribuição `all`/`none`/`only`/`except`, janelas de publicação, lixeira e título/classes de módulo | **Integrado ao runtime público** (`resolveModuleEntries`, `src/libraries/minijoomla/modules/dynamic-modules.js`): `assignment`/`assignmentJson` tem prioridade sobre o escopo legado quando declarado; `trashed`/`publishUp`/`publishDown` excluem a instância; `showTitle`/`moduleClass`/`headerTag`/`headerClass` chegam à apresentação (`src/libraries/minijoomla/modules/registry.js`, `src/libraries/minijoomla/modules/content-runtime.js`), com allowlist de tag segura. Testes em `tests/module-runtime.test.js` | Revalidar em DOM real via FIORI-AUTO |
 | Grupo, ordem e parâmetros de plugin | **Integrado**: `ensurePluginsRegistered` (`src/libraries/minijoomla/modules/dynamic-modules.js`) agora importa concorrentemente mas REGISTRA sequencialmente, ordenado por `extension.ordering` (desempate por `key`), e propaga `paramsJson` como `context.params` em todo handler (`src/libraries/minijoomla/plugins/manager.js`). Testes em `tests/module-runtime.test.js` | Revalidar em DOM real via FIORI-AUTO |
-| Estilos salvos e parâmetros por componente | **Integrado**: `toSiteConfigOverrides` extraído para `src/libraries/minijoomla/application/site-config-overrides.js` e agora usado também pela composição pública (`createMiniJoomlaSiteApplication.js`), não só pelo painel; Cassiopeia reaproveita `TEMPLATE_PARAM_DEFINITIONS` real (`logoFile`/`brand` select); CAMAP ganhou `CAMAP_PARAM_DEFINITIONS` alinhada a `resolveCamapParams` (sem a opção inválida `gray`). Opções por componente (`content`/`search`, inclusive `highlightTerms` com destaque seguro baseado em texto plano) aplicadas a `renderArticle`/`renderArticleList`/`renderSearch` em `components/com_content/tmpl/article/default.js` e `components/com_finder/tmpl/search/default.js`. Testes em `tests/site-config-overrides.test.js`, `tests/component-options-runtime.test.js` | `bandTones` do CAMAP e `listLimit`/`orderBy` ficam fora do formulário simples/do componente de apresentação — documentados como lacuna conhecida; revalidar em DOM real |
+| Estilos salvos e parâmetros por componente | **Integrado**: `toSiteConfigOverrides` extraído para `src/libraries/minijoomla/application/site-config-overrides.js` e agora usado também pela composição pública (`createMiniJoomlaSiteApplication.js`), não só pelo painel; Cassiopeia reaproveita `TEMPLATE_PARAM_DEFINITIONS` real (`logoFile`/`brand` select). Opções por componente (`content`/`search`, inclusive `highlightTerms` com destaque seguro baseado em texto plano) aplicadas a `renderArticle`/`renderArticleList`/`renderSearch` em `components/com_content/tmpl/article/default.js` e `components/com_finder/tmpl/search/default.js`. Testes em `tests/site-config-overrides.test.js`, `tests/component-options-runtime.test.js` | `listLimit`/`orderBy` ficam fora do formulário simples/do componente de apresentação — documentados como lacuna conhecida; revalidar em DOM real |
 | Home por categoria/destaques | Consumida pelo serviço público e coberta por testes | Verificar persistência real após a migração de schema |
 | Offline (gate real) | **Integrado**: `siteConfig.offline === true` substitui o conteúdo principal por uma mensagem de manutenção (`offlineMessage`) em qualquer rota, preservando menus/módulos/template ao redor — mesmo padrão de `LOAD_ERROR` (`src/index.js`). Testes em `tests/offline-gate.test.js` | Metadados globais (SEO/robots/sitenamePagetitles/título/idioma do host) continuam deliberadamente fora de escopo — decisão de contrato de host pendente |
 | Registro por manifesto | Validação e registro inicialmente desabilitado em testes locais | Validar origem, efeitos e implantação; não é upload ou instalador de pacotes |
@@ -41,11 +41,11 @@ a divergência anterior em que só o painel calculava `templateParams`/
 `templateStyleId`/`componentParams`. O Cassiopeia não declara mais
 `CASSIOPEIA_PARAMS` próprios em `template-styles.js`; reutiliza
 `TEMPLATE_PARAM_DEFINITIONS` de `src/templates/cassiopeia/index.js` (fonte única).
-O CAMAP ganhou `CAMAP_PARAM_DEFINITIONS` em `src/templates/camap/index.js`,
-alinhada à paleta real `ACCENTS` (sem `gray`) e aos parâmetros reais
-consumidos por `resolveCamapParams` (`heroKicker`, `heroActionLabel`,
-`heroActionUrl`, `pairSections`); `bandTones` (objeto por posição) fica
-fora do formulário simples, documentado no próprio código.
+O template builtin `camap` (que tinha `CAMAP_PARAM_DEFINITIONS` próprio) foi
+removido do núcleo em 11/11/2026 a pedido do usuário — ver
+[TEMPLATE-INSTALL-CONTRACT.md](TEMPLATE-INSTALL-CONTRACT.md) para o mecanismo
+genérico que qualquer template instalado (incluindo um equivalente externo)
+continua podendo usar.
 
 **Correção P0 após a auditoria:** leituras e escritas administrativas de
 `componentParamsJson` e `templateStylesJson` agora validam os dados persistidos
@@ -97,7 +97,7 @@ As telas devem distinguir capacidades disponíveis das ainda não integradas.
 - `/templates`: catálogo, estado e ação **Tornar padrão**, persistindo
   `siteConfig.templateKey`. O padrão atual não pode ser desabilitado/excluído:
   selecione outro primeiro.
-- `/config`: seletor dos templates integrados `default`, `cassiopeia`, `camap`
+- `/config`: seletor dos templates integrados `default`, `cassiopeia`
   e dos templates externos habilitados. Integrados não exigem registro no catálogo.
   `templates.available` informa se o repositório foi configurado; quando não foi,
   a configuração ainda permite selecionar/persistir os três integrados e as

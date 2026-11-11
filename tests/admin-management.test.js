@@ -135,7 +135,7 @@ export async function runAdminManagementTests() {
   await assert.rejects(() => service.templates.setDefault(1, { etag: '"stale"', configEtag: config.etag }), (error) => error.code === 'concurrency-conflict');
   await assert.rejects(() => service.templates.setDefault(1, { etag: template.etag, configEtag: config.etag }), (error) => error.code === 'concurrency-conflict');
   assert.equal((await service.siteConfig.get()).templateKey, 'template-a');
-  await service.siteConfig.save({ templateKey: 'camap' }, { etag: (await service.siteConfig.get()).etag });
+  await service.siteConfig.save({ templateKey: 'cassiopeia' }, { etag: (await service.siteConfig.get()).etag });
   await service.templates.update(1, { enabled: false }, { etag: template.etag });
   assert.equal((await service.templates.get(1)).enabled, false);
   await assert.rejects(async () => service.siteConfig.save({ templateKey: 'template-a' }, { etag: (await service.siteConfig.get()).etag }), ValidationError);
@@ -214,7 +214,7 @@ export async function runAdminManagementTests() {
   await service.siteConfig.save({ siteName: 'Concurrent config' }, { etag: (await service.siteConfig.get()).etag });
   await defaultButton.fire('click');
   assert.match(fake.status.textContent, /Recarregue/);
-  assert.equal((await service.siteConfig.get()).templateKey, 'camap');
+  assert.equal((await service.siteConfig.get()).templateKey, 'cassiopeia');
   await app.router.navigate('#/templates');
   await fake.action('default', createdTemplate.id).fire('click');
   assert.equal((await service.siteConfig.get()).templateKey, 'c');
@@ -237,7 +237,7 @@ export async function runAdminManagementTests() {
   assert.doesNotMatch(fake.documentRef.body.innerHTML, /<option value="plugin-b"/);
   assert.match(fake.documentRef.body.innerHTML, /value="main-top"/);
   await app.router.navigate('#/config');
-  assert.match(fake.documentRef.body.innerHTML, /camap \(integrado\)/);
+  assert.match(fake.documentRef.body.innerHTML, /cassiopeia \(integrado\)/);
   assert.doesNotMatch(fake.documentRef.body.innerHTML, /<option value="template-b"/);
   await app.router.navigate('#/templates/new');
   assert.match(fake.documentRef.body.innerHTML, /Página administrativa não encontrada/);
@@ -249,13 +249,13 @@ export async function runAdminManagementTests() {
   assert.equal(manyRepository.reads, 20, 'only visible page items are hydrated for ETags');
   assert.match(manyFake.documentRef.body.innerHTML, /type=Plugin&amp;enabled=true&amp;page=3/);
   manyApp.stop();
-  const builtinOnlyService = createAdminService({ siteConfig: repository([{ id: 8, templateKey: 'camap' }]) });
+  const builtinOnlyService = createAdminService({ siteConfig: repository([{ id: 8, templateKey: 'legacy-template' }]) });
   assert.equal(builtinOnlyService.templates.available, false);
   const builtinOnlyFake = managementDocument();
   const builtinOnlyApp = createAdminApplication({ adminService: builtinOnlyService, documentRef: builtinOnlyFake.documentRef, autoStart: false });
   await builtinOnlyApp.router.navigate('#/config');
   for (const key of BUILTIN_TEMPLATES) assert.match(builtinOnlyFake.documentRef.body.innerHTML, new RegExp(`<option value="${key}"`));
-  assert.match(builtinOnlyFake.documentRef.body.innerHTML, /<option value="camap" selected>/);
+  assert.match(builtinOnlyFake.documentRef.body.innerHTML, /<option value="legacy-template" selected>/);
   await builtinOnlyService.siteConfig.save({ templateKey: 'cassiopeia' }, { etag: (await builtinOnlyService.siteConfig.get()).etag });
   assert.equal((await builtinOnlyService.siteConfig.get()).templateKey, 'cassiopeia');
   await builtinOnlyApp.router.navigate('#/templates');

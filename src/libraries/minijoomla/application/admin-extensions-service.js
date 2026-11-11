@@ -69,7 +69,7 @@ export function createExtensionAdministration({ repositories, extensions, module
 
   async function templateCatalog() {
     const rows = await templateRows();
-    const builtins = BUILTIN_TEMPLATES.map((key) => ({ key, title: key === 'default' ? 'MiniJoomla (padrão)' : key === 'cassiopeia' ? 'Cassiopeia' : 'CAMAP', builtin: true, enabled: true, positions: STRUCTURAL_TEMPLATE_POSITIONS.filter((position) => position !== 'component') }));
+    const builtins = BUILTIN_TEMPLATES.map((key) => ({ key, title: key === 'default' ? 'MiniJoomla (padrão)' : 'Cassiopeia', builtin: true, enabled: true, positions: STRUCTURAL_TEMPLATE_POSITIONS.filter((position) => position !== 'component') }));
     const registered = rows.filter((row) => !BUILTIN_TEMPLATES.includes(row.key)).map((row) => {
       // Ausência legada é distinta de JSON persistido inválido.
       const descriptor = Object.getOwnPropertyDescriptor(row, 'positionsJson');

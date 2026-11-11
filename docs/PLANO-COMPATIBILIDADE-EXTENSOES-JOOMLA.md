@@ -45,8 +45,9 @@
 > `positions`/`paramDefinitions` como arrays simples, a mesma forma já
 > consumida por `admin.templates.create()` (que empacota tudo no envelope
 > `Styles` existente, sem coluna nova). `joomla-discovery.js` varre
-> `templates/` (opcional, mesmo tratamento das pastas de plugin) com os três
-> builtins (`default`/`cassiopeia`/`camap`) reservados como alias nativo.
+> `templates/` (opcional, mesmo tratamento das pastas de plugin) com os
+> builtins (`default`/`cassiopeia` — `camap` foi removido do núcleo em
+> 11/11/2026) reservados como alias nativo.
 > Inventário de pacote ganhou `templateKeys`/`templateStyles`, chaveados por
 > `<client>/<elemento>`. Novo `createJoomlaTemplateInstaller` (register-only,
 > sem upgrade/rollback — ainda não há contrato para isso, conforme

@@ -763,9 +763,10 @@ continuar, use o [plano passo a passo](PLANO-CONTINUIDADE-MINIJOOMLA.md) e o
 - **Cassiopeia e CAMAP:** shells próprios responsivos, posições nomeadas,
   aliases legados, parâmetros diretos e limpeza de listeners. O CAMAP recebeu
   grade e faixas próprias e correção de coluna vazia indesejada. Os contratos
-  estão em [CASSIOPEIA.md](CASSIOPEIA.md) e
-  [CAMAP-TEMPLATE.md](CAMAP-TEMPLATE.md); ainda falta aceite visual completo
-  contra os modelos e integração dos estilos salvos.
+  estavam em [CASSIOPEIA.md](CASSIOPEIA.md) e CAMAP-TEMPLATE.md; o template
+  builtin `camap` foi removido do núcleo a pedido do usuário (11/11/2026,
+  "não faz parte do Joomla original") — `cassiopeia` permanece o único
+  builtin além de `default`.
 - **Runtime público:** página inicial por categoria ou por destaques, com
   paginação e padrão anterior preservado; posições de módulos, busca nativa
   e registros dinâmicos. `src\modules\mod_menu\tmpl\default.js` implementa árvore,

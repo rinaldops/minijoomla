@@ -1215,15 +1215,19 @@ colunas é uma possível operação destrutiva, não uma reversão já testada.
    (`tests/dynamic-modules.test.js`, `tests/site-runtime.test.js` "every
    managed module position..."); não revisados nesta rodada.
 
-## 4. Cassiopeia e CAMAP — em paralelo após separar arquivos
+## 4. Cassiopeia — em paralelo após separar arquivos
 
-1. [ ] Ler os contratos de [Cassiopeia](CASSIOPEIA.md) e
-   [CAMAP](CAMAP-TEMPLATE.md), inspecionar as referências aprovadas e montar
-   uma matriz de regiões, tipografia, cores, largura, espaçamento, estados e
-   breakpoints. Registrar diferenças concretas antes de alterá-las.
-2. [ ] Comparar Cassiopeia com o template original Joomla e CAMAP com o modelo
-   `mse-platform` + CAMAP-AGP. Implementar código e ativos próprios, sem copiar
-   materiais protegidos ou incorporar dados/URLs corporativos em projeto público.
+> Template builtin `camap` removido do núcleo em 11/11/2026 a pedido do
+> usuário ("não faz parte do Joomla original"); os itens abaixo que o
+> mencionavam aplicam-se apenas ao Cassiopeia agora.
+
+1. [ ] Ler o contrato de [Cassiopeia](CASSIOPEIA.md), inspecionar as
+   referências aprovadas e montar uma matriz de regiões, tipografia, cores,
+   largura, espaçamento, estados e breakpoints. Registrar diferenças
+   concretas antes de alterá-las.
+2. [ ] Comparar Cassiopeia com o template original Joomla. Implementar código
+   e ativos próprios, sem copiar materiais protegidos ou incorporar
+   dados/URLs corporativos em projeto público.
 3. [ ] Testar cada template em 320, 768, 1366 e 1920 px, com ambas as laterais
    vazias/preenchidas, posições, links, menus aninhados e conteúdo extenso.
    Critérios mínimos: largura rolável não maior que a viewport, um `h1`, foco

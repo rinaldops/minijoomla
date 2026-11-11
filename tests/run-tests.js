@@ -100,7 +100,6 @@ export const TEST_SUITES = Object.freeze([
   ['plugin-group-storage.test.js', 'runPluginGroupStorageTests', true],
   ['admin-extensions-app.test.js', 'runAdminExtensionsAppTests', true],
   ['admin-management.test.js', 'runAdminManagementTests'],
-  ['camap-template.test.js', 'runCamapTemplateTests'],
   ['cassiopeia-template.test.js', 'runCassiopeiaTemplateTests'],
   ['menu-tree.test.js', 'runMenuTreeTests'],
   ['core.test.js', 'runTests'],

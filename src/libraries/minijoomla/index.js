@@ -41,7 +41,6 @@ import { blogSettings } from '../../components/com_content/tmpl/category/blog.js
 import { renderSearch } from '../../components/com_finder/tmpl/search/default.js';
 import { renderArchive } from '../../components/com_content/tmpl/archive/default.js';
 import { renderShell } from '../../templates/cassiopeia/index.js';
-import { renderCamapShell } from '../../templates/camap/index.js';
 import { escapeHtml } from './security/sanitize.js';
 import { normalizePageSize, queryInteger } from './core/contracts.js';
 
@@ -79,7 +78,7 @@ export function createApplication({
   const templateRuntime = createTemplateRuntime({ importModule, documentRef });
   const externalStyles = createModuleStyles({ moduleStyles, moduleStyleRevisions, documentRef });
   const templateKey = template ?? siteConfig.templateKey;
-  let activeRenderer = templateKey === 'camap' ? renderCamapShell : renderShell;
+  let activeRenderer = renderShell;
   let featuredOwnership;
   let renderConfig=siteConfig;
   let cleanupShell = () => {};

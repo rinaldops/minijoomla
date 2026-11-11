@@ -77,39 +77,6 @@ export async function runSiteConfigOverridesTests() {
   assert.equal(cassiopeiaOverrides.templateParams.colorName, 'alternative');
   assert.equal(cassiopeiaOverrides.templateParams.fluidContainer, true);
 
-  // Test with templateStylesJson containing CAMAP style
-  const camapConfig = {
-    templateKey: 'camap',
-    templateStylesJson: JSON.stringify([
-      {
-        id: 'camap-1',
-        template: 'camap',
-        title: 'Custom CAMAP',
-        home: true,
-        params: {
-          brand: true,
-          siteTitle: 'Portal CAMAP',
-          accentColor: 'green',
-          heroTitle: 'Bem-vindo',
-          heroActionLabel: 'Saiba mais',
-          heroActionUrl: 'https://example.com',
-          pairSections: true,
-          backTop: true
-        }
-      }
-    ])
-  };
-  const camapOverrides = toSiteConfigOverrides(camapConfig);
-  assert.equal(camapOverrides.templateKey, 'camap');
-  assert.equal(camapOverrides.templateStyleId, 'camap-1');
-  assert.equal(camapOverrides.templateParams.siteTitle, 'Portal CAMAP');
-  // accentColor is stored as the select value, not yet translated to hex (that happens in resolveCamapParams at render time)
-  assert.equal(camapOverrides.templateParams.accentColor, 'green');
-  assert.equal(camapOverrides.templateParams.heroTitle, 'Bem-vindo');
-  assert.equal(camapOverrides.templateParams.heroActionLabel, 'Saiba mais');
-  assert.equal(camapOverrides.templateParams.pairSections, true);
-  assert.equal(camapOverrides.templateParams.backTop, true);
-
   // Test that offline/metaDescription/etc. only appear when present and not empty
   const partial = {
     offline: false,

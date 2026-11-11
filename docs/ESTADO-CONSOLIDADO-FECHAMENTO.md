@@ -25,7 +25,7 @@
 | 1 — Administração P0 (CRUD, filtros, lote, lixeira, editor/upload) | Concluído, aceite real em destino vazio incluído | [CICLO-ACEITE-DESTINO-VAZIO.md](CICLO-ACEITE-DESTINO-VAZIO.md) |
 | 2 — Persistência (oito listas/entidades, provisionamento, ETags) | Concluído | [CHECKLIST-CONCLUSAO-MINIJOOMLA.md §7](CHECKLIST-CONCLUSAO-MINIJOOMLA.md) |
 | 3 — Editor/público/imagens | Concluído, upload real validado no aceite 11/11 | [CICLO-ACEITE-DESTINO-VAZIO.md](CICLO-ACEITE-DESTINO-VAZIO.md) |
-| 4 — Templates/visual (Atum/Cassiopeia/CAMAP referência) | Concluído; zoom 200/400%/`forced-colors`/leitor de tela real continuam lacuna de ferramental, não de implementação | [RELEASE-MSE-0.1.0.md](RELEASE-MSE-0.1.0.md) |
+| 4 — Templates/visual (Atum/Cassiopeia) | Concluído; `camap` builtin removido do núcleo em 11/11/2026 a pedido do usuário (não faz parte do Joomla original) — `cassiopeia` é o único builtin além de `default`; zoom 200/400%/`forced-colors`/leitor de tela real continuam lacuna de ferramental, não de implementação | [RELEASE-MSE-0.1.0.md](RELEASE-MSE-0.1.0.md) |
 | 5 — Regressão | Concluída: 124 suítes/0 falhas, 361 arquivos de sintaxe | este documento |
 | 6 — Extensões Joomla-like (módulos/plugins/templates XML, migração assistida) | Concluído (três perfis XML + executor); UI de painel para o executor é o único item não conectado | [EXTENSOES-JOOMLA.md](EXTENSOES-JOOMLA.md), [CONTRATOS-EVOLUCAO-XML.md](CONTRATOS-EVOLUCAO-XML.md) |
 

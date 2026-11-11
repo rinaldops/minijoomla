@@ -11,7 +11,7 @@ const CONFIG_OPTION_LABELS = {
 
 export function renderConfigPage(record, link, templates = [], shell, defaults) {
   const values = { ...defaultConfig, sitenamePagetitles: 'none', ...defaults, ...record, templateKey: record?.templateKey || defaults?.templateKey || 'default' };
-  const builtins = ['default', 'cassiopeia', 'camap'];
+  const builtins = BUILTIN_TEMPLATES;
   const choices = new Map(builtins.map((key) => [key, { value: key, label: `${key} (integrado)` }]));
   templates.filter((template) => template.enabled && !builtins.includes(template.key)).forEach((template) => choices.set(template.key, { value: template.key, label: template.title }));
   if (!choices.has(values.templateKey)) choices.set(values.templateKey, { value: values.templateKey, label: `${values.templateKey} (atual — indisponível)` });

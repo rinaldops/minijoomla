@@ -27,11 +27,11 @@ export async function runAdminManagementDomTests(documentRef = globalThis.docume
   const app = createAdminApplication({ adminService: service, documentRef: { body: root }, autoStart: false });
   try {
     await app.router.navigate('#/templates');
-    const defaultButton = root.querySelector('[data-admin-managed-action="default"][data-admin-row-id="2"]');
+    const defaultButton = root.querySelector('[data-admin-managed-action="default"][data-admin-row-id="3"]');
     check(defaultButton && !defaultButton.disabled, 'Default action must be enabled.');
     check(defaultButton.dataset.adminManagedBound === 'true', 'Default action was rendered but not bound by the currently loaded app module.');
     defaultButton.click();
-    await until(async () => (await service.siteConfig.get()).templateKey === 'camap', 'Native default click did not persist templateKey.');
+    await until(async () => (await service.siteConfig.get()).templateKey === 'camap-v3', 'Native default click did not persist templateKey.');
     await until(() => root.querySelector('.admin-template-default')?.textContent === 'Padrão', 'Default action did not finish rendering.');
 
     await app.router.navigate('#/extensions?type=Plugin');
@@ -48,7 +48,7 @@ export async function runAdminManagementDomTests(documentRef = globalThis.docume
     await service.siteConfig.save({ siteName: 'Concurrent native DOM test' }, { etag: config.etag });
     staleButton.click();
     await until(() => root.querySelector('.admin-management-status')?.textContent.includes('Recarregue'), 'Stale config ETag was not announced.');
-    check((await service.siteConfig.get()).templateKey === 'camap', 'Stale click overwrote templateKey.');
+    check((await service.siteConfig.get()).templateKey === 'camap-v3', 'Stale click overwrote templateKey.');
     check(values.has('minijoomla-demo-v1'), 'Writes did not reach isolated synthetic storage.');
     return { passed: true, checks: ['native-root-default-click', 'native-root-plugin-toggle', 'captured-etag-conflict', 'isolated-demo-storage'], confirmRequired: false };
   } finally {

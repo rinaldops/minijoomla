@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<extension type="template" client="site" method="upgrade">
-  <name>camap</name>
-  <version>1.0.0</version>
-  <description>Template opcional de site com suporte a regiões Joomla-like.</description>
-  <files><filename>index.js</filename></files>
-</extension>

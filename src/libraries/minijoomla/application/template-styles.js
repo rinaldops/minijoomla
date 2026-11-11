@@ -11,14 +11,12 @@
 import { ValidationError, ownDataValue } from '../core/contracts.js';
 import { normalizeParamDefinitions, normalizeParamValues, defaultParamValues, parseJsonObject } from './declared-params.js';
 import { TEMPLATE_PARAM_DEFINITIONS as CASSIOPEIA_DEFINITIONS } from '../../../templates/cassiopeia/index.js';
-import { CAMAP_PARAM_DEFINITIONS } from '../../../templates/camap/index.js';
 
-export const BUILTIN_TEMPLATES = Object.freeze(['default', 'cassiopeia', 'camap']);
+export const BUILTIN_TEMPLATES = Object.freeze(['default', 'cassiopeia']);
 
 const DEFINITIONS = Object.freeze({
   default: normalizeParamDefinitions([]),
-  cassiopeia: normalizeParamDefinitions(CASSIOPEIA_DEFINITIONS),
-  camap: normalizeParamDefinitions(CAMAP_PARAM_DEFINITIONS)
+  cassiopeia: normalizeParamDefinitions(CASSIOPEIA_DEFINITIONS)
 });
 
 function builtinDefinitions(templateKey) {

@@ -15,6 +15,7 @@ import { createContentService } from '../src/libraries/minijoomla/application/co
 import { mountMiniJoomlaSite } from '../src/libraries/minijoomla/composition/mountMiniJoomlaSite.js';
 import { createSPMiddleAdapter } from '../src/libraries/minijoomla/infrastructure/spmiddle-adapter.js';
 import { toSiteConfigOverrides } from '../src/libraries/minijoomla/application/site-config-overrides.js';
+import { BUILTIN_TEMPLATES } from '../src/libraries/minijoomla/application/template-styles.js';
 
 function documentDouble() {
   const links = [];
@@ -67,8 +68,8 @@ export async function runSiteRuntimeTests() {
   const runtime = createTemplateRuntime();
   assert.equal((await runtime.resolve('cassiopeia')).key, 'cassiopeia');
   await assert.rejects(() => runtime.resolve('missing'), /não está registrado/);
-  await assert.rejects(() => runtime.resolve('camap', [{ key: 'camap', enabled: false }]), /desabilitado/);
-  assert.equal((await runtime.resolve('default', { key: 'camap', enabled: true })).key, 'camap');
+  await assert.rejects(() => runtime.resolve('cassiopeia', [{ key: 'cassiopeia', enabled: false }]), /desabilitado/);
+  assert.equal((await runtime.resolve('default', { key: 'cassiopeia', enabled: true })).key, 'cassiopeia');
 
   let templateImports = 0;
   const documentRef = documentDouble();
@@ -85,15 +86,16 @@ export async function runSiteRuntimeTests() {
   customRuntime.applyStyles(custom);
   assert.equal(documentRef.links.length, 1);
   assert.equal(documentRef.links[0].href, 'https://site.invalid/templates/custom.css');
-  customRuntime.applyStyles(await customRuntime.resolve('camap'));
+  const multiStyleRecord = { key: 'custom-multi', enabled: true, entryPointUrl: '/templates/custom.js', styles: '["/templates/custom.css","/templates/custom-2.css","/templates/custom-3.css","/templates/custom-4.css"]' };
+  customRuntime.applyStyles(await customRuntime.resolve('custom-multi', [multiStyleRecord]));
   assert.equal(documentRef.links.length, 4);
-  assert.ok(documentRef.links.every((link) => link['data-mj-template-style'] === 'camap'));
+  assert.ok(documentRef.links.every((link) => link['data-mj-template-style'] === 'custom-multi'));
   await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, entryPointUrl: 'javascript:alert(1)' }]), /inválida/);
   await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '{"invalid":true}' }]), /lista JSON|metadata/);
   await assert.rejects(() => customRuntime.resolve('custom', [{ ...record, styles: '["data:text/css,body{}"]' }]), /inválida|segura/);
   console.log('ok - template runtime validates registry, exports, assets and owned stylesheet replacement');
 
-  for (const templateKey of ['default', 'camap']) {
+  for (const templateKey of BUILTIN_TEMPLATES) {
     const instances = TEMPLATE_MODULE_POSITIONS.map((position) => ({
       extensionKey: 'custom-html', position, enabled: true, settingsJson: JSON.stringify({ html: `<p>slot:${position}</p>` })
     }));
@@ -102,9 +104,9 @@ export async function runSiteRuntimeTests() {
     await mounted.app.router.navigate('#/');
     for (const position of TEMPLATE_MODULE_POSITIONS) assert.ok(mounted.documentRef.body.innerHTML.includes(`slot:${position}`), `${templateKey}: ${position}`);
     assert.match(mounted.documentRef.body.innerHTML, /legacy-content/);
-    assert.equal(mounted.documentRef.links.length, templateKey === 'camap' ? 4 : 1);
+    assert.equal(mounted.documentRef.links.length, 1);
   }
-  console.log('ok - every managed module position renders in Cassiopeia and CAMAP, including legacy content');
+  console.log('ok - every managed module position renders in every builtin template, including legacy content');
 
   const managed = mount({ getModuleInstances: async () => [] });
   await managed.app.router.navigate('#/');
@@ -212,7 +214,7 @@ export async function runSiteRuntimeTests() {
 
   const tables = {
     Articles: [], Categories: [], Extensions: [], Modules: [], Templates: [],
-    Config: [{ Id: 1, Title: 'SiteConfig', SiteName: 'Site persistido', TemplateKey: 'camap', CustomHtmlBody: '<p>Config</p>' }]
+    Config: [{ Id: 1, Title: 'SiteConfig', SiteName: 'Site persistido', TemplateKey: 'cassiopeia', CustomHtmlBody: '<p>Config</p>' }]
   };
   const compositionOptions = {
     webUrl: '/sites/local', autoStart: false, documentRef: documentDouble(),
@@ -232,7 +234,7 @@ export async function runSiteRuntimeTests() {
   };
   const composition = await createMiniJoomlaSiteApplication(compositionOptions);
   assert.equal(composition.config.siteName, 'Site persistido');
-  assert.equal(composition.config.templateKey, 'camap');
+  assert.equal(composition.config.templateKey, 'cassiopeia');
   assert.equal(composition.config.customHtml.html, '<p>Config</p>');
   // Verify that templateParams and templateStyleId are correctly propagated
   assert.ok(composition.config.templateParams, 'templateParams should be propagated to config');
@@ -275,8 +277,8 @@ export async function runSiteRuntimeTests() {
   const reopened = createDemoRepositories({ storage });
   assert.equal((await reopened.moduleInstances.findById(1)).enabled, true);
   const configRow = await admin.siteConfig.get();
-  await admin.siteConfig.save({ templateKey: 'camap' }, { etag: configRow.etag });
-  assert.equal((await reopened.siteConfig.findById(1)).templateKey, 'camap');
+  await admin.siteConfig.save({ templateKey: 'cassiopeia' }, { etag: configRow.etag });
+  assert.equal((await reopened.siteConfig.findById(1)).templateKey, 'cassiopeia');
   console.log('ok - local admin demo shares persistent repositories with the site and enforces fresh ETags');
 
   // End-to-end proof (Node, no browser) of plan item 1.3.4: edit a parameter in the

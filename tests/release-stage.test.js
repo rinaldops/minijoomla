@@ -141,7 +141,7 @@ export const styles = new URL('./styles/main.css', import.meta.url);
     assert.match(generatedMenu, /<version>0\.2\.0<\/version>/);
     assert.match(generatedMenu, /name="startLevel" type="number"/);
     assert.match(generatedMenu, /name="moduleClass"/);
-    for (const path of ['index.js', 'administrator/components/com_minijoomla/app.js', 'administrator/components/com_minijoomla/editor.js', 'administrator/templates/atum/index.js', 'media/templates/administrator/atum/css/template.css', 'media/templates/site/cassiopeia/css/template.css', 'media/templates/site/camap/css/template.css', 'media/templates/site/camap/css/layout.css', 'media/templates/site/camap/css/responsive.css']) {
+    for (const path of ['index.js', 'administrator/components/com_minijoomla/app.js', 'administrator/components/com_minijoomla/editor.js', 'administrator/templates/atum/index.js', 'media/templates/administrator/atum/css/template.css', 'media/templates/site/cassiopeia/css/template.css']) {
       assert.ok(names.has(path), `Required real core dependency: ${path}`);
     }
     assert.ok([...names].every((path) => !/^(?:libraries\/vendor\/(?!parse-xml\/)|host-adapters\/|libraries\/minijoomla\/composition\/|media\/vendor\/)/.test(path)));
@@ -420,7 +420,7 @@ export const css = new URL('./styles/main.css', import.meta.url);
       'plugins/content/pagebreak/pagebreak.js', 'plugins/content/loadmodule/loadmodule.js',
       'plugins/content/pagenavigation/pagenavigation.js',
       'libraries/minijoomla/composition/mountMiniJoomlaSite.js', 'host-adapters/modern-script-editor/site-snippet.html',
-      'media/templates/site/cassiopeia/css/template.css', 'media/templates/site/camap/css/template.css', 'media/templates/site/camap/css/layout.css', 'media/templates/site/camap/css/responsive.css',
+      'media/templates/site/cassiopeia/css/template.css',
       'administrator/templates/atum/templateDetails.xml', 'media/templates/administrator/atum/css/template.css',
       'media/vendor/tinymce/tinymce.min.js', 'media/vendor/tinymce/license.md', TINYMCE_NOTICES,
       'media/vendor/tinymce/plugins/help/js/i18n/keynav/en.js',
@@ -459,7 +459,6 @@ export const css = new URL('./styles/main.css', import.meta.url);
       'administrator/components/com_templates/tmpl/discover/default.js',
       'administrator/components/com_minijoomla/menu-types.js',
       'templates/cassiopeia/index.js', 'templates/cassiopeia/templateDetails.xml',
-      'templates/camap/index.js', 'templates/camap/templateDetails.xml',
       'libraries/vendor/spmiddle/sharepoint-files/src/index.js', 'libraries/vendor/spmiddle/data-core/src/index.js',
       'libraries/vendor/spmiddle/sharepoint-schema/src/index.js', 'libraries/vendor/spmiddle/sharepoint-rest-browser/src/index.js',
       'libraries/vendor/spmiddle/LICENSE', 'LICENSE.md', 'docs/licenses/GPL-2.0.txt', 'docs/THIRD-PARTY-NOTICES.md'
@@ -489,7 +488,7 @@ export const css = new URL('./styles/main.css', import.meta.url);
     assert.deepEqual(site.manifest, siteRepeat.manifest);
     assert.ok(site.manifest.files.every(({ path }) => !path.startsWith('administrator/')));
     assert.ok(!existsSync(join(site.output, 'administrator')));
-    for (const path of ['index.js', 'libraries/minijoomla/composition/mountMiniJoomlaSite.js', 'media/templates/site/cassiopeia/css/template.css', 'media/templates/site/camap/css/template.css', 'libraries/vendor/spmiddle/data-core/src/index.js']) {
+    for (const path of ['index.js', 'libraries/minijoomla/composition/mountMiniJoomlaSite.js', 'media/templates/site/cassiopeia/css/template.css', 'libraries/vendor/spmiddle/data-core/src/index.js']) {
       assert.ok(site.manifest.files.some((entry) => entry.path === path), `Required public dependency: ${path}`);
     }
     const siteEntries = JSON.parse(readFileSync(join(site.output, 'entrypoints.json'), 'utf8'));

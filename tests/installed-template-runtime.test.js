@@ -106,7 +106,7 @@ export async function runInstalledTemplateRuntimeTests() {
   for (const positionsJson of [undefined, null, '']) assert.deepEqual((await runtime.resolve('installed', [{ ...record(), positionsJson }])).positions, []);
   const absent = record(); delete absent.positionsJson;
   assert.deepEqual((await runtime.resolve('installed', [absent])).positions, []);
-  for (const key of ['default', 'cassiopeia', 'camap']) {
+  for (const key of ['default', 'cassiopeia']) {
     const builtin = await runtime.resolve(key, [{ key, positionsJson: '{', entryPointUrl: 'file:///ignored.js' }]);
     assert.deepEqual(builtin.positions, []);
     assert.ok(Object.isFrozen(builtin.positions));
@@ -126,9 +126,9 @@ export async function runInstalledTemplateRuntimeTests() {
     assert.match(siteDocument.body.innerHTML, /data-slot="hero">[\s\S]*module-custom-html[\s\S]*slot-html[\s\S]*<\/aside>/);
     assert.match(siteDocument.body.innerHTML, /data-slot="notice-area">[\s\S]*module-custom-html[\s\S]*notice-html[\s\S]*<\/aside>/);
     assert.doesNotMatch(siteDocument.body.innerHTML, /Não foi possível carregar/);
-    active = { key: 'camap', enabled: true };
+    active = { key: 'cassiopeia', enabled: true };
     await app.router.navigate('#/');
-    assert.match(siteDocument.body.innerHTML, /data-template="camap"/);
+    assert.match(siteDocument.body.innerHTML, /data-template="cassiopeia"/);
     assert.doesNotMatch(siteDocument.body.innerHTML, /data-slot="hero"/);
     assert.match(siteDocument.body.innerHTML, /slot-html/, 'unknown position retains the established sidebar fallback');
     active = record('["notice-area"]');

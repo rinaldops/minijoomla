@@ -88,11 +88,11 @@ export async function runInstallationConfigContinuityTests() {
   assert.equal(legacy.admin.siteConfig.defaults, undefined);
   await legacy.admin.siteConfig.save({ customHtmlTitle: 'Legado', homeCategory: '' });
   assert.deepEqual(writes(legacy)[0].input, { title: 'MiniJoomlaSiteConfig', customHtmlTitle: 'Legado' });
-  const saved = { ...initialSite, id: 1, etag: '"persisted"', title: 'MiniJoomlaSiteConfig', siteName: 'Persistido', siteDescription: '', timezone: 'Europe/Lisbon', pageSize: 23, templateKey: 'camap', componentParamsJson: ' {"content":{"unknown":{"keep":true}}} ', templateStylesJson: '', metaDescription: 'Keep', metaKeywords: 'Keep too', robots: 'legacy', sitenamePagetitles: 'after', unknown: { keep: true } };
+  const saved = { ...initialSite, id: 1, etag: '"persisted"', title: 'MiniJoomlaSiteConfig', siteName: 'Persistido', siteDescription: '', timezone: 'Europe/Lisbon', pageSize: 23, templateKey: 'legacy-template', componentParamsJson: ' {"content":{"unknown":{"keep":true}}} ', templateStylesJson: '', metaDescription: 'Keep', metaKeywords: 'Keep too', robots: 'legacy', sitenamePagetitles: 'after', unknown: { keep: true } };
   h.repositories.siteConfig.rows.set(1, saved);
   const persistedHtml = renderConfigPage(await h.admin.siteConfig.get(), (path) => `#${path}`, [], ({ bodyHtml }) => bodyHtml, h.admin.siteConfig.defaults);
   assert.match(persistedHtml, /name="siteName"[^>]*value="Persistido"/);
-  assert.match(persistedHtml, /value="camap" selected/);
+  assert.match(persistedHtml, /value="legacy-template" selected/);
   assert.match(persistedHtml, /name="pageSize"[^>]*value="23"/);
   await h.admin.siteConfig.save({ offlineMessage: 'Aviso' }, { etag: saved.etag });
   const updated = await h.admin.siteConfig.get();

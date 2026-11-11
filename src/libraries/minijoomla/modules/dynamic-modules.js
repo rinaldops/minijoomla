@@ -177,7 +177,7 @@ export function createExtensionLoader({ importModule = DEFAULT_IMPORT, onError =
 
 // TEMPLATE_MODULE_POSITIONS lista as posições ESTRUTURAIS compartilhadas por
 // TODOS os templates embutidos (ver tests/site-runtime.test.js, que itera
-// esta lista exigindo que `cassiopeia` e `camap` renderizem cada uma). Um
+// esta lista exigindo que `cassiopeia` renderize cada uma). Um
 // template INSTALADO (manifesto `<key>.manifest.json`, ver
 // docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar posições adicionais fora
 // desta lista; `resolveModuleEntries()` abaixo aceita um parâmetro opcional
