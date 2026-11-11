@@ -97,6 +97,26 @@
 > fora deste incremento); sem janela de manutenção/guarda multi-sessão real
 > (fora do alcance do runtime atual, documentado como limitação).
 
+> **Aceite real em destino vazio concluído (11/11):** quatro gates do item de
+> fila "Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e
+> acessibilidade" validados contra um site SharePoint real autorizado,
+> via FIORI-AUTO em instância própria/exclusiva — nunca simulado. Destino
+> vazio confirmado (0 em todos os contadores do painel e do site público);
+> Sample Data instalado com contagem exata (11 artigos/4 categorias/4 tags/
+> 8 menus/7 módulos/4 extensões/1 template); ciclo CRUD completo num artigo
+> de teste isolado (create com TinyMCE real, upload de imagem real via
+> `createSharePointFileClient`, update, delete em dois passos
+> trash→purge), sem afetar o Sample Data nativo (voltou a 11 artigos após a
+> exclusão, confirmado via REST); verificador de acessibilidade nativo do
+> editor (0 problemas) e inspeção estrutural do site público (63 landmarks,
+> zero imagens sem `alt`). Descoberta/correção no caminho: a release
+> previamente publicada nessa página apontava por engano para outro site
+> (`SAPScripting`, resíduo de trabalho histórico); nova release imutável
+> publicada corretamente para o site de teste antes do aceite. Detalhes/
+> limites completos em [CICLO-ACEITE-DESTINO-VAZIO.md](CICLO-ACEITE-DESTINO-VAZIO.md).
+> Não cobre zoom 200/400%, `forced-colors`, leitor de tela real nem migração
+> assistida via UI (lacunas documentadas, não bloqueadoras deste gate).
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.

@@ -122,11 +122,11 @@ não mede paridade integral Joomla nem constitui promessa de data.
 
 | Frente restante | Esforço estimado |
 | --- | --- |
-| Reconciliação final da principal, preview/tooling e preservação das worktrees | 2–4 dias |
-| Perfil XML de plugins, instalação/lifecycle/negativos | 3–5 dias |
-| Perfil XML de templates, estilos/posições/parâmetros/recuperação | 3–5 dias |
-| Migração assistida: executor/UI/diário/falhas parciais/recuperação | 4–7 dias |
-| Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias |
+| Reconciliação final da principal, preview/tooling e preservação das worktrees | 2–4 dias — **concluído** |
+| Perfil XML de plugins, instalação/lifecycle/negativos | 3–5 dias — **concluído 11/11** |
+| Perfil XML de templates, estilos/posições/parâmetros/recuperação | 3–5 dias — **concluído 11/11** |
+| Migração assistida: executor/UI/diário/falhas parciais/recuperação | 4–7 dias — executor concluído 11/11; UI de painel ainda pendente |
+| Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias — **concluído 11/11**, ver [CICLO-ACEITE-DESTINO-VAZIO.md](CICLO-ACEITE-DESTINO-VAZIO.md) |
 | Integração final, documentação e margem para correções | 4–7 dias |
 
 O total é esforço agregado; não é um cronograma serial com datas fixas.
