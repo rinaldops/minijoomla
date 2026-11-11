@@ -54,6 +54,7 @@ async function loadExample(root, page, storage, search = '') {
   }
   const context = vm.createContext({
     URL, URLSearchParams, structuredClone, Date: FixedDate, document,
+    TextEncoder, TextDecoder,
     location: { hash: '#/', search }, localStorage: storage,
     console: Object.fromEntries(['warn', 'error', 'log'].map((level) => [level, (...args) => diagnostics.push([level, ...args])])),
     addEventListener(name, listener) { listeners.set(name, listener); },
@@ -180,6 +181,29 @@ export async function verifyStandaloneSnapshot(root) {
     assert.match(await preview.navigate('#/article/boas-vindas'), /Contrato standalone salvo/);
   }
 
+  // Catalog-selected preview: an enabled installed key may be chosen by the
+  // query, without persisting it as the saved/default template.
+  await assert.rejects(loadExample(root, 'index.html', storage, '?template=unknown-template'), /swallowed bootstrap/);
+  const catalogRepositories = await (await loadExample(root, 'index.html', storage)).repositories();
+  const installed = await catalogRepositories.templates.create({
+    title: 'Instalado para prévia', key: 'installed-preview', version: '1.0.0', enabled: true,
+    entryPointUrl: new URL('../src/templates/cassiopeia/index.js', import.meta.url).href, styles: ''
+  });
+  // The demo keeps every domain under one storage key; a `revision`/raw-JSON
+  // comparison (not a tautological self-copy) is the only way to actually
+  // detect a write the preview must not perform.
+  const afterCreate = storage.getItem('minijoomla-demo-v1');
+  const installedPreview = await loadExample(root, 'index.html', storage, `?template=${installed.key}`);
+  assert.deepEqual(installedPreview.diagnostics, []);
+  assert.match(installedPreview.document.body.innerHTML, /data-template="cassiopeia"/);
+  assert.equal(storage.getItem('minijoomla-demo-v1'), afterCreate, 'Selecting a catalog key for preview must not write any new revision/record');
+  await catalogRepositories.templates.update(installed.id, { enabled: false }, { etag: installed.etag });
+  await assert.rejects(loadExample(root, 'index.html', storage, `?template=${installed.key}`), /swallowed bootstrap/, 'A disabled catalog key must be rejected like an unknown one');
+  const resumedDefault = await loadExample(root, 'index.html', storage);
+  assert.match(resumedDefault.document.body.innerHTML, /data-template="cassiopeia"/);
+  assert.doesNotMatch(resumedDefault.document.body.innerHTML, /data-template="camap"/);
+  console.log('ok - standalone examples: catalog-selected template preview accepts only an enabled installed key, rejects unknown/disabled keys and never persists the selection');
+
   const config = await service.siteConfig.get();
   await service.siteConfig.save({
     siteName: 'Portal standalone salvo', siteDescription: 'Descrição global salva',
@@ -254,7 +278,7 @@ export async function verifyStandaloneSnapshot(root) {
     await assert.rejects(loadExample(root, 'index.html', storage, '?template=camap'), /swallowed bootstrap/);
   } finally { writeFileSync(page, original); }
   console.log('ok - standalone examples: sibling/external/missing-entry and warning negative controls fail, never accepted as successful rendering');
-  console.log('Standalone examples: 7 contract groups passed; browser, rich editor, integration, distribution/legal acceptance not exercised');
+  console.log('Standalone examples: 8 contract groups passed; browser, rich editor, integration, distribution/legal acceptance not exercised');
 }
 
 export function runStandaloneExamples() {
@@ -281,9 +305,9 @@ export function runStandaloneExamples() {
     `], { cwd: root, encoding: 'utf8', timeout: 60000, maxBuffer: 2 * 1024 * 1024 });
     assert.ifError(child.error);
     assert.equal(child.status, 0, child.stdout + child.stderr);
-    assert.ok(child.stdout.includes('Standalone examples: 7 contract groups passed;'));
+    assert.ok(child.stdout.includes('Standalone examples: 8 contract groups passed;'));
     process.stdout.write(child.stdout);
-    return { groups: 7, browserTested: false, richEditorTested: false, siblingRequired: false };
+    return { groups: 8, browserTested: false, richEditorTested: false, siblingRequired: false };
   } finally {
     // Remove only this invocation's unique source fixture under project tmp.
     rmSync(base, { recursive: true, force: true });

@@ -63,3 +63,33 @@ Teste local e ensaio isolado SharePoint estão em
 [CICLO-TEMPLATES-POSICOES.md](CICLO-TEMPLATES-POSICOES.md). O ensaio usa catálogo
 e persistência em memória: não é instalação real do template nas listas aceitas,
 nem deploy do núcleo, nem aceite integral de acessibilidade/distribuição.
+
+## Preview local: seleção por catálogo
+
+A demo `examples/index.html` aceita `?template=<chave>` para os três builtins
+(`default`/`cassiopeia`/`camap`) **ou** qualquer chave habilitada já existente
+no catálogo local de templates (por exemplo, um template instalado via
+`serve-local.js --extra-root`, documentado em [LOCAL-DEMO.md](LOCAL-DEMO.md)).
+Chave desconhecida ou desabilitada é rejeitada com o mesmo erro genérico; a
+seleção pela query nunca grava `templateKey` no storage de demonstração nem
+ativa/registra o template como padrão. Sem query, a demo continua usando o
+template salvo normalmente.
+
+Validado por `scripts/test-standalone-examples.js`: cria um registro habilitado
+no catálogo em memória, seleciona-o pela query, confirma ausência de escrita
+adicional no storage e recusa a mesma chave após desabilitá-la. Nenhum seed/
+template CAMAP-V3 foi incorporado; é preview puramente local, sem publicação.
+
+Teste real complementar: o mesmo grafo de módulos (`src/`, `examples/`) foi
+publicado numa pasta de prova nova e isolada no SharePoint, fora das releases
+aceitas, e exercitado numa página administrativa real via FIORI-AUTO (iframe
+dedicado, sem `<script>` inline — CSP do SharePoint bloqueia scripts inline
+mesmo dentro de um iframe filho; o entrypoint usa `<script type="module" src>`
+externo com cache-buster). Confirmadas as seis condições do contrato: chave
+desconhecida rejeitada, chave habilitada selecionada (`data-template="cassiopeia"`),
+nenhuma escrita extra no storage ao selecionar, chave desabilitada rejeitada como
+desconhecida, e fallback ao template salvo preservado. Os **48 registros/ETags
+de dados, o hash do host 0.16.1 e o canvas das duas páginas aceitas permaneceram
+idênticos**; apenas a versão numérica do arquivo da página administrativa
+avançou sem alteração de conteúdo, consistente com leitura/sessão do SharePoint,
+não uma escrita de conteúdo. Sem instalação/registro persistente de extensão.

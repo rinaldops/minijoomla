@@ -18,7 +18,13 @@
       const repositories = createDemoRepositories();
       const config = await repositories.siteConfig.findById(1);
       const previewTemplate = new URLSearchParams(location.search).get('template');
-      if (previewTemplate && !['default', 'cassiopeia', 'camap'].includes(previewTemplate)) throw new TypeError('Template de demonstração desconhecido.');
+      // Allowlist: real builtins OR an enabled key already seeded in the local
+      // catalog (e.g. a template mounted through `serve-local.js --extra-root`
+      // for preview). An unknown/disabled key is rejected with the same error;
+      // selecting it here never persists/activates it in demo storage.
+      const installedTemplateKeys = (await repositories.templates.findMany()).items
+        .filter((row) => row.enabled !== false).map((row) => row.key);
+      if (previewTemplate && !['default', 'cassiopeia', 'camap'].includes(previewTemplate) && !installedTemplateKeys.includes(previewTemplate)) throw new TypeError('Template de demonstração desconhecido.');
       // Preview selects its own saved style/defaults without changing demo storage.
       const siteConfig = toSiteConfigOverrides(previewTemplate ? { ...config, templateKey: previewTemplate } : config);
       const adapter = createSPMiddleAdapter({

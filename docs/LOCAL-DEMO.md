@@ -19,22 +19,27 @@ the original MINIJOOMLA LICENSE, GPL text and third-party notices unchanged.
 Node's experimental VM module flag is enabled only for the isolated child.
 No package installation, HTTP request or browser is used.
 
-Seven deterministic contract groups execute the **unchanged inline module**
+Eight deterministic contract groups execute the **unchanged inline module**
 from both `examples/index.html` and `examples/admin.html`, resolving actual
 owned source modules in an isolated Node context. They check public/admin
 bootstrap and routes, real service writes in memory, shared demo storage/reload,
-ETag conflicts, local dynamic plugin activation/deactivation, template/CSS
-declarations and negative controls for missing/sibling/external imports and
-unavailable/corrupt storage. The clock is fixed for schedule determinism.
+ETag conflicts, local dynamic plugin activation/deactivation, catalog-selected
+template preview, template/CSS declarations and negative controls for missing/
+sibling/external imports and unavailable/corrupt storage. The clock is fixed
+for schedule determinism.
 
 Template previews resolve configuration with the requested `templateKey` before
-starting the renderer. Each selects its own saved home style (not another
+starting the renderer. The query accepts the three builtins **or** any enabled
+key already present in the local catalog (an "installed" template record in
+demo storage); an unknown or disabled key is rejected with the same safe error.
+Each selects its own saved home style (not another
 template's parameters), or its declared defaults when no style exists. The
 `default` preview retains the existing Cassiopeia renderer alias and its own
 default-key parameter contract. Global site settings and component options are
-retained; the query never saves the selected template or changes the stored
-configuration, style titles/parameters, content or ETags. Without a template
-query, reload still uses the saved template and its saved home style.
+retained; the query never saves the selected template, creates/edits a catalog
+record or changes the stored configuration, style titles/parameters, content or
+ETags. Without a template query, reload still uses the saved template and its
+saved home style. See the [template preview contract](TEMPLATE-INSTALL-CONTRACT.md#preview-local-seleção-por-catálogo).
 The check requires empty diagnostics for all three previews, both with initial
 defaults and with saved Cassiopeia/CAMAP configurations. Any warning or error
 fails, with no allowed-warning exception. Preview/style selection is not visual
@@ -114,8 +119,9 @@ a remote package installer, an inventory-signature verifier, a race-resistant
 filesystem boundary or permission to expose credentials elsewhere in a package.
 Imported JavaScript runs with the preview origin's privileges. Nothing registers
 or activates an extension/template, changes demo seeds or selects its default.
-The public demo's template query still accepts only its existing builtin choices;
-catalog-selected template preview is a later increment. No server mount exists
+The public demo's template query now also accepts an enabled installed catalog
+key, as documented above; a separately mounted `--extra-root` package is not
+automatically added to that catalog. No server mount exists
 in SharePoint: production assets use their explicit immutable published paths.
 
 Validation of this server increment: real loopback HTTP including raw encoded

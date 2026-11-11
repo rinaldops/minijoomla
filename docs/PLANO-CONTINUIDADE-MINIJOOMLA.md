@@ -164,6 +164,37 @@ tooling/documentação, sem nova substituição da release operacional 0.16.1.
 Próximo delta funcional: preview opt-in de template já registrado, sem seeds ou
 defaults corporativos. Merge/retirada continuam condicionados aos gates próprios.
 
+**Preview por catálogo implementado:** `examples/index.html` aceita `?template=`
+com qualquer chave habilitada do catálogo em memória além dos três builtins;
+chave desconhecida/desabilitada continua recusada e a seleção nunca persiste
+`templateKey`/cria registro. Novo grupo de teste cria/desabilita um registro
+real no catálogo da demo e confirma a ausência de escrita extra no storage.
+Correção real encontrada durante esse teste: o harness VM standalone não expunha
+`TextEncoder`/`TextDecoder` ao contexto isolado, falha só percebida ao exercitar
+um template não-builtin (que usa o envelope de metadata). Corrigido no harness
+de teste, não no runtime. Regressão: `test-standalone-examples.js` com **8 grupos
+aprovados** (antes 7).
+
+Reauditoria independente encontrou a primeira asserção de "nenhuma escrita extra"
+tautológica: como a demo usa uma única chave de storage, comparar o `Map` inteiro
+sempre aprovava, mesmo com uma escrita real. Corrigido comparando a string bruta
+do `storage.getItem` antes/depois do preview; confirmado por prova negativa
+(mutação deliberada de outro domínio detectada corretamente). Também reforçada
+a asserção final para confirmar positivamente `data-template="cassiopeia"`, não
+só a ausência de `camap`. Regressão completa executada após a correção.
+[Contrato de preview](TEMPLATE-INSTALL-CONTRACT.md#preview-local-seleção-por-catálogo).
+
+**Teste real concluído na página administrativa:** mesmo grafo publicado em
+pasta de prova nova/isolada, exercitado via FIORI-AUTO num iframe dedicado.
+Descoberta/correção de CSP do SharePoint bloqueando `<script>` inline mesmo em
+iframe filho; entrypoint externo `type="module" src` com cache-buster resolveu.
+Seis condições do contrato aprovadas ao vivo: chave desconhecida/desabilitada
+rejeitadas, chave habilitada selecionada, nenhuma escrita extra no storage e
+fallback ao template salvo preservado. **48 registros/ETags, host 0.16.1 e
+canvas das duas páginas idênticos**; só a versão do arquivo Administrator.aspx
+avançou sem mudança de conteúdo. `localStorage` da prova limpo após o teste;
+sessão FIORI-AUTO encerrada. Sem instalação/registro persistente de extensão.
+
 **Requisito transversal da instalação genérica:** bootstrap independente de
 listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
 nativa vazia e extensão/template somente após a instalação. O botão de dados
