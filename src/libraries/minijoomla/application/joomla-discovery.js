@@ -2,11 +2,13 @@ import { ValidationError } from '../core/contracts.js';
 import { NATIVE_MODULE_PACKAGES } from './module-catalog.js';
 import { NATIVE_PLUGIN_KEYS } from './extension-input.js';
 import { PLUGIN_GROUPS } from './extension-manifest.js';
-import { parseJoomlaManifest, manifestBytes, packageBase, packagePath, packageAsset, MAX_MANIFEST_BYTES } from './joomla-manifest.js';
+import { BUILTIN_TEMPLATES as BUILTIN_TEMPLATE_KEYS } from './template-styles.js';
+import { parseJoomlaManifest, manifestBytes, packageBase, packagePath, packageAsset, MAX_MANIFEST_BYTES, JOOMLA_PROFILE } from './joomla-manifest.js';
 
 const NATIVE_FOLDERS = new Set(NATIVE_MODULE_PACKAGES.map((module) => module.folder));
 const NATIVE_KEYS = new Set(NATIVE_MODULE_PACKAGES.map((module) => module.key));
 const NATIVE_PLUGIN_ELEMENTS = new Set(NATIVE_PLUGIN_KEYS);
+const BUILTIN_TEMPLATES = new Set(BUILTIN_TEMPLATE_KEYS);
 const HEX = /^[a-f0-9]{64}$/;
 const failure = (message, code = 'discovery-conflict') => Object.assign(new ValidationError(message), { code });
 const payload = (response) => response?.data ?? response;
@@ -86,7 +88,7 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
       // `optional` bases (plugin groups) that do not exist at all on a root
       // are reported as absent (zero candidates), not a scan failure — the
       // `modules` base stays mandatory and still fails the whole root.
-      async function scanBase(root, basePath, { prefix, optional, isReservedFolder, isReservedKey, manifestPathFor }) {
+      async function scanBase(root, basePath, { prefix, optional, nameChars = 'a-z0-9_', isReservedFolder, isReservedKey, manifestPathFor }) {
         check();
         let folders;
         try {
@@ -101,7 +103,7 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
           check();
           if (++visited > maxFolders) throw failure('Limite de pastas atingido.', 'discovery-limit');
           if (typeof folder?.Name !== 'string' || !folder.Name.startsWith(prefix)) continue;
-          if (!new RegExp(`^${prefix}[a-z0-9_]+$`).test(folder.Name)) {
+          if (!new RegExp(`^${prefix}[${nameChars}]+$`).test(folder.Name)) {
             entries.push({ key: folder.Name, title: folder.Name, type: null, entryPointUrl: null, status: 'invalid', error: `Nome de pasta deve seguir ${prefix}nome com letras minusculas e underscores.` });
             continue;
           }
@@ -147,6 +149,12 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
               manifestPathFor: (name) => `plugins/${group}/${name}/${name}.xml`
             });
           }
+          await scanBase(root, 'templates', {
+            prefix: '', optional: true, nameChars: 'a-z0-9_-',
+            isReservedFolder: (name) => BUILTIN_TEMPLATES.has(name),
+            isReservedKey: (key) => BUILTIN_TEMPLATES.has(key),
+            manifestPathFor: (name) => `templates/${name}/templateDetails.xml`
+          });
         } catch (error) {
           check();
           issues.push({ rootId: root.id, error: error.message });
@@ -187,9 +195,9 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
       try { inventory = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(inventoryBytes)); }
       catch { throw failure('Inventario JSON invalido.'); }
       if (inventory.format !== 'minijoomla-joomla-package-v1' || !Array.isArray(inventory.files) || inventory.files.length > 500 || !inventory.files.length) throw failure('Inventario de pacote nao suportado.');
-      const identityMap = descriptor.type === 'Module' ? inventory.moduleKeys : inventory.pluginKeys;
-      const stylesMap = descriptor.type === 'Module' ? inventory.moduleStyles : inventory.pluginStyles;
-      const identityElement = descriptor.type === 'Module' ? descriptor.element : `${descriptor.group}/${descriptor.element}`;
+      const identityMap = descriptor.type === 'Module' ? inventory.moduleKeys : descriptor.type === 'Plugin' ? inventory.pluginKeys : inventory.templateKeys;
+      const stylesMap = descriptor.type === 'Module' ? inventory.moduleStyles : descriptor.type === 'Plugin' ? inventory.pluginStyles : inventory.templateStyles;
+      const identityElement = descriptor.type === 'Plugin' ? `${descriptor.group}/${descriptor.element}` : descriptor.type === 'Template' ? `${descriptor.client}/${descriptor.element}` : descriptor.element;
       if (!identityMap || !Object.hasOwn(identityMap, identityElement) || identityMap[identityElement] !== descriptor.key) throw failure('Identidade XML nao corresponde ao inventario aprovado.');
       const declaredStyles = stylesMap && Object.hasOwn(stylesMap, descriptor.key) ? stylesMap[descriptor.key] : [];
       if (!Array.isArray(declaredStyles) || JSON.stringify(declaredStyles.map((path) => packageAsset(root.baseUrl, path)).sort()) !== JSON.stringify([...descriptor.styles].sort())) throw failure('Estilos XML nao correspondem ao inventario aprovado.');
@@ -210,6 +218,10 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
         const bytes = path === approval.manifestPath ? xml : await read(root, path, activeSignal, Math.min(file.bytes + 1, 10 * 1024 * 1024));
         check();
         if (bytes.byteLength !== file.bytes || await sha256(bytes) !== file.sha256) throw failure(`Integridade do arquivo divergente: ${path}`);
+      }
+      if (descriptor.type === 'Template') {
+        return { ...descriptor, discoveredFrom: packageAsset(root.baseUrl, approval.manifestPath),
+          miniJoomla: { profile: JOOMLA_PROFILE, rootId: root.id, fingerprint: approval.fingerprint, inventoryHash: root.inventoryHash, manifestPath: approval.manifestPath } };
       }
       const meta = JSON.parse(descriptor.manifestJson);
       meta.miniJoomla = { ...meta.miniJoomla, rootId: root.id, fingerprint: approval.fingerprint, inventoryHash: root.inventoryHash };

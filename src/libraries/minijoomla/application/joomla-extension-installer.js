@@ -127,3 +127,29 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
   async function remove(id, options) { return admin.extensions.remove(id, options); }
   return Object.freeze({ install, upgrade, rollback, remove });
 }
+
+/*
+ * Templates register through admin.templates, not admin.extensions, and
+ * have no module-like instances to validate. This is register-only: no
+ * upgrade/rollback contract exists yet for templates (see
+ * docs/CONTRATOS-EVOLUCAO-XML.md §3) — a template already registered with
+ * the same key is reported as already installed, same as the manual JSON
+ * discovery path in com_templates/src/Controller/discover.js.
+ */
+export function createJoomlaTemplateInstaller({ discovery, admin } = {}) {
+  if (!discovery?.verify || !admin?.templates) throw new TypeError('Composicao do instalador XML de templates invalida.');
+
+  async function install(candidate, options = {}) {
+    const descriptor = await discovery.verify(candidate, options);
+    const rows = await admin.templates.list();
+    if (rows.some((row) => row.key === descriptor.key)) throw conflict('Template ja registrado; use a tela de Estilos de template.');
+    return admin.templates.create({
+      title: descriptor.title, key: descriptor.key, version: descriptor.version, entryPointUrl: descriptor.entryPointUrl,
+      styles: [...descriptor.styles], positions: [...descriptor.positions],
+      ...(descriptor.paramDefinitions.length ? { paramDefinitions: [...descriptor.paramDefinitions] } : {}),
+      discoveredFrom: candidate.discoveredFrom, enabled: true
+    });
+  }
+
+  return Object.freeze({ install });
+}

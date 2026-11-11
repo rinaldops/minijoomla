@@ -31,6 +31,19 @@ export const PLUGIN_XML = `<?xml version="1.0" encoding="utf-8"?>
 </extension>`;
 export const PLUGIN_XML_OPTIONS = { baseUrl: '/sites/example/SiteAssets/packages/0.2.0', manifestPath: 'plugins/content/corptip/corptip.xml' };
 
+export const TEMPLATE_XML = `<?xml version="1.0" encoding="utf-8"?>
+<extension type="template" client="site" method="upgrade" xmlns:mj="urn:minijoomla:runtime:1" mj:key="camap-v3">
+  <name>CAMAP V3</name><version>0.6.0</version><description><![CDATA[Institutional site template.]]></description>
+  <files><filename>index.js</filename></files>
+  <positions><position>hero</position><position>menu-principal</position><position>footer</position></positions>
+  <media folder="media" destination="camap-v3"><filename>css/template.css</filename></media>
+  <config><fields name="params"><fieldset name="basic">
+    <field name="siteTitle" type="text" label="Site title" default="" />
+    <field name="accentColor" type="list" default="sun"><option value="sun">Sun</option><option value="ocean">Ocean</option></field>
+  </fieldset></fields></config>
+</extension>`;
+export const TEMPLATE_XML_OPTIONS = { baseUrl: '/sites/example/SiteAssets/packages/0.6.0', manifestPath: 'templates/camap-v3/templateDetails.xml' };
+
 export async function runJoomlaManifestTests() {
   const parsed = parseJoomlaManifest(MODULE_XML, XML_OPTIONS);
   assert.equal(parsed.key, 'camap.mod_camap_corpmessage');
@@ -111,5 +124,36 @@ export async function runJoomlaManifestTests() {
     assert.deepEqual(descriptor.params, []);
   }
   for (const group of PLUGIN_GROUPS) assert.ok(typeof group === 'string' && group.length, 'plugin group catalogue is non-empty text');
+
+  // Template profile: positions/params/CSS, site client.
+  const template = parseJoomlaManifest(TEMPLATE_XML, TEMPLATE_XML_OPTIONS);
+  assert.equal(template.type, 'Template');
+  assert.equal(template.key, 'camap-v3');
+  assert.equal(template.client, 'site');
+  assert.equal(template.identity, 'template:site::camap-v3');
+  assert.equal(template.entryPointUrl, `${TEMPLATE_XML_OPTIONS.baseUrl}/templates/camap-v3/index.js`);
+  assert.deepEqual(template.positions, ['hero', 'menu-principal', 'footer']);
+  assert.equal(template.styles.length, 1);
+  assert.equal(template.paramDefinitions[1].type, 'select');
+  assert.ok(!Object.hasOwn(template, 'manifestJson'), 'template descriptor has no manifestJson envelope; admin-service packs styles itself');
+  const adminTemplate = `<?xml version="1.0" encoding="utf-8"?>
+<extension type="template" client="administrator"><name>atum2</name><version>1.0.0</version>
+  <files><filename>index.js</filename></files><positions><position>menu</position></positions></extension>`;
+  const adminParsed = parseJoomlaManifest(adminTemplate, { baseUrl: '/sites/example/SiteAssets/packages/1.0.0', manifestPath: 'administrator/templates/atum2/templateDetails.xml' });
+  assert.equal(adminParsed.client, 'administrator');
+  assert.equal(adminParsed.identity, 'template:administrator::atum2');
+  for (const bad of [
+    TEMPLATE_XML.replace('<positions>', '<positions></positions><removed>').replace('</positions>', ''),
+    TEMPLATE_XML.replace('<position>hero</position><position>menu-principal</position><position>footer</position>', ''),
+    TEMPLATE_XML.replace('index.js</filename>', 'index.mjs</filename>'),
+    TEMPLATE_XML.replace('<version>0.6.0</version>', ''),
+    TEMPLATE_XML.replace('client="site"', 'client="unknown"'),
+    TEMPLATE_XML.replace('<files>', '<scriptfile>install.php</scriptfile><files>')
+  ]) assert.throws(() => parseJoomlaManifest(bad, TEMPLATE_XML_OPTIONS), { name: 'ValidationError' });
+  assert.throws(() => parseJoomlaManifest(TEMPLATE_XML, { ...TEMPLATE_XML_OPTIONS, manifestPath: 'templates/other/other.xml' }), { name: 'ValidationError' });
+  // Real native admin template fixture shipped under src/administrator/templates/atum (no <positions>, no <config>).
+  const atumXml = readFileSync(new URL('../src/administrator/templates/atum/templateDetails.xml', import.meta.url), 'utf8');
+  assert.throws(() => parseJoomlaManifest(atumXml, { baseUrl: '/sites/example/SiteAssets/packages/native', manifestPath: 'administrator/templates/atum/templateDetails.xml' }), /positions/);
+
   console.log('ok - Joomla XML: real shared parser, native roundtrips, typed params, safe paths and non-executing rejects');
 }

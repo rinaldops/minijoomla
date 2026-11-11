@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { createJoomlaDiscoveryService, sha256 } from '../src/libraries/minijoomla/application/joomla-discovery.js';
-import { createJoomlaExtensionInstaller } from '../src/libraries/minijoomla/application/joomla-extension-installer.js';
+import { createJoomlaExtensionInstaller, createJoomlaTemplateInstaller } from '../src/libraries/minijoomla/application/joomla-extension-installer.js';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
 import { ValidationError } from '../src/libraries/minijoomla/core/contracts.js';
-import { MODULE_XML, XML_OPTIONS, PLUGIN_XML, PLUGIN_XML_OPTIONS } from './joomla-manifest.test.js';
+import { MODULE_XML, XML_OPTIONS, PLUGIN_XML, PLUGIN_XML_OPTIONS, TEMPLATE_XML, TEMPLATE_XML_OPTIONS } from './joomla-manifest.test.js';
 
 const xmlPath = XML_OPTIONS.manifestPath;
 const entryPath = 'modules/mod_camap_corpmessage/mod_camap_corpmessage.js';
@@ -40,6 +40,28 @@ export async function pluginPackage({ id = 'p1', xml = PLUGIN_XML, discover = tr
   const root = { id, baseUrl: `${PLUGIN_XML_OPTIONS.baseUrl}/${id}`, inventoryHash: await sha256(inventoryBytes), immutable: true, discover,
     files: {
       async listFolders({ folderPath }) { reads.push(folderPath); return { data: { value: folderPath === 'plugins/content' ? [{ Name: 'corptip' }] : [] } }; },
+      async downloadFile({ folderPath, fileName }) {
+        const path = [folderPath, fileName].filter(Boolean).join('/'); reads.push(path);
+        if (!files.has(path)) throw new Error('missing file');
+        return { data: files.get(path) };
+      }
+    } };
+  return { root, reads, files };
+}
+
+const templateXmlPath = TEMPLATE_XML_OPTIONS.manifestPath;
+const templateEntryPath = 'templates/camap-v3/index.js';
+const templateCssPath = 'media/camap-v3/css/template.css';
+
+export async function templatePackage({ id = 't1', xml = TEMPLATE_XML, discover = true } = {}) {
+  const files = new Map([[templateXmlPath, new TextEncoder().encode(xml)], [templateEntryPath, new TextEncoder().encode('export function renderShell(){return "<div></div>";}')], [templateCssPath, new TextEncoder().encode('.camap-v3{color:green}')]]);
+  const inventory = { format: 'minijoomla-joomla-package-v1', templateKeys: { 'site/camap-v3': 'camap-v3' }, templateStyles: { 'camap-v3': [templateCssPath] }, files: await Promise.all([...files].map(async ([path, bytes]) => ({ path, bytes: bytes.byteLength, sha256: await sha256(bytes) }))) };
+  const inventoryBytes = new TextEncoder().encode(JSON.stringify(inventory));
+  files.set('MANIFEST-SHA256.json', inventoryBytes);
+  const reads = [];
+  const root = { id, baseUrl: `${TEMPLATE_XML_OPTIONS.baseUrl}/${id}`, inventoryHash: await sha256(inventoryBytes), immutable: true, discover,
+    files: {
+      async listFolders({ folderPath }) { reads.push(folderPath); return { data: { value: folderPath === 'templates' ? [{ Name: 'camap-v3' }] : [] } }; },
       async downloadFile({ folderPath, fileName }) {
         const path = [folderPath, fileName].filter(Boolean).join('/'); reads.push(path);
         if (!files.has(path)) throw new Error('missing file');
@@ -106,7 +128,7 @@ export async function runJoomlaDiscoveryTests() {
   assert.equal(report.entries.length, 1, 'core aliases never appear as new modules');
   const candidate = report.entries[0];
   assert.equal(candidate.status, 'ready');
-  assert.deepEqual(pack.reads, ['modules', xmlPath, 'plugins/content', 'plugins/system', 'plugins/search', 'plugins/editors', 'plugins/user', 'plugins/extension'], 'scan reads module/plugin folders and XML only, never JS/CSS');
+  assert.deepEqual(pack.reads, ['modules', xmlPath, 'plugins/content', 'plugins/system', 'plugins/search', 'plugins/editors', 'plugins/user', 'plugins/extension', 'templates'], 'scan reads module/plugin/template folders and XML only, never JS/CSS');
   const verified = await discovery.verify(candidate);
   assert.equal(verified.key, 'camap.mod_camap_corpmessage');
   assert.ok(pack.reads.includes(entryPath));
@@ -239,4 +261,33 @@ export async function runJoomlaDiscoveryTests() {
   assert.equal(restoredPlugin.entryPointUrl, installedPlugin.entryPointUrl);
   assert.deepEqual(JSON.parse(restoredPlugin.paramsJson), { label: 'Custom', enabled: true }, 'rollback never touches saved plugin params');
   console.log('ok - Joomla plugin discovery/install/upgrade/rollback: native aliases skipped, own paramsJson validated, group/identity preserved');
+
+  // Template profile: discover/install only (no upgrade/rollback contract yet).
+  const tv1 = await templatePackage();
+  const templateRepositories = { templates: repository({ unique: true }) };
+  const templateAdmin = createAdminService(templateRepositories);
+  const td1 = createJoomlaDiscoveryService({ roots: [tv1.root] });
+  const templateReport = await td1.scanReport();
+  assert.equal(templateReport.complete, true);
+  assert.equal(templateReport.entries.length, 1, 'builtin template aliases never appear as new candidates');
+  const templateCandidate = templateReport.entries[0];
+  assert.equal(templateCandidate.status, 'ready');
+  assert.equal(templateCandidate.type, 'Template');
+  assert.equal(templateCandidate.client, 'site');
+  const templateVerified = await td1.verify(templateCandidate);
+  assert.equal(templateVerified.key, 'camap-v3');
+  assert.equal(templateVerified.identity, 'template:site::camap-v3');
+  assert.deepEqual(templateVerified.positions, ['hero', 'menu-principal', 'footer']);
+  const templateUnsafe = await templatePackage({ xml: TEMPLATE_XML.replace('index.js</filename>', 'index.mjs</filename>') });
+  assert.equal((await createJoomlaDiscoveryService({ roots: [templateUnsafe.root] }).scan())[0].status, 'invalid', 'template without exactly one index.js entrypoint is reported invalid');
+  const templateReserved = await templatePackage({ xml: TEMPLATE_XML.replace('mj:key="camap-v3"', 'mj:key="cassiopeia"') });
+  assert.equal((await createJoomlaDiscoveryService({ roots: [templateReserved.root] }).scan())[0].status, 'unsupported', 'reserved builtin template key is rejected, not silently installed');
+  const templateInstaller = createJoomlaTemplateInstaller({ discovery: td1, admin: templateAdmin });
+  const installedTemplate = await templateInstaller.install(templateCandidate);
+  assert.equal(installedTemplate.enabled, true);
+  assert.equal(installedTemplate.key, 'camap-v3');
+  assert.deepEqual(JSON.parse(installedTemplate.positionsJson), ['hero', 'menu-principal', 'footer']);
+  assert.equal(templateRepositories.templates.rows.size, 1);
+  await assert.rejects(() => templateInstaller.install(templateCandidate), /ja registrado/);
+  console.log('ok - Joomla template discovery/install: builtin aliases skipped, positions/params registered through admin.templates, no implicit default selection');
 }

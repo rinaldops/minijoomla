@@ -1,6 +1,6 @@
 import { parseXml } from '../../vendor/parse-xml/parse-xml.js';
 import { ValidationError } from '../core/contracts.js';
-import { extensionKey } from './extension-input.js';
+import { extensionKey, templatePositions } from './extension-input.js';
 import { normalizeParamDefinitions } from './declared-params.js';
 import { packagePath, packageBase, packageAsset } from './package-path.js';
 import { PLUGIN_GROUPS } from './extension-manifest.js';
@@ -92,8 +92,10 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
   const root = doc.root;
   if (root?.name !== 'extension' || root.attributes.xmlns) throw new ValidationError('XML deve possuir raiz extension sem namespace padrao.');
   const extensionType = root.attributes.type;
-  if (!['module', 'plugin'].includes(extensionType) || (extensionType === 'module' && (root.attributes.client ?? 'site') !== 'site'))
-    throw unsupported('Perfil atual suporta somente modulos JavaScript de site ou plugins.');
+  if (!['module', 'plugin', 'template'].includes(extensionType) || (extensionType === 'module' && (root.attributes.client ?? 'site') !== 'site'))
+    throw unsupported('Perfil atual suporta somente modulos JavaScript de site, plugins ou templates.');
+  const templateClient = extensionType === 'template' ? (root.attributes.client ?? 'site') : undefined;
+  if (extensionType === 'template' && !['site', 'administrator'].includes(templateClient)) throw unsupported('Template XML requer client site ou administrator.');
   if (root.attributes.method !== undefined && !['install', 'upgrade'].includes(root.attributes.method)) throw new ValidationError('Metodo XML invalido.');
   const path = packagePath(manifestPath);
   let element, prefix, folder, group;
@@ -102,7 +104,7 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
     if (!match) throw new ValidationError('Modulo deve usar modules/mod_nome/mod_nome.xml.');
     element = match[1];
     prefix = `modules/${element}/`;
-  } else {
+  } else if (extensionType === 'plugin') {
     group = root.attributes.group;
     if (!PLUGIN_GROUPS.includes(group)) throw new ValidationError(`Plugin: group deve ser um de ${PLUGIN_GROUPS.join(', ')}.`);
     const match = /^plugins\/([a-z0-9_]+)\/([a-z0-9_]+)\/\2\.xml$/.exec(path);
@@ -110,15 +112,28 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
     element = match[2];
     folder = group;
     prefix = `plugins/${group}/${element}/`;
+  } else {
+    const templateRoot = templateClient === 'administrator' ? 'administrator/templates' : 'templates';
+    const match = new RegExp(`^${templateRoot.replace('/', '\\/')}\\/([a-z0-9][a-z0-9_-]*)\\/templateDetails\\.xml$`).exec(path);
+    if (!match) throw new ValidationError(`Template ${templateClient} deve usar ${templateRoot}/<nome>/templateDetails.xml.`);
+    element = match[1];
+    prefix = `${templateRoot}/${element}/`;
   }
   const explicitElement = value(root, 'element');
   if (explicitElement && explicitElement !== element) throw new ValidationError('Elemento XML difere da pasta da extensao.');
   const files = one(root, 'files', true);
-  const entryAttribute = extensionType === 'module' ? 'module' : 'plugin';
-  const entries = children(files, 'filename').filter((file) => file.attributes[entryAttribute] !== undefined);
-  if (children(files, 'folder').some((folderEntry) => folderEntry.attributes[entryAttribute] !== undefined)) throw unsupported('Provider PHP nao e um entrypoint JavaScript.');
-  if (entries.length !== 1 || entries[0].attributes[entryAttribute] !== element) throw new ValidationError('Entry point/atributo de extensao ausente ou divergente.');
-  const entry = packagePath(entries[0].text.trim());
+  let entry;
+  if (extensionType === 'template') {
+    const candidates = children(files, 'filename').filter((file) => packagePath(file.text.trim()) === 'index.js');
+    if (candidates.length !== 1) throw new ValidationError('Template requer exatamente um filename index.js como entrypoint.');
+    entry = 'index.js';
+  } else {
+    const entryAttribute = extensionType === 'module' ? 'module' : 'plugin';
+    const entries = children(files, 'filename').filter((file) => file.attributes[entryAttribute] !== undefined);
+    if (children(files, 'folder').some((folderEntry) => folderEntry.attributes[entryAttribute] !== undefined)) throw unsupported('Provider PHP nao e um entrypoint JavaScript.');
+    if (entries.length !== 1 || entries[0].attributes[entryAttribute] !== element) throw new ValidationError('Entry point/atributo de extensao ausente ou divergente.');
+    entry = packagePath(entries[0].text.trim());
+  }
   if (!/\.m?js$/.test(entry)) throw unsupported('Extensao requer adaptador JavaScript; entrypoints PHP nao sao executaveis.');
   const version = value(root, 'version');
   if (!version || version.length > 40) throw new ValidationError('Versao XML ausente ou invalida.');
@@ -147,11 +162,21 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
   });
   const params = normalizeParamDefinitions(definitions);
   const key = extensionKey(runtimeAttribute(root, 'key') ?? element);
-  const identity = extensionType === 'module' ? `module:site::${element}` : `plugin:${group}::${element}`;
   const title = value(root, 'name', element);
   const description = value(root, 'description');
   if (title.length > 200 || description.length > 1000 || value(root, 'author').length > 200) throw new ValidationError('Metadados XML excedem o tamanho permitido.');
   const entryPointUrl = packageAsset(baseUrl, `${prefix}${entry}`);
+  if (extensionType === 'template') {
+    const identity = `template:${templateClient}::${element}`;
+    const positionsNode = one(root, 'positions');
+    const declaredPositions = children(positionsNode, 'position').map((node) => node.text.trim());
+    if (!declaredPositions.length) throw new ValidationError('Template requer ao menos uma posicao declarada em <positions>.');
+    const positions = JSON.parse(templatePositions(declaredPositions));
+    return Object.freeze({ key, title, type: 'Template', version, identity, element, client: templateClient, entryPointUrl,
+      styles: Object.freeze(styles), positions: Object.freeze(positions), paramDefinitions: params,
+      requiredFiles: Object.freeze([...new Set(requiredFiles)]), requiredFolders: Object.freeze([...new Set(requiredFolders)]) });
+  }
+  const identity = extensionType === 'module' ? `module:site::${element}` : `plugin:${group}::${element}`;
   const metadata = { version, description, author: value(root, 'author'), params,
     miniJoomla: { profile: JOOMLA_PROFILE, key, identity, element, client: 'site', group: folder ?? '', manifestPath: path, baseUrl: packageBase(baseUrl) } };
   const result = { key, title, type: extensionType === 'module' ? 'Module' : 'Plugin', version, identity, element, entryPointUrl,

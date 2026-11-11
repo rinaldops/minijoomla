@@ -33,6 +33,32 @@
 > regressão completa **123 suítes / 0 falhas**, `npm run check` ok. Não
 > inclui template XML nem migração assistida (próximos itens da fila).
 
+> **Perfil XML de templates implementado (11/11):** `joomla-manifest.js`
+> aceita `<extension type="template" client="site|administrator">`.
+> Convenção `templates/<nome>/templateDetails.xml` (site) ou
+> `administrator/templates/<nome>/templateDetails.xml` (admin); nomes de
+> pasta aceitam hífen (`camap-v3`), diferente de módulo/plugin. `<positions>`
+> é obrigatório (reaproveita `templatePositions()`, mesma validação do
+> mecanismo de template instalado via JSON); `<config>` reaproveita o mesmo
+> parser de parâmetros. Identidade `template:<client>::<nome>`. Descriptor
+> de template não tem `manifestJson`/envelope próprio — expõe `styles`/
+> `positions`/`paramDefinitions` como arrays simples, a mesma forma já
+> consumida por `admin.templates.create()` (que empacota tudo no envelope
+> `Styles` existente, sem coluna nova). `joomla-discovery.js` varre
+> `templates/` (opcional, mesmo tratamento das pastas de plugin) com os três
+> builtins (`default`/`cassiopeia`/`camap`) reservados como alias nativo.
+> Inventário de pacote ganhou `templateKeys`/`templateStyles`, chaveados por
+> `<client>/<elemento>`. Novo `createJoomlaTemplateInstaller` (register-only,
+> sem upgrade/rollback — ainda não há contrato para isso, conforme
+> [CONTRATOS-EVOLUCAO-XML.md §3](CONTRATOS-EVOLUCAO-XML.md)); registro
+> existente com a mesma key é recusado, igual ao fluxo manual/JSON. Teste
+> real com pacote fictício (`camap-v3`, 3 posições, 2 parâmetros) cobrindo
+> discover → verify → install, mais negativos (entrypoint errado, alias
+> builtin reservado); regressão completa **123 suítes / 0 falhas**,
+> `npm run check` ok. Não inclui migração assistida nem integração com a
+> tela `/templates/discover` (que continua no fluxo JSON existente; ligar o
+> novo `discoveryService` XML a essa tela é tarefa de composição separada).
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.

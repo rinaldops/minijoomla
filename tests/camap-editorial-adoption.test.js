@@ -406,7 +406,7 @@ export async function runCamapEditorialAdoptionTests({ packageDirectories, impor
   assert.equal(report.complete, true);
   assert.equal(report.entries.length, 1);
   assert.equal(report.entries[0].status, 'ready');
-  assert.deepEqual(packages[0].reads, ['modules', XML, 'plugins/content', 'plugins/system', 'plugins/search', 'plugins/editors', 'plugins/user', 'plugins/extension'], 'discovery only reads XML metadata, never imports JS');
+  assert.deepEqual(packages[0].reads, ['modules', XML, 'plugins/content', 'plugins/system', 'plugins/search', 'plugins/editors', 'plugins/user', 'plugins/extension', 'templates'], 'discovery only reads XML metadata, never imports JS');
   const original = await initialDiscovery.verify(report.entries[0]);
   const revisionDiscovery = createJoomlaDiscoveryService({ roots: [{ ...packages[0].root, discover: false }, packages[1].root] });
   const upgraded = (await revisionDiscovery.scan())[0];
