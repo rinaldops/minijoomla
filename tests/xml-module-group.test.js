@@ -65,7 +65,7 @@ function repin(f, index = 0, editInventory = () => {}) {
   const host = JSON.parse(member.files.get(CONTROL[1])); host.joomlaDiscoveryRoots[0].inventoryHash = ref.inventoryHash; member.files.set(CONTROL[1], data(host));
 }
 function port(files) {
-  return { listFolders: async () => ({ value: [...new Set([...files.keys()].filter(name => name.startsWith('modules/')).map(name => name.split('/')[1]))].map(Name => ({ Name })) }), downloadFile: async ({ folderPath, fileName }) => {
+  return { listFolders: async ({ folderPath }) => ({ value: folderPath === 'modules' ? [...new Set([...files.keys()].filter(name => name.startsWith('modules/')).map(name => name.split('/')[1]))].map(Name => ({ Name })) : [] }), downloadFile: async ({ folderPath, fileName }) => {
     const bytes = files.get(folderPath ? `${folderPath}/${fileName}` : fileName); if (!bytes) throw new Error('Fixture file absent'); return bytes;
   } };
 }

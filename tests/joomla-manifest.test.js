@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { parseJoomlaManifest, packageAsset, packagePath } from '../src/libraries/minijoomla/application/joomla-manifest.js';
 import { generateModuleManifests } from '../scripts/module-manifests.js';
 import { NATIVE_MODULE_PACKAGES } from '../src/libraries/minijoomla/application/module-catalog.js';
+import { PLUGIN_GROUPS } from '../src/libraries/minijoomla/application/extension-manifest.js';
 
 export const MODULE_XML = `<?xml version="1.0" encoding="utf-8"?>
 <extension type="module" client="site" method="upgrade" xmlns:mj="urn:minijoomla:runtime:1" mj:key="camap.mod_camap_corpmessage">
@@ -16,6 +18,18 @@ export const MODULE_XML = `<?xml version="1.0" encoding="utf-8"?>
   </fieldset></fields></config>
 </extension>`;
 export const XML_OPTIONS = { baseUrl: '/sites/example/SiteAssets/packages/0.1.0', manifestPath: 'modules/mod_camap_corpmessage/mod_camap_corpmessage.xml' };
+
+export const PLUGIN_XML = `<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="content" method="upgrade" xmlns:mj="urn:minijoomla:runtime:1" mj:key="camap.corptip">
+  <name>CAMAP Tip</name><version>0.2.0</version><description><![CDATA[Highlights a corporate tip.]]></description>
+  <files><filename plugin="corptip">corptip.js</filename></files>
+  <media folder="media" destination="corptip"><filename>css/tip.css</filename></media>
+  <config><fields name="params"><fieldset name="basic">
+    <field name="label" type="text" label="Label" default="Tip" />
+    <field name="enabled" type="radio" default="1"><option value="1">Yes</option><option value="0">No</option></field>
+  </fieldset></fields></config>
+</extension>`;
+export const PLUGIN_XML_OPTIONS = { baseUrl: '/sites/example/SiteAssets/packages/0.2.0', manifestPath: 'plugins/content/corptip/corptip.xml' };
 
 export async function runJoomlaManifestTests() {
   const parsed = parseJoomlaManifest(MODULE_XML, XML_OPTIONS);
@@ -60,5 +74,42 @@ export async function runJoomlaManifestTests() {
     assert.equal(descriptor.key, native.key);
     for (const param of native.params) assert.deepEqual(descriptor.params.find((entry) => entry.name === param.name), param);
   }
+
+  // Plugin profile: synthetic fixture with config/params/media, mirroring the module path above.
+  const plugin = parseJoomlaManifest(PLUGIN_XML, PLUGIN_XML_OPTIONS);
+  assert.equal(plugin.type, 'Plugin');
+  assert.equal(plugin.key, 'camap.corptip');
+  assert.equal(plugin.group, 'content');
+  assert.equal(plugin.identity, 'plugin:content::corptip');
+  assert.equal(plugin.entryPointUrl, `${PLUGIN_XML_OPTIONS.baseUrl}/plugins/content/corptip/corptip.js`);
+  assert.equal(plugin.title, 'CAMAP Tip');
+  assert.equal(plugin.styles.length, 1);
+  assert.equal(plugin.params[1].type, 'checkbox');
+  assert.equal(plugin.params[1].default, true);
+  assert.equal(JSON.parse(plugin.manifestJson).miniJoomla.group, 'content');
+  for (const bad of [
+    PLUGIN_XML.replace('group="content"', 'group="unknown-group"'),
+    PLUGIN_XML.replace('group="content" method', 'group="system" method'), // path/group mismatch
+    PLUGIN_XML.replace('plugin="corptip"', 'plugin="other"'),
+    PLUGIN_XML.replace('corptip.js</filename>', 'corptip.php</filename>'),
+    PLUGIN_XML.replace('<version>0.2.0</version>', ''),
+    PLUGIN_XML.replace('<files>', '<scriptfile>install.php</scriptfile><files>')
+  ]) assert.throws(() => parseJoomlaManifest(bad, PLUGIN_XML_OPTIONS), { name: 'ValidationError' });
+  assert.throws(() => parseJoomlaManifest(PLUGIN_XML, { ...PLUGIN_XML_OPTIONS, manifestPath: 'plugins/content/other/other.xml' }));
+  // Element folder is the second path segment; module-shaped filename must not collide with a plugin manifest path.
+  assert.throws(() => parseJoomlaManifest(MODULE_XML, { ...XML_OPTIONS, manifestPath: 'plugins/content/mod_camap_corpmessage/mod_camap_corpmessage.xml' }));
+
+  // Real native plugin fixtures shipped under src/plugins: shape-only manifests
+  // without <config>, confirming the profile accepts the simplest valid plugin.
+  for (const [group, element] of [['content', 'emailcloak'], ['content', 'loadmodule'], ['content', 'pagebreak'], ['content', 'pagenavigation']]) {
+    const manifestPath = `plugins/${group}/${element}/${element}.xml`;
+    const xml = readFileSync(new URL(`../src/${manifestPath}`, import.meta.url), 'utf8');
+    const descriptor = parseJoomlaManifest(xml, { baseUrl: '/sites/example/SiteAssets/packages/native', manifestPath });
+    assert.equal(descriptor.type, 'Plugin');
+    assert.equal(descriptor.group, group);
+    assert.equal(descriptor.element, element);
+    assert.deepEqual(descriptor.params, []);
+  }
+  for (const group of PLUGIN_GROUPS) assert.ok(typeof group === 'string' && group.length, 'plugin group catalogue is non-empty text');
   console.log('ok - Joomla XML: real shared parser, native roundtrips, typed params, safe paths and non-executing rejects');
 }

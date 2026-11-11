@@ -3,7 +3,7 @@ import { createJoomlaDiscoveryService, sha256 } from '../src/libraries/minijooml
 import { createJoomlaExtensionInstaller } from '../src/libraries/minijoomla/application/joomla-extension-installer.js';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
 import { ValidationError } from '../src/libraries/minijoomla/core/contracts.js';
-import { MODULE_XML, XML_OPTIONS } from './joomla-manifest.test.js';
+import { MODULE_XML, XML_OPTIONS, PLUGIN_XML, PLUGIN_XML_OPTIONS } from './joomla-manifest.test.js';
 
 const xmlPath = XML_OPTIONS.manifestPath;
 const entryPath = 'modules/mod_camap_corpmessage/mod_camap_corpmessage.js';
@@ -17,7 +17,29 @@ export async function xmlPackage({ id = 'v1', xml = MODULE_XML, discover = true 
   const reads = [];
   const root = { id, baseUrl: `${XML_OPTIONS.baseUrl}/${id}`, inventoryHash: await sha256(inventoryBytes), immutable: true, discover,
     files: {
-      async listFolders({ folderPath }) { reads.push(folderPath); return { data: { value: [{ Name: 'mod_camap_corpmessage' }, { Name: 'mod_custom' }] } }; },
+      async listFolders({ folderPath }) { reads.push(folderPath); return { data: { value: folderPath === 'modules' ? [{ Name: 'mod_camap_corpmessage' }, { Name: 'mod_custom' }] : [] } }; },
+      async downloadFile({ folderPath, fileName }) {
+        const path = [folderPath, fileName].filter(Boolean).join('/'); reads.push(path);
+        if (!files.has(path)) throw new Error('missing file');
+        return { data: files.get(path) };
+      }
+    } };
+  return { root, reads, files };
+}
+
+const pluginXmlPath = PLUGIN_XML_OPTIONS.manifestPath;
+const pluginEntryPath = 'plugins/content/corptip/corptip.js';
+const pluginCssPath = 'media/corptip/css/tip.css';
+
+export async function pluginPackage({ id = 'p1', xml = PLUGIN_XML, discover = true } = {}) {
+  const files = new Map([[pluginXmlPath, new TextEncoder().encode(xml)], [pluginEntryPath, new TextEncoder().encode('export default {render:()=>"hello"};')], [pluginCssPath, new TextEncoder().encode('.tip{color:blue}')]]);
+  const inventory = { format: 'minijoomla-joomla-package-v1', pluginKeys: { 'content/corptip': 'camap.corptip' }, pluginStyles: { 'camap.corptip': [pluginCssPath] }, files: await Promise.all([...files].map(async ([path, bytes]) => ({ path, bytes: bytes.byteLength, sha256: await sha256(bytes) }))) };
+  const inventoryBytes = new TextEncoder().encode(JSON.stringify(inventory));
+  files.set('MANIFEST-SHA256.json', inventoryBytes);
+  const reads = [];
+  const root = { id, baseUrl: `${PLUGIN_XML_OPTIONS.baseUrl}/${id}`, inventoryHash: await sha256(inventoryBytes), immutable: true, discover,
+    files: {
+      async listFolders({ folderPath }) { reads.push(folderPath); return { data: { value: folderPath === 'plugins/content' ? [{ Name: 'corptip' }] : [] } }; },
       async downloadFile({ folderPath, fileName }) {
         const path = [folderPath, fileName].filter(Boolean).join('/'); reads.push(path);
         if (!files.has(path)) throw new Error('missing file');
@@ -84,7 +106,7 @@ export async function runJoomlaDiscoveryTests() {
   assert.equal(report.entries.length, 1, 'core aliases never appear as new modules');
   const candidate = report.entries[0];
   assert.equal(candidate.status, 'ready');
-  assert.deepEqual(pack.reads, ['modules', xmlPath], 'scan reads folders/XML only, never JS/CSS');
+  assert.deepEqual(pack.reads, ['modules', xmlPath, 'plugins/content', 'plugins/system', 'plugins/search', 'plugins/editors', 'plugins/user', 'plugins/extension'], 'scan reads module/plugin folders and XML only, never JS/CSS');
   const verified = await discovery.verify(candidate);
   assert.equal(verified.key, 'camap.mod_camap_corpmessage');
   assert.ok(pack.reads.includes(entryPath));
@@ -170,4 +192,51 @@ export async function runJoomlaDiscoveryTests() {
   assert.deepEqual(repositorySnapshot({ moduleInstances: repositories.moduleInstances }), settings, 'rollback never writes instances or changes their exact settings/ETags');
   assert.equal({}.keep, undefined);
   console.log('ok - Joomla discovery/install: pinned inventory, atomic creation, strict instance guards before writes and exact settings/ETags across upgrade and rollback');
+
+  // Plugin profile: discover/install/upgrade/rollback mirrors the module path
+  // above, but plugin parameters live on the extension row's own paramsJson
+  // (validated by validateInstances' plugin branch), not moduleInstances.
+  const pv1 = await pluginPackage();
+  const pluginRepositories = { extensions: repository({ unique: true }), moduleInstances: repository() };
+  const pluginAdmin = createAdminService(pluginRepositories);
+  const pd1 = createJoomlaDiscoveryService({ roots: [pv1.root] });
+  const pluginReport = await pd1.scanReport();
+  assert.equal(pluginReport.complete, true);
+  assert.equal(pluginReport.entries.length, 1, 'native plugin aliases never appear as new candidates');
+  const pluginCandidate = pluginReport.entries[0];
+  assert.equal(pluginCandidate.status, 'ready');
+  assert.equal(pluginCandidate.type, 'Plugin');
+  assert.equal(pluginCandidate.group, 'content');
+  const pluginVerified = await pd1.verify(pluginCandidate);
+  assert.equal(pluginVerified.key, 'camap.corptip');
+  assert.equal(pluginVerified.identity, 'plugin:content::corptip');
+  const pluginUnsafe = await pluginPackage({ xml: PLUGIN_XML.replace('.js</filename>', '.php</filename>') });
+  assert.equal((await createJoomlaDiscoveryService({ roots: [pluginUnsafe.root] }).scan())[0].status, 'unsupported');
+  const pluginReserved = await pluginPackage({ xml: PLUGIN_XML.replace('mj:key="camap.corptip"', 'mj:key="emailcloak"') });
+  assert.equal((await createJoomlaDiscoveryService({ roots: [pluginReserved.root] }).scan())[0].status, 'unsupported', 'reserved native plugin key is rejected, not silently installed');
+  const pluginInstaller = createJoomlaExtensionInstaller({ discovery: pd1, admin: pluginAdmin, repositories: pluginRepositories, assertAtomicKey: async () => true });
+  const installedPlugin = await pluginInstaller.install(pluginCandidate);
+  assert.equal(installedPlugin.enabled, false);
+  assert.equal(installedPlugin.type, 'Plugin');
+  assert.equal(pluginRepositories.extensions.rows.size, 1);
+  await pluginAdmin.extensions.update(installedPlugin.id, { params: { label: 'Custom', enabled: true } }, { etag: installedPlugin.etag });
+  const configuredPlugin = await pluginAdmin.extensions.get(installedPlugin.id);
+  const pv2 = await pluginPackage({ id: 'p2', xml: PLUGIN_XML.replace('<version>0.2.0', '<version>0.2.1') });
+  const pd2 = createJoomlaDiscoveryService({ roots: [{ ...pv1.root, discover: false }, pv2.root] });
+  const pc2 = (await pd2.scan())[0];
+  const pluginUpgrade = createJoomlaExtensionInstaller({ discovery: pd2, admin: pluginAdmin, repositories: pluginRepositories, assertAtomicKey: async () => true });
+  await pluginUpgrade.upgrade(installedPlugin.id, pc2, { etag: configuredPlugin.etag });
+  const upgradedPlugin = await pluginAdmin.extensions.get(installedPlugin.id);
+  assert.ok(upgradedPlugin.entryPointUrl.includes('/p2/'));
+  assert.deepEqual(JSON.parse(upgradedPlugin.paramsJson), { label: 'Custom', enabled: true }, 'upgrade preserves saved plugin params exactly');
+  const pluginIncompatible = await pluginPackage({ id: 'incompatible-plugin', xml: PLUGIN_XML.replace('name="label" type="text"', 'name="label" type="text" maxlength="3"') });
+  const pluginIncompatibleDiscovery = createJoomlaDiscoveryService({ roots: [{ ...pv1.root, discover: false }, pluginIncompatible.root] });
+  const pluginIncompatibleInstaller = createJoomlaExtensionInstaller({ discovery: pluginIncompatibleDiscovery, admin: pluginAdmin, repositories: pluginRepositories });
+  const pluginIncompatibleCandidate = (await pluginIncompatibleDiscovery.scan())[0];
+  await assert.rejects(() => pluginIncompatibleInstaller.upgrade(installedPlugin.id, pluginIncompatibleCandidate, { etag: upgradedPlugin.etag }), /contrato de parametros/);
+  await pluginUpgrade.rollback(installedPlugin.id, { etag: upgradedPlugin.etag });
+  const restoredPlugin = await pluginAdmin.extensions.get(installedPlugin.id);
+  assert.equal(restoredPlugin.entryPointUrl, installedPlugin.entryPointUrl);
+  assert.deepEqual(JSON.parse(restoredPlugin.paramsJson), { label: 'Custom', enabled: true }, 'rollback never touches saved plugin params');
+  console.log('ok - Joomla plugin discovery/install/upgrade/rollback: native aliases skipped, own paramsJson validated, group/identity preserved');
 }

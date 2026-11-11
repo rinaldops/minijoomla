@@ -119,7 +119,7 @@ async function pilotPackage(version, directory) {
     files: {
       async listFolders({ folderPath }) {
         reads.push({ kind: 'folders', path: folderPath });
-        assert.equal(folderPath, 'modules');
+        if (folderPath !== 'modules') { assert.match(folderPath, /^plugins\//); return { data: { value: [] } }; }
         return { data: { value: [{ Name: ELEMENT }, { Name: 'mod_custom' }] } };
       },
       async downloadFile({ folderPath, fileName }) {
@@ -322,7 +322,7 @@ export async function runJoomlaPilotLifecycleTests({ packageDirectories } = {}) 
     assert.equal(report.entries.length, 1, 'native alias mod_custom is excluded');
     const candidate1 = report.entries[0];
     assert.equal(candidate1.status, 'ready');
-    assert.deepEqual(v1.reads, [{ kind: 'folders', path: 'modules' }, { kind: 'file', path: XML }], 'scan is XML-only, not JS execution');
+    assert.deepEqual(v1.reads, [{ kind: 'folders', path: 'modules' }, { kind: 'file', path: XML }, ...['content', 'system', 'search', 'editors', 'user', 'extension'].map((group) => ({ kind: 'folders', path: `plugins/${group}` }))], 'scan is XML-only, not JS execution');
     assert.deepEqual(candidate1.params.map(({ name, type }) => [name, type]), [['message', 'textarea'], ['author', 'text'], ['align', 'select']]);
     const guard = createAtomicExtensionKeyGuard({ transport, webUrl: WEB, listId: EXTENSIONS_ID });
     const installer1 = createJoomlaExtensionInstaller({ discovery: discovery1, admin, repositories, assertAtomicKey: guard });

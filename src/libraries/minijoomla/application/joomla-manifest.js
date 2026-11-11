@@ -3,6 +3,7 @@ import { ValidationError } from '../core/contracts.js';
 import { extensionKey } from './extension-input.js';
 import { normalizeParamDefinitions } from './declared-params.js';
 import { packagePath, packageBase, packageAsset } from './package-path.js';
+import { PLUGIN_GROUPS } from './extension-manifest.js';
 export { packagePath, packageBase, packageAsset } from './package-path.js';
 
 export const JOOMLA_PROFILE = 'joomla-xml-v1';
@@ -90,25 +91,39 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
   }
   const root = doc.root;
   if (root?.name !== 'extension' || root.attributes.xmlns) throw new ValidationError('XML deve possuir raiz extension sem namespace padrao.');
-  if (root.attributes.type !== 'module' || (root.attributes.client ?? 'site') !== 'site') throw unsupported('Perfil atual suporta somente modulos JavaScript de site.');
+  const extensionType = root.attributes.type;
+  if (!['module', 'plugin'].includes(extensionType) || (extensionType === 'module' && (root.attributes.client ?? 'site') !== 'site'))
+    throw unsupported('Perfil atual suporta somente modulos JavaScript de site ou plugins.');
   if (root.attributes.method !== undefined && !['install', 'upgrade'].includes(root.attributes.method)) throw new ValidationError('Metodo XML invalido.');
   const path = packagePath(manifestPath);
-  const match = /^modules\/(mod_[a-z0-9_]+)\/\1\.xml$/.exec(path);
-  if (!match) throw new ValidationError('Modulo deve usar modules/mod_nome/mod_nome.xml.');
-  const element = match[1];
+  let element, prefix, folder, group;
+  if (extensionType === 'module') {
+    const match = /^modules\/(mod_[a-z0-9_]+)\/\1\.xml$/.exec(path);
+    if (!match) throw new ValidationError('Modulo deve usar modules/mod_nome/mod_nome.xml.');
+    element = match[1];
+    prefix = `modules/${element}/`;
+  } else {
+    group = root.attributes.group;
+    if (!PLUGIN_GROUPS.includes(group)) throw new ValidationError(`Plugin: group deve ser um de ${PLUGIN_GROUPS.join(', ')}.`);
+    const match = /^plugins\/([a-z0-9_]+)\/([a-z0-9_]+)\/\2\.xml$/.exec(path);
+    if (!match || match[1] !== group) throw new ValidationError('Plugin deve usar plugins/<group>/<nome>/<nome>.xml, com a pasta correspondendo ao group declarado.');
+    element = match[2];
+    folder = group;
+    prefix = `plugins/${group}/${element}/`;
+  }
   const explicitElement = value(root, 'element');
-  if (explicitElement && explicitElement !== element) throw new ValidationError('Elemento XML difere da pasta do modulo.');
+  if (explicitElement && explicitElement !== element) throw new ValidationError('Elemento XML difere da pasta da extensao.');
   const files = one(root, 'files', true);
-  const entries = children(files, 'filename').filter((file) => file.attributes.module !== undefined);
-  if (children(files, 'folder').some((folder) => folder.attributes.module !== undefined)) throw unsupported('Provider PHP nao e um entrypoint JavaScript.');
-  if (entries.length !== 1 || entries[0].attributes.module !== element) throw new ValidationError('Entry point/atributo module ausente ou divergente.');
+  const entryAttribute = extensionType === 'module' ? 'module' : 'plugin';
+  const entries = children(files, 'filename').filter((file) => file.attributes[entryAttribute] !== undefined);
+  if (children(files, 'folder').some((folderEntry) => folderEntry.attributes[entryAttribute] !== undefined)) throw unsupported('Provider PHP nao e um entrypoint JavaScript.');
+  if (entries.length !== 1 || entries[0].attributes[entryAttribute] !== element) throw new ValidationError('Entry point/atributo de extensao ausente ou divergente.');
   const entry = packagePath(entries[0].text.trim());
-  if (!/\.m?js$/.test(entry)) throw unsupported('Modulo requer adaptador JavaScript; entrypoints PHP nao sao executaveis.');
+  if (!/\.m?js$/.test(entry)) throw unsupported('Extensao requer adaptador JavaScript; entrypoints PHP nao sao executaveis.');
   const version = value(root, 'version');
   if (!version || version.length > 40) throw new ValidationError('Versao XML ausente ou invalida.');
-  const prefix = `modules/${element}/`;
   const requiredFiles = children(files, 'filename').map((file) => `${prefix}${packagePath(file.text.trim())}`);
-  const requiredFolders = children(files, 'folder').map((folder) => `${prefix}${packagePath(folder.text.trim())}/`);
+  const requiredFolders = children(files, 'folder').map((folderEntry) => `${prefix}${packagePath(folderEntry.text.trim())}/`);
   const styles = [];
   const media = one(root, 'media');
   if (media) {
@@ -119,27 +134,29 @@ export function parseJoomlaManifest(input, { baseUrl, manifestPath, strictMetada
       requiredFiles.push(name);
       if (name.endsWith('.css')) styles.push(packageAsset(baseUrl, name));
     }
-    for (const folder of children(media, 'folder')) requiredFolders.push(`${mediaPrefix}${packagePath(folder.text.trim())}/`);
+    for (const folderEntry of children(media, 'folder')) requiredFolders.push(`${mediaPrefix}${packagePath(folderEntry.text.trim())}/`);
   }
   const config = one(root, 'config');
   const fields = config ? children(config, 'fields') : [];
   if (config && (config.children ?? []).some((node) => node.type === 'element' && node.name !== 'fields')) throw unsupported('Estrutura de configuracao XML nao suportada.');
   if (fields.some((field) => field.attributes.name !== 'params')) throw unsupported('Grupo de configuracao XML nao suportado.');
-  const definitions = fields.flatMap((group) => {
-    if ((group.children ?? []).some((node) => node.type === 'element' && !['field', 'fieldset'].includes(node.name))) throw unsupported('Parametros XML aninhados nao sao suportados.');
-    for (const set of children(group, 'fieldset')) if ((set.children ?? []).some((node) => node.type === 'element' && node.name !== 'field')) throw unsupported('Fieldsets XML aninhados nao sao suportados.');
-    return [...children(group, 'field'), ...children(group, 'fieldset').flatMap((set) => children(set, 'field'))].map(field => param(field, { strictMetadata }));
+  const definitions = fields.flatMap((fieldGroup) => {
+    if ((fieldGroup.children ?? []).some((node) => node.type === 'element' && !['field', 'fieldset'].includes(node.name))) throw unsupported('Parametros XML aninhados nao sao suportados.');
+    for (const set of children(fieldGroup, 'fieldset')) if ((set.children ?? []).some((node) => node.type === 'element' && node.name !== 'field')) throw unsupported('Fieldsets XML aninhados nao sao suportados.');
+    return [...children(fieldGroup, 'field'), ...children(fieldGroup, 'fieldset').flatMap((set) => children(set, 'field'))].map(field => param(field, { strictMetadata }));
   });
   const params = normalizeParamDefinitions(definitions);
   const key = extensionKey(runtimeAttribute(root, 'key') ?? element);
-  const identity = `module:site::${element}`;
+  const identity = extensionType === 'module' ? `module:site::${element}` : `plugin:${group}::${element}`;
   const title = value(root, 'name', element);
   const description = value(root, 'description');
   if (title.length > 200 || description.length > 1000 || value(root, 'author').length > 200) throw new ValidationError('Metadados XML excedem o tamanho permitido.');
   const entryPointUrl = packageAsset(baseUrl, `${prefix}${entry}`);
   const metadata = { version, description, author: value(root, 'author'), params,
-    miniJoomla: { profile: JOOMLA_PROFILE, key, identity, element, client: 'site', group: '', manifestPath: path, baseUrl: packageBase(baseUrl) } };
-  return Object.freeze({ key, title, type: 'Module', version, identity, element, entryPointUrl,
+    miniJoomla: { profile: JOOMLA_PROFILE, key, identity, element, client: 'site', group: folder ?? '', manifestPath: path, baseUrl: packageBase(baseUrl) } };
+  const result = { key, title, type: extensionType === 'module' ? 'Module' : 'Plugin', version, identity, element, entryPointUrl,
     styles: Object.freeze(styles), params, requiredFiles: Object.freeze([...new Set(requiredFiles)]),
-    requiredFolders: Object.freeze([...new Set(requiredFolders)]), manifestJson: JSON.stringify(metadata) });
+    requiredFolders: Object.freeze([...new Set(requiredFolders)]), manifestJson: JSON.stringify(metadata) };
+  if (extensionType === 'plugin') result.group = folder;
+  return Object.freeze(result);
 }

@@ -96,7 +96,8 @@ async function packageFixture({ discover = false, moduleCount = 2, extraFile = t
       async listFolders() { throw new Error('Prefer the complete listFoldersAll method'); },
       async listFoldersAll(options) {
         reads.push({ kind: 'folders', ...options });
-        assert.equal(options.folderPath, 'modules'); assert.equal(options.maxItems, 500);
+        assert.equal(options.maxItems, 500);
+        if (options.folderPath !== 'modules') { assert.match(options.folderPath, /^plugins\//); return { data: { value: [] }, complete: true }; }
         return pack.listOverride ?? { data: { value: [...Object.keys(moduleKeys).map(Name => ({ Name })), { Name: 'mod_custom' }, { Name: 'other' }] }, complete: true };
       },
       async downloadFile(options) {

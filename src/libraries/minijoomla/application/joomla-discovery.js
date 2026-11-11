@@ -1,9 +1,12 @@
 import { ValidationError } from '../core/contracts.js';
 import { NATIVE_MODULE_PACKAGES } from './module-catalog.js';
+import { NATIVE_PLUGIN_KEYS } from './extension-input.js';
+import { PLUGIN_GROUPS } from './extension-manifest.js';
 import { parseJoomlaManifest, manifestBytes, packageBase, packagePath, packageAsset, MAX_MANIFEST_BYTES } from './joomla-manifest.js';
 
 const NATIVE_FOLDERS = new Set(NATIVE_MODULE_PACKAGES.map((module) => module.folder));
 const NATIVE_KEYS = new Set(NATIVE_MODULE_PACKAGES.map((module) => module.key));
+const NATIVE_PLUGIN_ELEMENTS = new Set(NATIVE_PLUGIN_KEYS);
 const HEX = /^[a-f0-9]{64}$/;
 const failure = (message, code = 'discovery-conflict') => Object.assign(new ValidationError(message), { code });
 const payload = (response) => response?.data ?? response;
@@ -72,42 +75,77 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
         try { entries.push(...await legacy.scan()); check(); }
         catch { issues.push({ rootId: 'legacy', error: 'Falha na leitura dos manifestos JSON legados.' }); }
       }
+
+      // Scan one base folder (`modules` or `plugins/<group>`). The module
+      // and plugin profiles differ only in folder naming/reserved aliases;
+      // both share the same manifest parser, approval and conflict logic.
+      // Names outside the expected shape are silently ignored (not a
+      // candidate at all); names that match the shape but are reserved for
+      // a native extension are also silently skipped; everything else that
+      // fails the stricter per-prefix regex is reported as 'invalid'.
+      // `optional` bases (plugin groups) that do not exist at all on a root
+      // are reported as absent (zero candidates), not a scan failure — the
+      // `modules` base stays mandatory and still fails the whole root.
+      async function scanBase(root, basePath, { prefix, optional, isReservedFolder, isReservedKey, manifestPathFor }) {
+        check();
+        let folders;
+        try {
+          folders = listed(await root.files.listFolders({ folderPath: basePath, signal: activeSignal, maxItems: maxFolders }));
+        } catch (error) {
+          check();
+          if (optional && error?.code !== 'discovery-aborted') return;
+          throw error;
+        }
+        check();
+        for (const folder of folders) {
+          check();
+          if (++visited > maxFolders) throw failure('Limite de pastas atingido.', 'discovery-limit');
+          if (typeof folder?.Name !== 'string' || !folder.Name.startsWith(prefix)) continue;
+          if (!new RegExp(`^${prefix}[a-z0-9_]+$`).test(folder.Name)) {
+            entries.push({ key: folder.Name, title: folder.Name, type: null, entryPointUrl: null, status: 'invalid', error: `Nome de pasta deve seguir ${prefix}nome com letras minusculas e underscores.` });
+            continue;
+          }
+          if (isReservedFolder(folder.Name)) continue;
+          if (entries.length >= maxCandidates) throw failure('Limite de candidatos atingido.', 'discovery-limit');
+          const manifestPath = manifestPathFor(folder.Name);
+          try {
+            const bytes = await read(root, manifestPath, activeSignal);
+            check();
+            const descriptor = parseJoomlaManifest(bytes, { baseUrl: root.baseUrl, manifestPath });
+            if (isReservedKey(descriptor.key)) throw failure('Alias reservado para extensao nativa.', 'unsupported-extension');
+            const fingerprint = await sha256(bytes);
+            const candidateId = await sha256(`${root.configuration}\n${manifestPath}\n${fingerprint}`);
+            const entry = { ...descriptor, sourceRootId: root.id, fingerprint, candidateId,
+              discoveredFrom: packageAsset(root.baseUrl, manifestPath), status: 'ready', error: null };
+            if (!root.immutable || !root.inventoryHash) {
+              entry.status = 'unapproved';
+              entry.error = 'Pacote encontrado; configure raiz imutavel e hash do inventario para instalar.';
+            } else approvals.set(candidateId, { rootId: root.id, manifestPath, fingerprint, key: descriptor.key });
+            entries.push(entry);
+          } catch (error) {
+            check();
+            entries.push({ key: folder.Name, title: folder.Name, type: null, entryPointUrl: null, sourceRootId: root.id,
+              discoveredFrom: packageAsset(root.baseUrl, manifestPath), status: error.code === 'unsupported-extension' ? 'unsupported' : 'invalid', error: error.message });
+          }
+        }
+      }
+
       for (const root of sources) {
         if (!root.discover) continue;
         try {
-          check();
-          const folders = listed(await root.files.listFolders({ folderPath: 'modules', signal: activeSignal, maxItems: maxFolders }));
-          check();
-          for (const folder of folders) {
-            check();
-            if (++visited > maxFolders) throw failure('Limite de pastas atingido.', 'discovery-limit');
-            if (typeof folder?.Name !== 'string' || !folder.Name.startsWith('mod_')) continue;
-            if (!/^mod_[a-z0-9_]+$/.test(folder.Name)) {
-              entries.push({ key: folder.Name, title: folder.Name, type: null, entryPointUrl: null, status: 'invalid', error: 'Nome de pasta deve seguir mod_nome com letras minusculas e underscores.' });
-              continue;
-            }
-            if (NATIVE_FOLDERS.has(folder.Name)) continue;
-            if (entries.length >= maxCandidates) throw failure('Limite de candidatos atingido.', 'discovery-limit');
-            const manifestPath = `modules/${folder.Name}/${folder.Name}.xml`;
-            try {
-              const bytes = await read(root, manifestPath, activeSignal);
-              check();
-              const descriptor = parseJoomlaManifest(bytes, { baseUrl: root.baseUrl, manifestPath });
-              if (NATIVE_KEYS.has(descriptor.key)) throw failure('Alias reservado para modulo nativo.', 'unsupported-extension');
-              const fingerprint = await sha256(bytes);
-              const candidateId = await sha256(`${root.configuration}\n${manifestPath}\n${fingerprint}`);
-              const entry = { ...descriptor, sourceRootId: root.id, fingerprint, candidateId,
-                discoveredFrom: packageAsset(root.baseUrl, manifestPath), status: 'ready', error: null };
-              if (!root.immutable || !root.inventoryHash) {
-                entry.status = 'unapproved';
-                entry.error = 'Pacote encontrado; configure raiz imutavel e hash do inventario para instalar.';
-              } else approvals.set(candidateId, { rootId: root.id, manifestPath, fingerprint, key: descriptor.key });
-              entries.push(entry);
-            } catch (error) {
-              check();
-              entries.push({ key: folder.Name, title: folder.Name, type: null, entryPointUrl: null, sourceRootId: root.id,
-                discoveredFrom: packageAsset(root.baseUrl, manifestPath), status: error.code === 'unsupported-extension' ? 'unsupported' : 'invalid', error: error.message });
-            }
+          await scanBase(root, 'modules', {
+            prefix: 'mod_',
+            isReservedFolder: (name) => NATIVE_FOLDERS.has(name),
+            isReservedKey: (key) => NATIVE_KEYS.has(key),
+            manifestPathFor: (name) => `modules/${name}/${name}.xml`
+          });
+          for (const group of PLUGIN_GROUPS) {
+            await scanBase(root, `plugins/${group}`, {
+              prefix: '', optional: true,
+              isReservedFolder: (name) => NATIVE_PLUGIN_ELEMENTS.has(name),
+              isReservedKey: (key) => NATIVE_PLUGIN_ELEMENTS.has(key),
+              manifestPathFor: (name) => `plugins/${group}/${name}/${name}.xml`
+            });
           }
         } catch (error) {
           check();
@@ -149,8 +187,11 @@ export function createJoomlaDiscoveryService({ roots = [], legacy = null, maxFol
       try { inventory = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(inventoryBytes)); }
       catch { throw failure('Inventario JSON invalido.'); }
       if (inventory.format !== 'minijoomla-joomla-package-v1' || !Array.isArray(inventory.files) || inventory.files.length > 500 || !inventory.files.length) throw failure('Inventario de pacote nao suportado.');
-      if (!inventory.moduleKeys || !Object.hasOwn(inventory.moduleKeys, descriptor.element) || inventory.moduleKeys[descriptor.element] !== descriptor.key) throw failure('Identidade XML nao corresponde ao inventario aprovado.');
-      const declaredStyles = inventory.moduleStyles && Object.hasOwn(inventory.moduleStyles, descriptor.key) ? inventory.moduleStyles[descriptor.key] : [];
+      const identityMap = descriptor.type === 'Module' ? inventory.moduleKeys : inventory.pluginKeys;
+      const stylesMap = descriptor.type === 'Module' ? inventory.moduleStyles : inventory.pluginStyles;
+      const identityElement = descriptor.type === 'Module' ? descriptor.element : `${descriptor.group}/${descriptor.element}`;
+      if (!identityMap || !Object.hasOwn(identityMap, identityElement) || identityMap[identityElement] !== descriptor.key) throw failure('Identidade XML nao corresponde ao inventario aprovado.');
+      const declaredStyles = stylesMap && Object.hasOwn(stylesMap, descriptor.key) ? stylesMap[descriptor.key] : [];
       if (!Array.isArray(declaredStyles) || JSON.stringify(declaredStyles.map((path) => packageAsset(root.baseUrl, path)).sort()) !== JSON.stringify([...descriptor.styles].sort())) throw failure('Estilos XML nao correspondem ao inventario aprovado.');
       const paths = new Map();
       const names = new Set();

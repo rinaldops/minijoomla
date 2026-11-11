@@ -18,7 +18,7 @@ function etagSnapshot(row, expected) {
 
 function requireIdentity(row, descriptor) {
   const old = metadata(row).miniJoomla;
-  if (row.type !== 'Module' || row.key !== descriptor.key || (old?.identity && old.identity !== descriptor.identity)) throw new ValidationError('Atualizacao nao pode mudar a identidade instalada.');
+  if (row.type !== descriptor.type || row.key !== descriptor.key || (old?.identity && old.identity !== descriptor.identity)) throw new ValidationError('Atualizacao nao pode mudar a identidade instalada.');
 }
 
 function validationContract(params) {
@@ -69,9 +69,17 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
     }
   }
 
-  async function validateInstances(key, descriptor) {
+  async function validateInstances(current, descriptor) {
+    if (descriptor.type === 'Plugin') {
+      // Plugin parameters live on the extension row itself (paramsJson),
+      // validated against the newly verified manifest's own declarations —
+      // never module-only MODULE_ADVANCED_PARAMS, which do not apply here.
+      const settings = parseJsonObject(current.paramsJson, { strict: true, field: 'paramsJson' });
+      normalizeParamValues(descriptor.params, settings, { keepUndeclared: true });
+      return;
+    }
     const instances = await admin.moduleInstances.list();
-    for (const row of instances.filter((item) => item.extensionKey === key)) {
+    for (const row of instances.filter((item) => item.extensionKey === descriptor.key)) {
       // Validate every persisted instance, including disabled/trashed rows.
       // Legacy absence is allowed; nonobject JSON must not become defaults.
       // Normalization is validation only: never rewrite the stored wire data.
@@ -86,7 +94,7 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
     const descriptor = await discovery.verify(candidate, { signal });
     requireIdentity(current, descriptor);
     requireCompatibleParams(current, descriptor);
-    await validateInstances(current.key, descriptor);
+    await validateInstances(current, descriptor);
     const before = metadata(current);
     if (!before.miniJoomla?.fingerprint || !before.miniJoomla?.inventoryHash) throw new ValidationError('Modulo JSON legado requer migracao assistida; atualizacao XML sem revisao reversivel foi bloqueada.');
     // Revalidate the old immutable package before recording a rollback target.
@@ -112,7 +120,7 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
     requireIdentity(current, descriptor);
     requireCompatibleParams(current, descriptor);
     if (descriptor.entryPointUrl !== prior.entryPointUrl) throw new ValidationError('A revisao anterior nao corresponde ao pacote aprovado.');
-    await validateInstances(current.key, descriptor);
+    await validateInstances(current, descriptor);
     return repository.update(id, { entryPointUrl: prior.entryPointUrl, manifestJson: JSON.stringify(prior.manifest) }, { etag });
   }
 

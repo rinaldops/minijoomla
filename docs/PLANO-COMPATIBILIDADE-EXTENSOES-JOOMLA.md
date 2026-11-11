@@ -14,6 +14,25 @@
 > migrações permanecem evolução delimitada, não paridade PHP/ZIP/ACL.
 > [Fila vigente](PLANO-CONTINUIDADE-MINIJOOMLA.md).
 
+> **Perfil XML de plugins implementado (11/11):** `joomla-manifest.js` agora
+> aceita `<extension type="plugin" group="...">` além de módulos, reutilizando
+> parser/validação/limites existentes. Convenção de pasta
+> `plugins/<group>/<nome>/<nome>.xml`, group validado contra `PLUGIN_GROUPS`,
+> identidade `plugin:<group>::<nome>`. `joomla-discovery.js` varre `modules/`
+> (obrigatório) e as seis pastas `plugins/<group>/` (cada uma opcional: raiz
+> sem a pasta é reportada como ausente, nunca como falha de todo o scan),
+> com aliases nativos de plugin (`emailcloak`/`pagebreak`/`loadmodule`/
+> `pagenavigation`) reservados do mesmo jeito que os módulos nativos.
+> `joomla-extension-installer.js` generalizado: `validateInstances` ramifica
+> por `descriptor.type` (plugin valida `paramsJson` da própria linha de
+> extensão; módulo continua validando `moduleInstances`). Inventário de
+> pacote (`MANIFEST-SHA256.json`) ganhou `pluginKeys`/`pluginStyles`
+> paralelos a `moduleKeys`/`moduleStyles`, chaveados por `<group>/<elemento>`.
+> Testes reais com as quatro fixtures nativas existentes em `src/plugins/`
+> (sem `<config>`) e um pacote fictício com parâmetros/CSS/upgrade/rollback;
+> regressão completa **123 suítes / 0 falhas**, `npm run check` ok. Não
+> inclui template XML nem migração assistida (próximos itens da fila).
+
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,
 lista SharePoint ou publicacao foi alterada por esta analise.

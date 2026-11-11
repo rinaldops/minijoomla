@@ -225,7 +225,7 @@ export async function runExtensionMigrationPlanTests() {
   assert.equal(planExtensionMigration(sameIdentity).sourceKind, 'joomla-xml');
   const nestedKey = input(); nestedKey.extension.manifestJson = '{"miniJoomla":{"key":"other"}}'; refused(nestedKey, /identidade/);
   const corruptRuntime = input(); corruptRuntime.extension.manifestJson = '{"miniJoomla":null}'; refused(corruptRuntime, /corrompida/);
-  refused(input({ targetXml: xml().replace('type="module"', 'type="plugin"') }), /somente modulos/);
+  refused(input({ targetXml: xml().replace('type="module"', 'type="plugin"') }), /group/);
   refused(input({ targetXml: xml().replace('mod_example.js', 'mod_example.php') }), /PHP/);
   refused(input({ targetXml: xml('<field name="constructor" />') }), /reservado/);
   refused(input({ targetXml: xml('<field name="moduleClass" />') }), /avançados/);
