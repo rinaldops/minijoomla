@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { request } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createLocalDemoServer } from '../scripts/serve-local.js';
+import { createLocalDemoServer, parseLocalDemoArgs } from '../scripts/serve-local.js';
 
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
 
@@ -107,47 +107,43 @@ export async function runServeLocalTests() {
   });
   console.log('ok - loopback demo server serves real public/admin example bytes and their direct owned module/style entrypoints');
 
-  // `extraRoots` (pivô de empacotamento): montagem opt-in de uma raiz externa
-  // sob um prefixo, reaproveitando exatamente a mesma validação de
-  // containment/symlink/MIME — nunca uma porta mais frouxa que a raiz
-  // principal, e sem alterar o comportamento default (sem extraRoots).
-  {
-    const tmp = fileURLToPath(new URL('../tmp/', import.meta.url));
-    mkdirSync(tmp, { recursive: true });
-    const root = mkdtempSync(join(tmp, 'serve-local-extraroot-'));
-    const pkgRoot = mkdtempSync(join(tmp, 'serve-local-pkg-'));
-    try {
-      mkdirSync(join(root, 'examples'));
-      writeFileSync(join(root, 'examples/index.html'), '<h1>Demo</h1>');
-      writeFileSync(join(pkgRoot, 'index.js'), 'export const ok = true;');
-      mkdirSync(join(pkgRoot, 'css'));
-      writeFileSync(join(pkgRoot, 'css/template.css'), 'body{color:red}');
-      mkdirSync(join(pkgRoot, 'tmp'));
-      writeFileSync(join(pkgRoot, 'tmp/private.json'), '{"notForServing":true}');
-      let linked = false;
-      try { symlinkSync(join(pkgRoot, 'tmp'), join(pkgRoot, 'linked'), 'junction'); linked = true; }
-      catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; }
-      await withServer(root, async (base) => {
-        const entry = await fetch(base + '/pkg/camap-v3/index.js');
-        assert.equal(entry.status, 200);
-        assert.equal(entry.headers.get('content-type'), 'text/javascript; charset=utf-8');
-        assert.equal(await entry.text(), 'export const ok = true;');
-        const css = await fetch(base + '/pkg/camap-v3/css/template.css');
-        assert.equal(css.status, 200);
-        assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-        // Mounted root rejects the same private-directory/traversal/symlink
-        // classes as the main root — not a looser gate.
-        for (const path of ['/pkg/camap-v3/tmp/private.json', '/pkg/camap-v3/../index.js', '/pkg/camap-v3/absent.js']) {
-          assert.equal((await fetch(base + path)).status, 404, path);
-        }
-        if (linked) assert.equal((await fetch(base + '/pkg/camap-v3/linked/private.json')).status, 404);
-        // Default behavior (no mount hit) is unchanged: main root still serves its own tree.
-        assert.equal((await fetch(base + '/examples/index.html')).status, 200);
-        // A path that merely starts with the mounted example's own tree,
-        // outside any declared prefix, still 404s exactly as before.
-        assert.equal((await fetch(base + '/pkg-unrelated/index.js')).status, 404);
-      }, { 'pkg/camap-v3': pkgRoot });
-    } finally { rmSync(root, { recursive: true, force: true }); rmSync(pkgRoot, { recursive: true, force: true }); }
-    console.log('ok - loopback demo server: --extra-root mounts an external package root under a prefix with the same containment/symlink/MIME rules, default behavior unchanged without it');
-  }
+  const packageRoot=mkdtempSync(join(tmp,'serve-package-test-'));
+  try{
+    const mounts={'packages/probe':packageRoot};
+    for(const path of ['entry.js','modules/import.js','media/style.css','media/image.svg','media/font.woff2','docs/not-public.js','tmp/not-public.js']){mkdirSync(join(packageRoot,path,'..'),{recursive:true});writeFileSync(join(packageRoot,path),path);}
+    for(const prefix of ['src','examples/p','tests/p','packages','packages/p/sub','packages/P','packages/../x','packages/p/','packages/tmp','packages/docs','packages/private','packages/profile','packages/secrets']){
+      assert.throws(()=>createLocalDemoServer({extraRoots:{[prefix]:packageRoot}}));
+      assert.throws(()=>parseLocalDemoArgs(['--extra-root',`${prefix}=${packageRoot}`]));
+    }
+    for(const dir of [PROJECT,join(PROJECT,'..'),join(PROJECT,'scripts'),join(PROJECT,'src'),join(PROJECT,'examples'),join(PROJECT,'docs'),tmp])assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/alias':dir}}),/separate/);
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/one':packageRoot,'packages/two':packageRoot}}),/physical/);
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/one':packageRoot,'packages/two':join(packageRoot,'media')}}),/physical/);
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/alias':join(packageRoot,'docs')}}),/Private/);
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/alias':join(packageRoot,'.git')}}),/Private/);
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/p':'relative'}}));
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/p':join(packageRoot,'missing')}}));
+    assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/p':join(packageRoot,'entry.js')}}));
+    let hooks=0;assert.throws(()=>createLocalDemoServer({extraRoots:Object.defineProperty({},'packages/p',{enumerable:true,get(){hooks++;}})}));assert.equal(hooks,0);
+    assert.throws(()=>createLocalDemoServer({extraRoots:Object.fromEntries(Array.from({length:11},(_,i)=>[`packages/p${i}`,packageRoot]))}));
+    for(const args of [['--port','1e4'],['--port','0x2345'],['--port',' 8080'],['--port','8080','--port','8081'],['--extra-root','packages/p='],['--extra-root',`packages/p=${packageRoot}`,'--extra-root',`packages/p=${packageRoot}`]])assert.throws(()=>parseLocalDemoArgs(args));
+    assert.equal(parseLocalDemoArgs(['--port','8081','--extra-root',`packages/probe=${packageRoot}`]).extraRoots['packages/probe'],packageRoot);
+    await withServer(PROJECT,async base=>{
+      for(const path of ['entry.js','modules/import.js','media/style.css','media/image.svg','media/font.woff2']){
+        const r=await fetch(base+'/packages/probe/'+path);assert.equal(r.status,200,path);assert.equal(await r.text(),path);assert.equal(r.headers.get('cache-control'),'no-store');assert.equal(r.headers.get('x-content-type-options'),'nosniff');
+        const h=await fetch(base+'/packages/probe/'+path,{method:'HEAD'});assert.equal(h.status,200);assert.equal(await h.text(),'');assert.equal(Number(h.headers.get('content-length')),Buffer.byteLength(path));
+      }
+      for(const path of ['/packages/probe','/packages/probe/','/packages/unknown/entry.js','/packages/probe/docs/not-public.js','/packages/probe/tmp/not-public.js','/packages/probe/absent.js','/packages/probe/../entry.js','/packages/probe/%2e%2e/entry.js','/packages/probe/media/%2e%2e/%2e%2e/entry.js','/packages/probe/%2f../entry.js','/packages/probe/media%5cstyle.css','/packages/probe/entry.js:stream.js','/packages//probe/entry.js','/packages/probe/%ZZ'])assert.equal(await rawStatus(base,path),404,path);
+      assert.equal((await fetch(base+'/examples/index.html')).status,200);
+      const denied=await fetch(base+'/packages/probe/entry.js',{method:'POST'});assert.equal(denied.status,405);assert.equal(readFileSync(join(packageRoot,'entry.js'),'utf8'),'entry.js');
+    },mounts);
+    let linked=false;const link=join(packageRoot,'linked');
+    try{symlinkSync(packageRoot,link,'junction');linked=true;}catch(error){if(!['EPERM','EACCES','ENOTSUP'].includes(error.code))throw error;}
+    if(linked){
+      assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/probe':link}}),/Linked/);
+      assert.throws(()=>createLocalDemoServer({extraRoots:{'packages/probe':join(link,'media')}}),/Linked/);
+      await withServer(PROJECT,async base=>assert.equal(await rawStatus(base,'/packages/probe/linked/entry.js'),404),mounts);
+      rmSync(link);
+    }
+  }finally{rmSync(packageRoot,{recursive:true,force:true});}
+  console.log('ok - explicit trusted local package mounts: entry/import/CSS/media/HEAD, shared API/CLI gates, no shadowing/ambiguous prefixes/raw traversal/links/writes');
 }

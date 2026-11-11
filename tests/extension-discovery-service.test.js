@@ -104,13 +104,18 @@ export async function runExtensionDiscoveryServiceTests() {
   assert.equal(crossOriginTemplate.entryPointUrl, null);
 
   const invalidTemplateService = createTemplateDiscoveryService({
-    async listFiles() { return { value: [{ Name: 'bad.manifest.json' }, { Name: 'array-css.manifest.json' }] }; },
-    async downloadFile({ fileName }) { return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: fileName === 'bad.manifest.json' ? ['Not A Position!'] : ['footer'], styles: ['/template.css'] }); }
+    async listFiles() { return { value: [{ Name: 'bad.manifest.json' }, { Name: 'bad-2.manifest.json' }, { Name: 'array-css.manifest.json' }] }; },
+    async downloadFile({ fileName }) {
+      if (fileName === 'bad.manifest.json') return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: ['Not A Position!'], styles: ['/template.css'] });
+      if (fileName === 'bad-2.manifest.json') return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: ['not a position'], styles: ['/template.css'] });
+      return JSON.stringify({ title: 'Template', version: '1', entryPointUrl: '/template.js', positions: ['footer'], styles: ['/template.css'] });
+    }
   });
   const mixedTemplates = await invalidTemplateService.scan();
   assert.ok(mixedTemplates[0].error);
-  assert.equal(mixedTemplates[1].error, null);
-  assert.equal(mixedTemplates[1].styles, '["/template.css"]');
+  assert.ok(mixedTemplates[1].error);
+  assert.equal(mixedTemplates[2].error, null);
+  assert.equal(mixedTemplates[2].styles, '["/template.css"]');
 
   // 5. fileClient inválido (sem o contrato esperado) falha alto e claro, não silenciosamente.
   assert.throws(() => createExtensionDiscoveryService({}), TypeError);

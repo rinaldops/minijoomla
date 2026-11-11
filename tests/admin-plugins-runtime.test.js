@@ -4,6 +4,7 @@ import { createMiniJoomlaAdminApp } from '../src/libraries/minijoomla/compositio
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 import { createApplication } from '../src/index.js';
 import { ValidationError } from '../src/libraries/minijoomla/core/contracts.js';
+import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
 
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 const tick = async () => { for (let index = 0; index < 20; index += 1) await Promise.resolve(); };
@@ -37,6 +38,8 @@ function fixture(options = {}) {
   let version = 0;
   let broken = false;
   let beforeArticleCreate;
+  let beforeArticleUpdate;
+  let beforeCatalogRead;
   let merge204 = false;
   let failedArticleRead = false;
   const articleReads = [];
@@ -48,6 +51,7 @@ function fixture(options = {}) {
     const method = request.method ?? 'GET';
     const id = Number(/\/items\((\d+)\)$/.exec(path)?.[1]);
     if (name === 'extensions' && method === 'GET' && broken) throw new Error('PRIVATE diagnostic must not reach UI');
+    if (name === 'extensions' && method === 'GET') await beforeCatalogRead?.();
     if (name === 'articles' && method === 'GET' && id) {
       articleReads.push(id);
       if (failedArticleRead) throw new Error('PRIVATE post-write read failure');
@@ -63,7 +67,7 @@ function fixture(options = {}) {
     }
     const old = rows.get(id);
     if (request.etag !== old?.__etag) throw Object.assign(new Error('stale'), { code: 'concurrency-conflict', status: 412 });
-    if (method === 'MERGE') { const row = { ...old, ...body, __etag: `"${++version}"` }; rows.set(id, row); writes.push({ name, method }); return merge204 ? response(null, 204) : response(row, 200, row.__etag); }
+    if (method === 'MERGE') { if (name === 'articles') await beforeArticleUpdate?.(body); const row = { ...old, ...body, __etag: `"${++version}"` }; rows.set(id, row); writes.push({ name, method }); return merge204 ? response(null, 204) : response(row, 200, row.__etag); }
     throw new Error('Unexpected memory write');
   } };
   const app = createMiniJoomlaAdminApp({ webUrl: '/sites/minijoomla-test',
@@ -77,11 +81,137 @@ function fixture(options = {}) {
   };
   return { app, tables, writes, plugin, articleReads,
     breakCatalog: (value) => { broken = value; }, beforeArticleCreate: (callback) => { beforeArticleCreate = callback; },
+    beforeCatalogRead: (callback) => { beforeCatalogRead = callback; },
+    beforeArticleUpdate: (callback) => { beforeArticleUpdate = callback; },
     useMerge204: () => { merge204 = true; }, breakArticleRead: (value) => { failedArticleRead = value; }
   };
 }
 
+export async function runAdminPluginsBoundaryRaceTests() {
+  // Register a fulfillment reaction before the service's await continuation.
+  // The real runtime hook has FINISHED its final generation check at this point,
+  // yet persistence has not started. No polling or approximate microtask count.
+  for (const cancellation of ['stop', 'cancelPending']) {
+    for (const action of ['create', 'update', 'duplicate', 'batch-update', 'batch-duplicate']) {
+      let observed = 0, hookResolved = false, cancellationResult;
+      const f = fixture({ importModule: async () => ({ default: { events: {
+        onContentBeforeSave: (value) => value,
+        onContentAfterSave: () => { observed += 1; }
+      } } }) });
+      const original = await f.app.admin.articles.create({ title: 'Boundary original', alias: 'boundary-original' });
+      f.plugin('boundary');
+      const runtime = f.app.adminPlugins;
+      const service = createAdminService(f.app.repositories, { pluginManager: {
+        beforeSave: (value, context) => runtime.beforeSave(value, context),
+        afterSave: (value, context) => runtime.afterSave(value, context),
+        async captureSaveOperation() {
+          const handle = await runtime.captureSaveOperation();
+          return Object.freeze({ ...handle, beforeSave(value, context) {
+            const completion = handle.beforeSave(value, context);
+            completion.then(() => {
+              hookResolved = true;
+              cancellationResult = runtime[cancellation]();
+            }, () => {});
+            return completion;
+          } });
+        }
+      } });
+      const before = structuredClone([...f.tables.get('articles').values()]);
+      const writes = f.writes.length;
+      try {
+        if (action.startsWith('batch-')) {
+          const result = await service.articles.batch([{ id: original.id, etag: original.etag }], action === 'batch-update' ? 'unpublish' : 'duplicate');
+          assert.equal(result.failed.length, 1, `${cancellation}/${action}: cancelled write is a batch failure`);
+        } else {
+          const run = action === 'create' ? () => service.articles.create({ title: 'Boundary new', alias: 'boundary-new' })
+            : action === 'update' ? () => service.articles.update(original.id, { title: 'Boundary edited' }, { etag: original.etag })
+              : () => service.articles.duplicate(original.id);
+          await assert.rejects(run, ValidationError);
+        }
+        assert.equal(hookResolved, true, 'cancellation occurs after real hook fulfillment');
+        assert.equal(f.writes.length, writes, `${cancellation}/${action}: no persistence invocation after cancellation`);
+        assert.deepEqual([...f.tables.get('articles').values()], before, 'records and wire ETags stay exact');
+        assert.equal(observed, 0, 'cancelled operation has no post-save observation');
+        await cancellationResult;
+      } finally { await runtime.stop(); }
+    }
+  }
+
+  const completesWhileBlocked = async (promise, label) => {
+    let timeout;
+    try {
+      await Promise.race([promise, new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label}: newer navigation waited for obsolete preparation`)), 3000);
+      })]);
+    } finally { clearTimeout(timeout); }
+  };
+  for (const preparation of ['catalog-read', 'import']) {
+    const gate = deferred(), entered = deferred();
+    let initialized = 0, imported = 0;
+    const definition = { default: { adminLifecycle: true, events: { onAppInit: () => { initialized += 1; } } } };
+    const f = fixture({ importModule: async () => {
+      imported += 1;
+      if (preparation === 'import') { entered.resolve(); return gate.promise; }
+      return definition;
+    } });
+    f.plugin('obsolete');
+    if (preparation === 'catalog-read') {
+      let first = true;
+      f.beforeCatalogRead(() => {
+        if (!first) return;
+        first = false; entered.resolve(); return gate.promise;
+      });
+    }
+    const doc = documentStub();
+    const ui = createAdminApplication({ adminService: f.app.admin, pluginRuntime: f.app.adminPlugins, documentRef: doc, autoStart: false });
+    const old = ui.start();
+    await entered.promise;
+    f.tables.get('extensions').get(1).Enabled = false;
+    try {
+      await completesWhileBlocked(ui.router.navigate('#/config'), preparation);
+      assert.match(doc.body.innerHTML, /Configuração/);
+      assert.deepEqual(f.app.adminPlugins.list(), [], 'latest empty catalog commits before obsolete preparation resolves');
+      assert.equal(initialized, 0);
+      const latestHtml = doc.body.innerHTML;
+      gate.resolve(definition);
+      await old;
+      assert.equal(doc.body.innerHTML, latestHtml, 'obsolete completion cannot replace the repair screen');
+      assert.deepEqual(f.app.adminPlugins.list(), []);
+      assert.equal(initialized, 0, 'obsolete completion cannot register or initialize');
+      assert.equal(imported, preparation === 'import' ? 1 : 0, 'obsolete catalog completion cannot begin imports');
+      assert.equal(f.writes.length, 0);
+    } finally { gate.resolve(definition); await old; await ui.stop(); }
+  }
+  // The new guard blocks only not-yet-invoked persistence. An initiated update
+  // still completes once and uses its captured observer/params after stop,
+  // including the MERGE 204 observation-only reread.
+  for (const merge204 of [false, true]) {
+    const entered = deferred(), gate = deferred(), observed = [];
+    const f = fixture({ importModule: async () => ({ default: { events: {
+      onContentBeforeSave: (value) => value,
+      onContentAfterSave: (value, context) => observed.push([value.title, context.params.revision, value.etag])
+    } } }) });
+    const row = await f.app.admin.articles.create({ title: 'Initiated', alias: 'initiated' });
+    const plugin = f.plugin('initiated', { ParamsJson: '{"revision":"captured"}' });
+    if (merge204) f.useMerge204();
+    f.beforeArticleUpdate(() => { entered.resolve(); return gate.promise; });
+    const update = f.app.admin.articles.update(row.id, { title: 'Completed' }, { etag: row.etag });
+    await entered.promise;
+    plugin.ParamsJson = '{"revision":"new"}';
+    await f.app.adminPlugins.stop();
+    gate.resolve();
+    const result = await update;
+    const stored = f.tables.get('articles').get(row.id);
+    assert.equal(merge204 ? result : result.title, merge204 ? null : 'Completed');
+    assert.deepEqual(observed, [['Completed', 'captured', stored.__etag]]);
+    assert.equal(f.writes.filter((write) => write.name === 'articles').length, 2, 'one initial create and one already-started update');
+  }
+  console.log('ok - admin plugin boundary races: ten fulfilled-hook cancellation cases block writes; newer repair screens bypass obsolete catalog reads/imports');
+  console.log('ok - initiated update completion keeps captured post-save params after stop for mapped and MERGE 204 responses');
+}
+
 export async function runAdminPluginsRuntimeTests() {
+  await runAdminPluginsBoundaryRaceTests();
   const imports = [];
   const lifecycle = [];
   const saves = [];
@@ -418,7 +548,33 @@ export async function runAdminPluginsRuntimeTests() {
   const partial = fixture({ lists: { articles: { listPath: "lists/getbytitle('articles')" }, categories: { listPath: "lists/getbytitle('categories')" } } });
   assert.equal(partial.app.adminPlugins, null, 'deliberately absent extensions domain is plugin-free, not an unavailable catalog');
   assert.equal((await partial.app.admin.articles.create({ title: 'partial', alias: 'partial' })).title, 'partial');
+
+  // Consolidation regression: both services survive the composition and UI
+  // signatures. Opening Sample Data does not replace the save-plugin runtime.
+  let coexistSaves = 0, sampleInspections = 0;
+  const coexist = fixture({ importModule: async () => ({ default: { events: {
+    onContentBeforeSave: (value) => { coexistSaves += 1; return value; }
+  } } }) });
+  coexist.plugin('coexist');
+  assert.equal(typeof coexist.app.sampleData.inspect, 'function');
+  assert.equal(typeof coexist.app.sampleData.install, 'function');
+  const coexistDocument = documentStub();
+  const coexistUi = createAdminApplication({
+    adminService: coexist.app.admin, pluginRuntime: coexist.app.adminPlugins,
+    sampleDataService: { inspect: async () => { sampleInspections += 1; return { status: 'unavailable', message: 'Local sample data fixture' }; } },
+    documentRef: coexistDocument, autoStart: false
+  });
+  try {
+    await coexistUi.start();
+    await coexistUi.router.navigate('#/sampledata');
+    assert.equal(sampleInspections, 1);
+    assert.match(coexistDocument.body.innerHTML, /Local sample data fixture/);
+    assert.deepEqual(coexist.app.adminPlugins.list(), ['coexist']);
+    assert.equal((await coexist.app.admin.articles.create({ title: 'Coexist', alias: 'coexist' })).title, 'Coexist');
+    assert.equal(coexistSaves, 1);
+  } finally { await coexistUi.stop(); }
   console.log('ok - admin plugins real composition: refresh, scopes, veto/ETag, lifecycle, fail-closed catalog and stop/navigation races');
+  console.log('ok - consolidation: administrative plugins and Sample Data coexist in composition and UI');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await runAdminPluginsRuntimeTests();

@@ -106,8 +106,9 @@ export async function runToolingValidationTests() {
     assert.throws(() => copyTestTree(join(source, 'value.js'), join(ordinaryCopy, 'value.js')), error => error.code === 'EEXIST', 'Fixture copying must not overwrite files');
     const link = join(source, 'cycle');
     let linked = false;
+    let unavailableLinks = 0;
     try { symlinkSync(source, link, process.platform === 'win32' ? 'junction' : 'dir'); linked = true; }
-    catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; }
+    catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; unavailableLinks += 1; }
     if (linked) {
       try { assert.throws(() => copyTestTree(source, join(base, 'copy-target')), /must not follow links/); }
       finally { rmSync(link); }
@@ -122,7 +123,7 @@ export async function runToolingValidationTests() {
         assert.ok(!rejected.stdout.includes('Syntax OK:'));
       } finally { rmSync(nestedLink); }
     }
-    console.log('ok - tooling validation: JS/MJS in src/tests/examples/scripts, parse errors visible, no evaluation/import certification, bounded test-owned cleanup and junction rejection');
+    console.log(`ok - tooling validation: JS/MJS in src/tests/examples/scripts, parse errors visible, no evaluation/import certification, bounded test-owned cleanup; ${linked ? 2 : 0} junction checks, ${unavailableLinks} link creations unavailable`);
   } finally { removeTestDirectory(base); }
 }
 

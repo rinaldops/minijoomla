@@ -151,7 +151,7 @@ export async function runAdminManagementTests() {
   const createdTemplate = await service.templates.create(validTemplate);
   assert.equal(createdTemplate.positionsJson, '["footer"]');
   assert.equal(createdTemplate.styles, '["./c.css"]');
-  for (const patch of [{ positions: [] }, { positions: ['UNKNOWN'] }, { positions: ['bad position'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
+  for (const patch of [{ positions: [] }, { positions: ['UNKNOWN'] }, { positions: ['unknown slot'] }, { positions: ['bad position'] }, { positions: undefined, positionsJson: '{"footer":1}' }, { styles: '["javascript:x"]' }, { entryPointUrl: '//other.example/a.js' }, { entryPointUrl: 'https://other.example/a.js' }]) {
     await assert.rejects(() => service.templates.create({ ...validTemplate, ...patch, key: 'invalid' }), ValidationError);
   }
   // Posição bem-formada fora da lista estrutural fechada é aceita (pivô de

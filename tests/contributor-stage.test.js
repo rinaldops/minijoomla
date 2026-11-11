@@ -6,6 +6,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONTRIBUTOR_FILES, stageContributor, verifyContributorStage } from '../scripts/stage-contributor.js';
 import { auditDistribution } from '../scripts/audit-distribution.js';
+import { TEST_SUITES } from './run-tests.js';
 import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,10 +29,13 @@ async function workflow(root) {
     ? process.env.npm_execpath : join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
   assert.ok(existsSync(npm), 'npm CLI must be available for the contributor command check');
   const tests = command(root, process.execPath, [npm, 'test']);
-  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, 11);
-  assert.match(tests.stdout, /Suites: \d+ passed, 11 skipped, 0 failed/);
+  const optional = TEST_SUITES.filter(suite => suite.requiresSPMiddle);
+  const expectedSummary = `Suites: ${TEST_SUITES.length - optional.length} passed, ${optional.length} skipped, 0 failed`;
+  assert.equal((tests.stdout.match(/^SKIP - /gm) ?? []).length, optional.length);
+  assert.ok(tests.stdout.includes(expectedSummary), tests.stdout);
+  for (const suite of optional) assert.ok(tests.stdout.includes(`SKIP - ${suite.file}: optional SPMIDDLE integration; ../SPMIDDLE is absent`));
   assert.match(tests.stdout, /ok - suite runner\.test\.js/);
-  console.log(`ok - selected npm test: ${tests.stdout.match(/Suites: \d+ passed, 11 skipped, 0 failed/)[0]}; real runner child also passed`);
+  console.log(`ok - selected npm test: ${expectedSummary}; real runner child also passed`);
   const syntax = command(root, process.execPath, [npm, 'run', 'check']);
   assert.match(syntax.stdout, /Syntax OK: \d+ JavaScript files/);
   assert.match(syntax.stdout, /src\/tests\/examples\/scripts; \.js\/\.mjs; parse only/);
@@ -98,12 +102,15 @@ export async function runContributorStageTests({ commands = false } = {}) {
     try { symlinkSync(target, path, type); return true; }
     catch (error) { if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error; unavailableLinks += 1; return false; }
   };
-  const cli = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8', timeout: 30000 });
+  // Hundreds of exact-path reads/copies can exceed 30s under Windows scanning;
+  // preserve bounded execution and all inventory assertions, not a false pass.
+  const cli = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dirname(PROJECT), encoding: 'utf8', timeout: 120000 });
   try {
     assert.ok(Object.isFrozen(CONTRIBUTOR_FILES));
     assert.equal(new Set(CONTRIBUTOR_FILES).size, CONTRIBUTOR_FILES.length);
-    // Freeze test inputs once. Parallel authorized edits must not invalidate a
-    // byte comparison minutes later. The actual default-source CLI runs below.
+    // Freeze reviewed test inputs once. Parallel authorized edits must not
+    // invalidate a byte comparison minutes later; the actual default-source
+    // CLI coverage remains below.
     const snapshotRoot = join(base, 'snapshot');
     const snapshot = new Map();
     for (const name of CONTRIBUTOR_FILES) {
@@ -124,7 +131,15 @@ export async function runContributorStageTests({ commands = false } = {}) {
       assert.equal(data.length, entry.bytes);
       assert.equal(hash(data), entry.sha256);
       assert.deepEqual(data, snapshot.get(entry.path), `Never rewrite or sanitize ${entry.path}`);
-      assert.ok(!/^(?:tmp\/|\.git\/|host-adapters\/|theme\/)/.test(entry.path));
+      assert.ok(!/^(?:tmp\/|\.git\/|theme\/)/.test(entry.path));
+      if(entry.path.startsWith('host-adapters/'))assert.ok([
+        'host-adapters/modern-script-editor/host.js',
+        'host-adapters/modern-script-editor/mse-layout.js',
+        'host-adapters/modern-script-editor/loader.js',
+        'host-adapters/modern-script-editor/installation-context.js',
+        'host-adapters/modern-script-editor/public-installation-snippet.html',
+        'host-adapters/modern-script-editor/administrator-installation-snippet.html'
+      ].includes(entry.path),'Only reviewed generic bootstrap files are included, never host runbooks or operational config');
     }
     const vendor = first.manifest.files.filter(({ path }) => path.startsWith('src/media/vendor/tinymce/'));
     assert.equal(vendor.length, 33);
@@ -192,7 +207,8 @@ export async function runContributorStageTests({ commands = false } = {}) {
     checkpoint('inventory integrity and audit CLI');
     // Reuse the already isolated snapshot; adding unselected sources and
     // corrupting/restoring one selected file needs no third full source copy.
-    // The in-memory bytes and both earlier stages remain unchanged.
+    // The in-memory bytes and both earlier stages remain unchanged. Unlisted
+    // source additions never affect the selection.
     const source = snapshotRoot;
     for (const name of ['src/unlisted.js', 'src/private.json', '.git/config', 'tmp/evidence.js', 'host-adapters/deployment.html', 'docs/PLANO-MINIJOOMLA.md']) put(join(source, name), 'synthetic excluded content');
     const fixture = stageContributor({ output: join(base, 'fixture-stage'), sourceRoot: source });
@@ -231,8 +247,8 @@ export async function runContributorStageTests({ commands = false } = {}) {
     assert.ifError(successful.error); assert.equal(successful.status, 0, successful.stderr);
     const cliManifest = verifyContributorStage({ output: join(base, 'cli-stage') });
     assert.deepEqual(cliManifest.files.map(entry => entry.path), CONTRIBUTOR_FILES);
-    // The CLI reads live sources; compare its immutable output to its manifest,
-    // not an earlier snapshot potentially edited by another authorized agent.
+    // The CLI reads live/current sources; compare its own immutable manifest
+    // and hashes, not an earlier potentially edited snapshot.
     for (const entry of cliManifest.files) assert.equal(hash(readFileSync(join(base, 'cli-stage', entry.path))), entry.sha256);
     console.log(`ok - contributor immutable/containment/inventory/CLI gates; ${checkedLinks} link checks, ${unavailableLinks} link creations unavailable`);
     checkpoint('selection CLI');

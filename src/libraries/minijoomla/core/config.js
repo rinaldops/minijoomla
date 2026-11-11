@@ -13,7 +13,7 @@ export function createConfig(overrides = {}) {
   const homeView = input.homeView ?? defaultConfig.homeView;
   const homeCategory = input.homeCategory ?? defaultConfig.homeCategory;
   if (!['category', 'featured'].includes(homeView)) throw new TypeError('Tipo de página inicial inválido.');
-  if (typeof homeCategory !== 'string' || !homeCategory.trim()) throw new TypeError('Categoria da página inicial inválida.');
+  if (typeof homeCategory !== 'string' || homeView === 'category' && !homeCategory.trim()) throw new TypeError('Categoria da página inicial inválida.');
   return Object.freeze({
     ...defaultConfig,
     ...input,

@@ -38,7 +38,7 @@ const FIXTURES = {
     names: 'Title Path ParentId Published Ordering', added: '', clear: 'parentId'
   },
   extensions: {
-    input: { title: 'Plugin local', key: 'local-plugin', type: 'Plugin', entryPointUrl: 'extensions/local-plugin/index.js', discoveredFrom: 'local-plugin/manifest.json', enabled: false, ordering: 3, folder: 'content', paramsJson: '{"active":false}', manifestJson: '{"version":"1.0.0","params":[]}' },
+    input: { title: 'Plugin local', key: 'local-plugin', type: 'Plugin', entryPointUrl: 'extensions/local-plugin/index.js', discoveredFrom: 'local-plugin/manifest.json', enabled: false, ordering: 3, folder: 'content', paramsJson: '{"active":false}', manifestJson: '{"version":"1.0.0","params":[],"group":"content"}' },
     names: 'Title Key Type EntryPointUrl DiscoveredFrom Enabled Ordering Folder ParamsJson ManifestJson',
     added: 'Ordering Folder ParamsJson ManifestJson', clear: 'paramsJson'
   },
@@ -123,10 +123,17 @@ async function runEntityCrudContracts() {
     const created = ['siteConfig', 'tags'].includes(domain) ? await repository.create(fixture.input) : await admin[domain].create(fixture.input);
     const raw = state.items.get(created.id);
     for (const { field, value, name } of expected) {
-      assert.deepEqual(raw[name], value, `${domain}: payload interno ${name}`);
-      assert.deepEqual(created[field], value, `${domain}: round-trip ${field}`);
+      if (domain === 'extensions' && field === 'folder') assert.equal(Object.hasOwn(raw, 'Folder'), false, 'grupo lógico não grava navegação REST Folder');
+      // Gap B (ver TEMPLATE-INSTALL-CONTRACT.md §3): ParamDefinitionsJson é coluna aditiva no schema para
+      // compatibilidade de inventário/provisionamento, mas admin-service.js nunca grava nela diretamente —
+      // declarações sempre são empacotadas dentro do envelope minijoomla-template-metadata-v1 no campo Styles.
+      else if (domain === 'templates' && field === 'paramDefinitionsJson') assert.equal(Object.hasOwn(raw, 'ParamDefinitionsJson'), false, 'declarações de template nunca gravam coluna física própria');
+      else if (domain === 'templates' && field === 'styles') assert.deepEqual(JSON.parse(raw[name]), { format: 'minijoomla-template-metadata-v1', styles: JSON.parse(value), paramDefinitions: [] }, `${domain}: payload interno ${name}`);
+      else assert.deepEqual(raw[name], value, `${domain}: payload interno ${name}`);
+      if (domain === 'templates' && field === 'styles') assert.deepEqual(JSON.parse(created[field]), { format: 'minijoomla-template-metadata-v1', styles: JSON.parse(value), paramDefinitions: [] }, `${domain}: round-trip ${field}`);
+      else if (!(domain === 'templates' && field === 'paramDefinitionsJson')) assert.deepEqual(created[field], value, `${domain}: round-trip ${field}`);
     }
-    assert.deepEqual(Object.keys(raw).sort(), ['Id', '@odata.etag', ...expected.map(({ name }) => name)].sort());
+    assert.deepEqual(Object.keys(raw).sort(), ['Id', '@odata.etag', ...expected.map(({ name }) => name).filter((name) => (domain !== 'extensions' || name !== 'Folder') && (domain !== 'templates' || name !== 'ParamDefinitionsJson'))].sort());
     const listed = (await repository.findMany()).items;
     assert.equal(listed.length, 1);
     assert.equal(listed[0].id, created.id);
@@ -156,11 +163,12 @@ async function runEntityCrudContracts() {
     const changed = await repository.findById(created.id);
     assert.equal(changed[label], 'Alterado');
     assert.equal(changed[fixture.clear], null, 'null explícito limpa; omissão não limpa');
-    for (const { field, value } of expected) if (![label, fixture.clear].includes(field)) assert.deepEqual(changed[field], value, `${domain}: update parcial preserva ${field}`);
+    for (const { field, value } of expected) if (![label, fixture.clear].includes(field) && !(domain === 'templates' && (field === 'paramDefinitionsJson' || field === 'styles'))) assert.deepEqual(changed[field], value, `${domain}: update parcial preserva ${field}`);
+    if (domain === 'templates') assert.equal(changed.styles, created.styles, `${domain}: update parcial preserva styles (envelope intacto)`);
     await assert.rejects(() => repository.update(created.id, fixture.input, { etag: created.etag }), isConflict);
     assert.equal(await repository.update(created.id, fixture.input, { etag: changed.etag }), null);
     const restored = await repository.findById(created.id);
-    for (const { field, value } of expected) assert.deepEqual(restored[field], value, `${domain}: snapshot restaurado`);
+    for (const { field, value } of expected) if (!(domain === 'templates' && field === 'paramDefinitionsJson')) assert.deepEqual(restored[field], value, `${domain}: snapshot restaurado`);
     await repository.delete(created.id, { etag: restored.etag });
     assert.equal((await repository.findMany()).items.length, 0);
     await assert.rejects(() => repository.findById(created.id), (error) => error.status === 404);

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MINIJOOMLA — instalação isolada</title><link rel="stylesheet" href="../src/media/installation/installation.css"></head>
+<body><main data-install-native-root></main><script type="module">
+import { createInstallationService, INSTALLATION_DOMAINS } from '../src/libraries/minijoomla/application/installation-service.js';
+import { mountInstallationPage } from '../src/installation/template.js';
+const root=document.querySelector('[data-install-native-root]');
+const names={categories:'MiniJoomlaCategories',tags:'MiniJoomlaTags',articles:'MiniJoomlaArticles',menu:'MiniJoomlaMenu',extensions:'MiniJoomlaExtensions',templates:'MiniJoomlaTemplates',moduleInstances:'MiniJoomlaModuleInstances',siteConfig:'MiniJoomlaSiteConfig'};
+let journal=null,config=null;const lists=new Map(),writes=[];
+const report=domain=>lists.get(domain)??{domain,title:names[domain],id:null,exists:false,compatible:false,empty:true,itemCount:0,issues:[],fingerprint:'fixture-'+domain};
+const port={webUrl:'/sites/isolated',libraryPath:'/sites/isolated/SiteAssets/minijoomla',async inspect(){return {lists:INSTALLATION_DOMAINS.map(d=>structuredClone(report(d))),configuration:structuredClone(config),configurationETag:config?'"local-1"':null,configurationExists:!!config};},
+async provisionList(domain,{expectedAbsent,isCurrent}){if(expectedAbsent!==true||isCurrent()!==true||lists.has(domain))throw Error('Invalid local create');writes.push(domain);const row={...report(domain),exists:true,compatible:true,id:'isolated-'+domain};lists.set(domain,row);return structuredClone(row);},
+async verifyList(domain,id){const row=report(domain);if(row.id!==id)throw Error('Receipt');return structuredClone(row);},
+async writeConfiguration(value,{expectedAbsent,isCurrent}){if(!expectedAbsent||!isCurrent()||config)throw Error('Invalid local config');writes.push('configuration');config=structuredClone(value);return {configuration:structuredClone(config),etag:'"local-1"'};}};
+const journalStore={read:()=>structuredClone(journal),write:value=>{journal=structuredClone(value);}};
+const service=createInstallationService({port,journalStore});
+globalThis.__installationNative={writes,lists,readConfiguration:()=>structuredClone(config),readJournal:()=>structuredClone(journal),service};
+await mountInstallationPage({root,service,onInstalled:async value=>{root.innerHTML='<section class="minijoomla-installation"><h1>Instalação isolada concluída</h1><p data-native-installed></p></section>';root.querySelector('p').textContent=value.initialSite.siteName;}});
+</script></body></html>

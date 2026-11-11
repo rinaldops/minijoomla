@@ -1,40 +1,44 @@
 import { createServer } from 'node:http';
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { lstatSync } from 'node:fs';
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.ico': 'image/vnd.microsoft.icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.eot': 'application/vnd.ms-fontobject' };
 const within = (root, path) => path === root || (!relative(root, path).startsWith(`..${sep}`) && relative(root, path) !== '..' && !isAbsolute(relative(root, path)));
+const PREFIX=/^packages\/[a-z0-9][a-z0-9_-]{0,63}$/;
+const PRIVATE=/^(?:tmp|docs|profiles?|secrets?|credentials?|evidence|private)$/i;
+const validPrefix=prefix=>typeof prefix==='string'&&PREFIX.test(prefix)&&!PRIVATE.test(prefix.split('/')[1]);
+const blocked = path => !path.startsWith('/') || path.includes('//') || /[\\:\u0000-\u001f\u007f]/.test(path) || path.split('/').some(part => part.startsWith('.') || /[.\s]$/.test(part) || PRIVATE.test(part));
+function mountRoots(input,projectRoot){
+  if(!input||typeof input!=='object'||Array.isArray(input)||![Object.prototype,null].includes(Object.getPrototypeOf(input)))throw new TypeError('Invalid local package mounts');
+  const descriptors=Object.getOwnPropertyDescriptors(input),keys=Reflect.ownKeys(descriptors);
+  if(keys.length>10)throw new TypeError('At most ten explicit local package mounts');
+  const mounts=keys.map(prefix=>{
+    const d=descriptors[prefix];
+    if(!validPrefix(prefix)||!d.enumerable||!Object.hasOwn(d,'value')||typeof d.value!=='string'||!isAbsolute(d.value))throw new TypeError('Use packages/<id> and an absolute dedicated package directory');
+    const root=resolve(d.value);
+    // Do not turn an alias into a way to expose otherwise excluded project
+    // directories. Dedicated generated packages may live below tmp, not tmp
+    // itself; private-named subtrees remain excluded regardless of URL alias.
+    if(within(root,projectRoot)||['src','examples','tests','scripts','docs','host-adapters','tools','skills'].some(name=>within(resolve(projectRoot,name),root))||root===resolve(projectRoot,'tmp'))throw new TypeError('Mount must be separate from project source/private roots');
+    for(let p=root;;p=dirname(p)){const name=basename(p);if(name.startsWith('.')||PRIVATE.test(name)&&!(name==='tmp'&&p!==root))throw new TypeError('Private package root/ancestor refused');if(p===dirname(p))break;}
+    for(let p=root;;p=dirname(p)){if(lstatSync(p).isSymbolicLink())throw new TypeError('Linked package roots/ancestors refused');if(p===dirname(p))break;}
+    if(!lstatSync(root).isDirectory())throw new TypeError('Package root must be a directory');
+    return Object.freeze({prefix:`/${prefix}/`,root});
+  });
+  for(let i=0;i<mounts.length;i++)for(let j=0;j<i;j++)if(within(mounts[i].root,mounts[j].root)||within(mounts[j].root,mounts[i].root))throw new TypeError('Duplicate/overlapping physical package roots refused');
+  return mounts;
+}
 
-// Demo server, loopback only. Never serves tmp, documentation, Git or profiles.
-// `extraRoots` (pivô de empacotamento, opt-in, preview local apenas): mapa
-// `prefixo -> raiz absoluta`, montando pacotes externos (ex. um template
-// instalado publicado fora da árvore do MINIJOOMLA, como
-// web-devs/CAMAP-V3/minijoomla-template/) sob `/<prefixo>/...`, reaproveitando
-// EXATAMENTE a mesma lógica de containment/symlink/MIME da raiz principal.
-// Ausência de `extraRoots` preserva o comportamento atual, byte a byte —
-// nenhum mecanismo equivalente existe (nem deve existir) em produção.
+// Demo server, loopback only. Private URL paths remain excluded; any dedicated
+// generated assets below tmp require an explicit trusted package mount.
 export function createLocalDemoServer({ root = PROJECT, extraRoots = {} } = {}) {
   root = resolve(root);
-  const mounts = Object.fromEntries(Object.entries(extraRoots).map(([prefix, mountRoot]) => [prefix, resolve(mountRoot)]));
-  async function serveFrom(servedRoot, path, response, method) {
-    const finish = (status, text) => { response.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); response.end(text); };
-    const file = resolve(servedRoot, `.${path}`);
-    const top = resolve(servedRoot, path.split('/')[1]);
-    if (!within(top, file)) { finish(404, 'Not found'); return; }
-    // Refuse every symlink/junction, including a top-level served directory.
-    let current = servedRoot;
-    if ((await lstat(servedRoot)).isSymbolicLink()) { finish(404, 'Not found'); return; }
-    for (const part of relative(servedRoot, file).split(sep)) {
-      current = resolve(current, part);
-      if ((await lstat(current)).isSymbolicLink()) { finish(404, 'Not found'); return; }
-    }
-    if (!within(servedRoot, await realpath(file)) || !(await lstat(file)).isFile() || !MIME[extname(file).toLowerCase()]) { finish(404, 'Not found'); return; }
-    const bytes = await readFile(file);
-    response.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()], 'Content-Length': bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-    response.end(method === 'HEAD' ? undefined : bytes);
-  }
+  // Trusted packages only, explicitly selected by the local operator. Dedicated
+  // prefixes cannot shadow source routes or overlap; no production registration.
+  const mounts=mountRoots(extraRoots,root);
   return createServer(async (request, response) => {
     const finish = (status, text) => { response.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); response.end(text); };
     if (!['GET', 'HEAD'].includes(request.method)) { response.setHeader('Allow', 'GET, HEAD'); finish(405, 'Read-only local server'); return; }
@@ -43,49 +47,46 @@ export function createLocalDemoServer({ root = PROJECT, extraRoots = {} } = {}) 
       if (path === '/') path = '/examples/index.html';
       // Colons/ambiguous Windows suffixes also reject alternate data streams
       // and aliases of otherwise excluded private directories.
-      if (/[\\:\u0000-\u001f\u007f]/.test(path) || path.split('/').some((part) => part.startsWith('.') || /[.\s]$/.test(part) || /^(?:tmp|docs|profiles?|secrets?|credentials?|evidence|private)$/i.test(part))) { finish(404, 'Not found'); return; }
-      const mountPrefix = Object.keys(mounts).find((prefix) => path === `/${prefix}` || path.startsWith(`/${prefix}/`));
-      if (mountPrefix) {
-        const mountRoot = mounts[mountPrefix];
-        const mountedPath = path.slice(`/${mountPrefix}`.length) || '/';
-        await serveFrom(mountRoot, mountedPath, response, request.method);
-        return;
+      if (blocked(path)) { finish(404, 'Not found'); return; }
+      const mount=mounts.find(m=>path.startsWith(m.prefix));
+      if(!mount&&!/^\/(?:src|examples|tests)\//.test(path)){finish(404,'Not found');return;}
+      const servedRoot=mount?.root??root,servedPath=mount?'/'+path.slice(mount.prefix.length):path;
+      const file = resolve(servedRoot, `.${servedPath}`);
+      const top = mount?servedRoot:resolve(root, path.split('/')[1]);
+      if (!within(top, file)) { finish(404, 'Not found'); return; }
+      // Refuse every symlink/junction, including a top-level served directory.
+      let current = servedRoot;
+      for(let p=servedRoot;;p=dirname(p)){if((await lstat(p)).isSymbolicLink()){finish(404,'Not found');return;}if(p===dirname(p))break;}
+      for (const part of relative(servedRoot, file).split(sep)) {
+        current = resolve(current, part);
+        if ((await lstat(current)).isSymbolicLink()) { finish(404, 'Not found'); return; }
       }
-      if (!/^\/(?:src|examples|tests)\//.test(path)) { finish(404, 'Not found'); return; }
-      await serveFrom(root, path, response, request.method);
+      if (!within(servedRoot, await realpath(file)) || !(await lstat(file)).isFile() || !MIME[extname(file).toLowerCase()]) { finish(404, 'Not found'); return; }
+      const bytes = await readFile(file);
+      response.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()], 'Content-Length': bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      response.end(request.method === 'HEAD' ? undefined : bytes);
     } catch (error) { finish(error.code === 'ENOENT' || error.code === 'ENOTDIR' || error instanceof URIError ? 404 : 500, 'Not found'); }
   });
 }
 
-function parseArgs(args) {
-  let port = 8080;
-  const extraRoots = {};
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === '--port') { port = Number(args[++index]); continue; }
-    if (arg === '--extra-root') {
-      const value = args[++index] ?? '';
-      const separatorIndex = value.indexOf('=');
-      if (separatorIndex <= 0) return { error: 'Usage: --extra-root <prefixo>=<caminho>' };
-      const prefix = value.slice(0, separatorIndex);
-      const path = value.slice(separatorIndex + 1);
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9/_-]{0,80}$/.test(prefix) || !path) return { error: 'Usage: --extra-root <prefixo>=<caminho>' };
-      extraRoots[prefix] = path;
-      continue;
-    }
-    return { error: `Argumento desconhecido: ${arg}` };
+export function parseLocalDemoArgs(args){
+  let port=8080,portSeen=false;const extraRoots=Object.create(null);
+  for(let i=0;i<args.length;i++){
+    if(args[i]==='--port'&&!portSeen&&/^\d+$/.test(args[i+1]??'')){port=Number(args[++i]);portSeen=true;}
+    else if(args[i]==='--extra-root'){
+      const value=args[++i]??'',at=value.indexOf('='),prefix=value.slice(0,at),path=value.slice(at+1);
+      if(at<1||!validPrefix(prefix)||!path||Object.hasOwn(extraRoots,prefix))throw new TypeError('Invalid or duplicate local package mount');
+      extraRoots[prefix]=resolve(path);
+    }else throw new TypeError('Invalid local server argument');
   }
-  return { port, extraRoots };
+  if(!Number.isInteger(port)||port<1024||port>65535)throw new TypeError('Port must be 1024..65535');
+  return {port,extraRoots};
 }
-
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const parsed = parseArgs(process.argv.slice(2));
-  if (parsed.error || !Number.isInteger(parsed.port) || parsed.port < 1024 || parsed.port > 65535) {
-    console.error(parsed.error ?? 'Usage: node scripts/serve-local.js [--port 1024..65535] [--extra-root <prefixo>=<caminho> ...]');
-    process.exitCode = 1;
-  } else {
-    const server = createLocalDemoServer({ extraRoots: parsed.extraRoots });
+  try {
+    const {port,extraRoots}=parseLocalDemoArgs(process.argv.slice(2));
+    const server = createLocalDemoServer({extraRoots});
     server.on('error', (error) => { console.error(`Local server: ${error.code}`); process.exitCode = 1; });
-    server.listen(parsed.port, '127.0.0.1', () => console.log(`Local demo only: http://127.0.0.1:${parsed.port}/examples/index.html and /examples/admin.html (Ctrl+C to stop)`));
-  }
+    server.listen(port, '127.0.0.1', () => console.log(`Local demo only: http://127.0.0.1:${port}/examples/index.html and /examples/admin.html (Ctrl+C to stop)`));
+  }catch(error){console.error('Usage: node scripts/serve-local.js [--port 1024..65535] [--extra-root packages/<id>=<directory> ...]');process.exitCode=1;}
 }

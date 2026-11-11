@@ -19,14 +19,16 @@
  * responsabilidade de src/libraries/minijoomla/security/sanitize.js no momento de renderizar,
  * não de persistir).
  */
-import { ValidationError } from '../core/contracts.js';
-import { TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles, isWellFormedPositionName } from './extension-input.js';
+import { ValidationError, ownDataValue } from '../core/contracts.js';
+import { createConfig } from '../core/config.js';
+import { BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_URLS, extensionKey, sameSiteModuleUrl, enabledValue, jsonObject, templatePositions, templateStyles, isWellFormedPositionName } from './extension-input.js';
 import { normalizeAssignment, normalizeAssignmentTokens, normalizeDateTime } from './module-assignment.js';
 import { validateTemplateStyles, BUILTIN_TEMPLATES } from './template-styles.js';
 import { toSiteConfigOverrides } from './site-config-overrides.js';
 import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from './module-catalog.js';
-import { normalizeParamValues, normalizeParamDefinitions, parseJsonObject } from './declared-params.js';
-import { createExtensionAdministration, runBatch } from './admin-extensions-service.js';
+import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
+import { createExtensionAdministration, runBatch, optionalPluginGroup, MODULE_POSITIONS } from './admin-extensions-service.js';
+import { readTemplateMetadata, packTemplateMetadata } from './template-metadata.js';
 
 function requireRepository(repositories, domain) {
   const repository = repositories?.[domain];
@@ -51,6 +53,7 @@ function requireEtag(etag, label = 'etag') {
 
 async function listAll(repository) {
   const result = await repository.findMany({}, { maxPages: 100, maxItems: 10000 });
+  if (result?.hasNextPage === true) throw new ValidationError('Leitura administrativa incompleta. Nenhum dado foi alterado.');
   if (!Array.isArray(result?.items)) throw new Error('Resposta inválida ao carregar registros administrativos.');
   return result.items;
 }
@@ -164,7 +167,7 @@ function normalizeMenuInput(input = {}, { partial }) {
 
 const EXTENSION_TYPES = new Set(['Module', 'Plugin']);
 
-function normalizeExtensionInput(input = {}, { partial }) {
+function normalizeExtensionInput(input = {}, { partial, type: effectiveType }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.key !== undefined) result.key = extensionKey(input.key);
@@ -178,13 +181,40 @@ function normalizeExtensionInput(input = {}, { partial }) {
   if (input.enabled !== undefined) result.enabled = enabledValue(input.enabled);
   if (input.ordering !== undefined) result.ordering = integerValue(input.ordering, 'ordering');
   if (input.folder !== undefined) {
-    result.folder = optionalText(input.folder).trim();
-    if (result.folder && !/^[a-z][a-z0-9_-]{0,39}$/.test(result.folder)) throw new ValidationError('folder (grupo) inválido.');
+    result.folder = optionalPluginGroup(input.folder, 'folder');
   }
   if (input.params !== undefined) result.paramsJson = input.params === null ? '' : jsonObject(input.params, 'params');
-  if (input.paramsJson !== undefined && input.params === undefined) result.paramsJson = input.paramsJson === '' ? '' : jsonObject(input.paramsJson, 'paramsJson');
-  if (input.manifestJson !== undefined) result.manifestJson = input.manifestJson === '' ? '' : jsonObject(input.manifestJson, 'manifestJson');
+  if (input.paramsJson !== undefined && input.params === undefined) {
+    const params = parseJsonObject(input.paramsJson, { strict: true, field: 'paramsJson' });
+    result.paramsJson = input.paramsJson === '' ? '' : partial && typeof input.paramsJson === 'string' ? input.paramsJson : JSON.stringify(params);
+  }
+  if (input.manifestJson !== undefined) {
+    const manifest = parseJsonObject(input.manifestJson, { strict: true, field: 'manifestJson' });
+    if ((result.type ?? effectiveType) === 'Plugin') optionalPluginGroup(manifest.group, 'manifest.group');
+    result.manifestJson = input.manifestJson === '' ? '' : partial && typeof input.manifestJson === 'string' ? input.manifestJson : JSON.stringify(manifest);
+  }
   return result;
+}
+
+function updateManifestPatch(normalized, record) {
+  if (record.type !== 'Plugin') return normalized;
+  const manifest = parseJsonObject(record.manifestJson, { strict: true, field: 'manifestJson' });
+  const folder = optionalPluginGroup(record.folder, 'folder');
+  const manifestGroup = optionalPluginGroup(manifest.group, 'manifest.group');
+  if (!Object.hasOwn(normalized, 'folder')) return normalized;
+  if (normalized.folder === '') { const { folder: _folder, ...patch } = normalized; return patch; }
+  if (normalized.folder === (folder || manifestGroup) && !Object.hasOwn(normalized, 'manifestJson')) {
+    const { folder: _folder, ...patch } = normalized;
+    return patch;
+  }
+  const next = Object.hasOwn(normalized, 'manifestJson')
+    ? parseJsonObject(normalized.manifestJson, { strict: true, field: 'manifestJson' }) : manifest;
+  const group = normalized.folder;
+  // Estado/ordem/parâmetros nunca passam aqui. Mesmo folder reenviado não
+  // deve reserializar o manifesto se a metadata já expressa o mesmo grupo.
+  return { ...normalized, manifestJson: optionalPluginGroup(next.group, 'manifest.group') === group
+    ? normalized.manifestJson ?? record.manifestJson
+    : JSON.stringify({ ...next, group }) };
 }
 
 function integerValue(value, field) {
@@ -213,28 +243,41 @@ const EXTENSION_V2_DEFAULTS = Object.freeze({ ordering: 0, folder: '', paramsJso
 const MODULE_V2_DEFAULTS = Object.freeze({ showTitle: true, publishUp: null, publishDown: null, trashed: false, assignment: 'all', assignmentJson: '[]', note: '' });
 const SITE_CONFIG_V2_DEFAULTS = Object.freeze({ offline: false, offlineMessage: '', metaDescription: '', metaKeywords: '', robots: '', sitenamePagetitles: 'none', homeView: 'category', homeCategory: 'noticias', templateStylesJson: '', componentParamsJson: '' });
 
-/*
- * `paramDefinitionsJson` (Gap B, pivô de empacotamento): opcional — um
- * template instalado pode declarar seus próprios parâmetros de estilo no
- * manifesto (`paramDefinitions`), validados pela mesma
- * `normalizeParamDefinitions()` já usada para Module/Plugin. Ausência vira
- * `[]` (mesmo padrão de `positionsJson`/`styles`): nenhum template é
- * obrigado a declarar parâmetros.
- */
-function normalizeTemplateInput(input = {}, { partial }) {
+function positionData(input, field) {
+  const descriptor = input && Object.getOwnPropertyDescriptor(input, field);
+  if (descriptor && !Object.hasOwn(descriptor, 'value')) throw new ValidationError(`${field} deve ser uma propriedade de dados.`);
+  return descriptor?.value;
+}
+
+function normalizeTemplateInput(input = {}, { partial, existingStyles }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.key !== undefined) result.key = extensionKey(input.key);
   if (!partial || input.version !== undefined) result.version = requireText(input.version, 'version');
   if (!partial || input.entryPointUrl !== undefined) result.entryPointUrl = sameSiteModuleUrl(input.entryPointUrl);
-  if (input.styles !== undefined) result.styles = templateStyles(input.styles);
-  if (input.positions !== undefined) {
-    result.positionsJson = templatePositions(input.positions);
+  const styles = ownDataValue(input, 'styles');
+  const paramDefinitions = ownDataValue(input, 'paramDefinitions');
+  const paramDefinitionsJson = ownDataValue(input, 'paramDefinitionsJson');
+  const declarations = paramDefinitions !== undefined ? paramDefinitions : paramDefinitionsJson;
+  if (paramDefinitions !== undefined || paramDefinitionsJson !== undefined) {
+    const list = typeof declarations === 'string' ? parseStrictJson(declarations, 'paramDefinitions') : declarations;
+    if (!Array.isArray(list)) throw new ValidationError('paramDefinitions deve ser uma lista JSON.');
+    result.styles = packTemplateMetadata(styles, normalizeParamDefinitions(list), existingStyles ?? styles);
+  } else if (styles !== undefined) {
+    const supplied = readTemplateMetadata({ styles });
+    const existing = existingStyles === undefined ? supplied : readTemplateMetadata({ styles: existingStyles });
+    if (supplied.metadataPresent && existingStyles === undefined && typeof styles === 'string') result.styles = styles;
+    else result.styles = supplied.metadataPresent || existing.metadataPresent
+      ? packTemplateMetadata(styles, supplied.metadataPresent ? supplied.definitions : existing.definitions, existingStyles ?? styles)
+      : templateStyles(styles);
   }
-  if (input.positionsJson !== undefined && input.positions === undefined) result.positionsJson = templatePositions(input.positionsJson);
+  const positions = positionData(input, 'positions');
+  const positionsJson = positionData(input, 'positionsJson');
+  if (positions !== undefined) {
+    result.positionsJson = templatePositions(positions);
+  }
+  if (positionsJson !== undefined && positions === undefined) result.positionsJson = templatePositions(positionsJson);
   if (!partial && result.positionsJson === undefined) throw new ValidationError('positions é obrigatório.');
-  if (input.paramDefinitions !== undefined) result.paramDefinitionsJson = JSON.stringify(normalizeParamDefinitions(input.paramDefinitions));
-  if (input.paramDefinitionsJson !== undefined && input.paramDefinitions === undefined) result.paramDefinitionsJson = JSON.stringify(normalizeParamDefinitions(input.paramDefinitionsJson));
   if (input.discoveredFrom !== undefined) result.discoveredFrom = optionalText(input.discoveredFrom);
   if (input.enabled !== undefined) result.enabled = enabledValue(input.enabled);
   return result;
@@ -254,17 +297,11 @@ function normalizeModuleInstanceInput(input = {}, { partial }) {
   const result = {};
   if (!partial || input.title !== undefined) result.title = requireText(input.title, 'title');
   if (!partial || input.extensionKey !== undefined) result.extensionKey = requireText(input.extensionKey, 'extensionKey');
-  if (!partial || input.position !== undefined) {
-    result.position = requireText(input.position, 'position');
-    // Estrutural ∪ 'sidebar'/'content' (legado) ∪ qualquer posição
-    // bem-formada declarada por um template instalado (ver Gap A em
-    // extension-input.js) — persistência aceita a forma; se a posição
-    // realmente existe no template ATIVO no momento do render é decidido
-    // em dynamic-modules.js's resolveModuleEntries(), não aqui. 'component'
-    // é sempre rejeitada aqui mesmo sendo um nome bem-formado: é a posição
-    // reservada do conteúdo principal do artigo/categoria, nunca atribuível
-    // a uma instância de módulo (mesma regra de antes da generalização).
-    if (result.position === 'component' || (![...TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content'].includes(result.position) && !isWellFormedPositionName(result.position))) throw new ValidationError('position deve ser uma posição de módulo suportada.');
+  const position = positionData(input, 'position');
+  if (!partial || position !== undefined) {
+    result.position = requireText(position, 'position');
+    // Forma síncrona; declarações do catálogo são verificadas antes da escrita.
+    if (result.position === 'component' || (!MODULE_POSITIONS.includes(result.position) && !isWellFormedPositionName(result.position))) throw new ValidationError('position deve ser uma posição de módulo suportada.');
   }
   if (input.ordering !== undefined) {
     const ordering = Number(input.ordering);
@@ -304,8 +341,10 @@ function normalizeModuleInstanceInput(input = {}, { partial }) {
 }
 
 const SITE_CONFIG_TITLE = 'MiniJoomlaSiteConfig';
+const INITIAL_SITE_FIELDS = Object.freeze(['siteName', 'siteDescription', 'timezone', 'language', 'pageSize', 'templateKey', 'homeView', 'homeCategory', 'offline', 'offlineMessage']);
+const initialSiteFields = (input) => Object.fromEntries(INITIAL_SITE_FIELDS.map((field) => [field, ownDataValue(input, field)]).filter(([, value]) => value !== undefined));
 
-function normalizeSiteConfigInput(input = {}) {
+function normalizeSiteConfigInput(input = {}, { homeView, definitionsByKey } = {}) {
   const result = { title: SITE_CONFIG_TITLE };
   if (input.siteName !== undefined) result.siteName = optionalText(input.siteName);
   if (input.templateKey !== undefined) result.templateKey = optionalText(input.templateKey);
@@ -333,10 +372,18 @@ function normalizeSiteConfigInput(input = {}) {
     if (!['category', 'featured'].includes(result.homeView)) throw new ValidationError('homeView deve ser category ou featured.');
   }
   if (input.homeCategory !== undefined) {
-    result.homeCategory = optionalText(input.homeCategory).trim() || 'noticias';
-    if (!/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.homeCategory)) throw new ValidationError('homeCategory deve ser um alias de categoria.');
+    result.homeCategory = optionalText(input.homeCategory).trim();
+    if (!result.homeCategory && (result.homeView ?? homeView) !== 'featured') result.homeCategory = 'noticias';
+    if (result.homeCategory && !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.homeCategory)) throw new ValidationError('homeCategory deve ser um alias de categoria.');
   }
-  if (input.templateStylesJson !== undefined) result.templateStylesJson = input.templateStylesJson === '' ? '' : validateTemplateStyles(typeof input.templateStylesJson === 'string' ? parseStrictJson(input.templateStylesJson, 'templateStylesJson') : input.templateStylesJson);
+  if (input.templateStylesJson !== undefined) {
+    if(input.templateStylesJson==='')result.templateStylesJson='';
+    else {
+      const text=typeof input.templateStylesJson==='string';
+      const validated=validateTemplateStyles(text?parseStrictJson(input.templateStylesJson,'templateStylesJson'):input.templateStylesJson,definitionsByKey,{preserveValues:text});
+      result.templateStylesJson=text?input.templateStylesJson:validated;
+    }
+  }
   if (input.componentParamsJson !== undefined) result.componentParamsJson = input.componentParamsJson === '' ? '' : jsonObject(input.componentParamsJson, 'componentParamsJson');
   return result;
 }
@@ -467,10 +514,14 @@ async function snapshots(crud, rows) {
   return result;
 }
 
-export function createAdminService(repositories, { pluginManager } = {}) {
+export function createAdminService(repositories, { pluginManager, initialSiteConfig } = {}) {
   if (pluginManager && (typeof pluginManager.beforeSave !== 'function' || typeof pluginManager.afterSave !== 'function')) {
     throw new TypeError('pluginManager deve expor beforeSave e afterSave.');
   }
+  // Pure host metadata: never a row, never an ETag, never a write on mount.
+  const initialDefaults = initialSiteConfig === undefined ? undefined : Object.freeze(initialSiteFields(normalizeSiteConfigInput(
+    initialSiteFields(createConfig({ offline: false, offlineMessage: '', ...initialSiteFields(initialSiteConfig) }))
+  )));
   const articleRows = async () => (repositories.articles ? listAll(requireRepository(repositories, 'articles')) : []);
   const categoryRows = async () => (repositories.categories ? listAll(requireRepository(repositories, 'categories')) : []);
 
@@ -524,12 +575,27 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     const savePlugins = typeof pluginManager.captureSaveOperation === 'function'
       ? await pluginManager.captureSaveOperation() : pluginManager;
     if (!savePlugins || typeof savePlugins.beforeSave !== 'function' || typeof savePlugins.afterSave !== 'function') throw new TypeError('Handle de plugins de gravação inválido.');
+    const writeGuard = Object.getOwnPropertyDescriptor(savePlugins, 'assertBeforeWrite');
+    if (writeGuard && (!Object.hasOwn(writeGuard, 'value') || typeof writeGuard.value !== 'function')) throw new TypeError('Guard de gravação deve ser uma função síncrona de dados.');
     const value = await savePlugins.beforeSave({ ...normalized }, { id, action });
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('onContentBeforeSave deve retornar um objeto de artigo.');
     const transformed = normalizeArticleInput(value, { partial });
+    const repository = articleRepository();
+    // No await between this optional synchronous operation guard and invoking
+    // persistence. Legacy injected managers without a guard remain supported.
+    if (writeGuard) {
+      const result = writeGuard.value.call(savePlugins);
+      if (result !== undefined) {
+        // Invalid async guards still block the write immediately. Observe a
+        // genuine Promise rejection without awaiting it or invoking thenables.
+        try { Reflect.apply(Promise.prototype.then, result, [undefined, () => {}]); }
+        catch { /* A non-Promise return is rejected by the same contract below. */ }
+        throw new TypeError('Guard de gravação deve ser síncrono e não retornar valor.');
+      }
+    }
     const saved = partial
-      ? await articleRepository().update(id, transformed, { etag })
-      : await articleRepository().create(transformed);
+      ? await repository.update(id, transformed, { etag })
+      : await repository.create(transformed);
     try {
       // SPMIDDLE update may return null after a successful MERGE 204. Read the
       // persisted record (including its current ETag) ONLY for observation;
@@ -653,12 +719,25 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     if (!repositories.siteConfig) return null;
     const repository = requireRepository(repositories, 'siteConfig');
     const rows = await listAll(repository);
+    if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
     return rows.length ? repository.findById(rows[0].id) : null;
   }
 
   async function requireUniqueKey(domain, key, id) {
     const rows = await listAll(requireRepository(repositories, domain));
     if (rows.some((row) => row.key === key && row.id !== id)) throw new ValidationError('Já existe um registro com esta chave.');
+  }
+
+  async function validatePosition(position) {
+    if (MODULE_POSITIONS.includes(position)) return;
+    const rows = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
+    // Valide todo o catálogo antes de aceitar uma declaração, mesmo quando
+    // outro template já contém a posição. Ausência legada não é corrupção.
+    const declared = rows.filter((row) => !BUILTIN_TEMPLATES.includes(row.key)).map((row) => {
+      const value = positionData(row, 'positionsJson');
+      return value === undefined || value === null || value === '' ? [] : JSON.parse(templatePositions(value));
+    });
+    if (!declared.some((positions) => positions.includes(position))) throw new ValidationError('position deve ser declarada por um template registrado.');
   }
 
   async function requireModuleConfiguration(input) {
@@ -675,9 +754,9 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     }
     if (settings.headerTag !== undefined && !['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p'].includes(settings.headerTag)) throw new ValidationError('headerTag inválida.');
     let rows = [];
-    if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey)) {
+    if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey) || normalized.extensionKey==='articles-featured') {
       rows = repositories.extensions ? await listAll(requireRepository(repositories, 'extensions')) : [];
-      if (!rows.some((row) => row.key === normalized.extensionKey && row.type === 'Module')) throw new ValidationError('extensionKey deve identificar um módulo nativo ou Module registrado.');
+      if (!BUILTIN_MODULE_KEYS.includes(normalized.extensionKey) && !rows.some((row) => row.key === normalized.extensionKey && row.type === 'Module')) throw new ValidationError('extensionKey deve identificar um módulo nativo ou Module registrado.');
     }
     const type = moduleTypeCatalog(rows).find((entry) => entry.key === normalized.extensionKey);
     normalizeParamValues([...(type?.params ?? []), ...MODULE_ADVANCED_PARAMS], settings);
@@ -693,10 +772,12 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     async update(id, input, options = {}) {
       requireEtag(options.etag);
       const record = await extensionCrud.get(id);
+      if (!record) throw new ValidationError('Extensão não encontrada.');
       for (const field of ['key', 'type', 'entryPointUrl']) {
         if (input[field] !== undefined && input[field] !== record[field]) throw new ValidationError(`${field} pertence ao manifesto registrado e não pode ser alterado.`);
       }
-      return requireRepository(repositories, 'extensions').update(id, dropUnprovisionedDefaults(normalizeExtensionInput(input, { partial: true }), record, EXTENSION_V2_DEFAULTS), { etag: options.etag });
+      const normalized = updateManifestPatch(normalizeExtensionInput(input, { partial: true, type: record.type }), record);
+      return requireRepository(repositories, 'extensions').update(id, dropUnprovisionedDefaults(normalized, record, EXTENSION_V2_DEFAULTS), { etag: options.etag });
     },
     async remove(id, options) {
       const record = await extensionCrud.get(id);
@@ -716,14 +797,17 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       await requireUniqueKey('templates', normalized.key);
       return templateCrud.create({ enabled: true, ...normalized });
     },
-    async update(id, input, options) {
+    async update(id, input, options = {}) {
+      requireEtag(options.etag);
       const record = await templateCrud.get(id);
+      if (!record) throw new ValidationError('Template não encontrado.');
       for (const field of ['key', 'entryPointUrl']) {
         if (input[field] !== undefined && input[field] !== record[field]) throw new ValidationError(`${field} pertence ao manifesto registrado e não pode ser alterado.`);
       }
       const config = await currentConfig();
       if (record.key === (config?.templateKey || 'default') && input.enabled === false) throw new ValidationError('Escolha outro template padrão antes de desativar este template.');
-      return templateCrud.update(id, input, options);
+      const normalized = normalizeTemplateInput(input, { partial: true, existingStyles: ownDataValue(record, 'styles') });
+      return requireRepository(repositories, 'templates').update(id, normalized, { etag: options.etag });
     },
     async remove(id, options) {
       const record = await templateCrud.get(id);
@@ -738,7 +822,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       if (!record.enabled) throw new ValidationError('Habilite o template antes de torná-lo padrão.');
       const repository = requireRepository(repositories, 'siteConfig');
       const config = await currentConfig();
-      if (!config) return repository.create(normalizeSiteConfigInput({ templateKey: record.key }));
+      if (!config) return siteConfig.save({ templateKey: record.key });
       requireEtag(configEtag, 'etag da configuração');
       return repository.update(config.id, { templateKey: record.key }, { etag: configEtag });
     }
@@ -748,10 +832,12 @@ export function createAdminService(repositories, { pluginManager } = {}) {
     async create(input) {
       await requireModuleConfiguration(input);
       const normalized = normalizeModuleInstanceInput({ enabled: true, ordering: 0, scopeKind: 'All', ...input }, { partial: false });
+      await validatePosition(normalized.position);
       return requireRepository(repositories, 'moduleInstances').create(dropUnprovisionedDefaults(normalized, null, MODULE_V2_DEFAULTS));
     },
     async update(id, input, options = {}) {
       requireEtag(options.etag);
+      const patch = normalizeModuleInstanceInput(input, { partial: true });
       const record = await moduleCrud.get(id);
       if (!record) throw new ValidationError('Módulo não encontrado.');
       // Não permita que um formulário substitua configurações corrompidas
@@ -759,12 +845,16 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       parseJsonObject(record.settingsJson, { strict: true, field: 'settingsJson' });
       normalizeAssignmentTokens(record.assignmentJson);
       await requireModuleConfiguration({ ...record, ...input });
-      const normalized = dropUnprovisionedDefaults(normalizeModuleInstanceInput(input, { partial: true }), record, MODULE_V2_DEFAULTS);
+      // Patches sem mudança de posição preservam módulos cujo template foi
+      // removido/desativado. Criar/duplicar ou mover exige uma declaração atual.
+      if (patch.position !== undefined && patch.position !== record.position) await validatePosition(patch.position);
+      const normalized = dropUnprovisionedDefaults(patch, record, MODULE_V2_DEFAULTS);
       return requireRepository(repositories, 'moduleInstances').update(id, normalized, { etag: options.etag });
     }
   };
 
   const siteConfig = {
+      defaults: initialDefaults,
       /*
        * Achado real (validado contra o tenant real): o
        * `createRepository.findMany()` do SPMIDDLE (data-core) nunca anexa
@@ -781,6 +871,7 @@ export function createAdminService(repositories, { pluginManager } = {}) {
       async get() {
         const repository = requireRepository(repositories, 'siteConfig');
         const rows = await listAll(repository);
+        if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (!rows.length) return null;
         return repository.findById(rows[0].id);
       },
@@ -789,19 +880,27 @@ export function createAdminService(repositories, { pluginManager } = {}) {
         const repository = requireRepository(repositories, 'siteConfig');
         const operationalInput = { ...input };
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) delete operationalInput[field];
-        const normalized = normalizeSiteConfigInput(operationalInput);
+        const rows = await listAll(repository);
+        if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
+        if (rows.length) requireEtag(etag, 'etag da configuração');
+        const record = rows.length ? await repository.findById(rows[0].id) : null;
+        const definitionsByKey = input.templateStylesJson === undefined ? undefined : Object.fromEntries((repositories.templates
+          ? await listAll(requireRepository(repositories, 'templates')) : []).filter((row) => !BUILTIN_TEMPLATES.includes(row.key))
+          .map((row) => [row.key, readTemplateMetadata(row).definitions]));
+        const normalized = { ...(!record ? initialDefaults : undefined), ...normalizeSiteConfigInput(operationalInput, { homeView: record?.homeView ?? initialDefaults?.homeView, definitionsByKey }) };
+        if (input.homeView !== undefined || input.homeCategory !== undefined) createConfig({
+          homeView: normalized.homeView ?? record?.homeView ?? initialDefaults?.homeView,
+          homeCategory: normalized.homeCategory ?? record?.homeCategory ?? initialDefaults?.homeCategory
+        });
         if (normalized.templateKey && !BUILTIN_TEMPLATES.includes(normalized.templateKey)) {
           const templates = repositories.templates ? await listAll(requireRepository(repositories, 'templates')) : [];
           if (!templates.some((row) => row.key === normalized.templateKey && row.enabled)) throw new ValidationError('templateKey deve identificar um template integrado ou habilitado.');
         }
-        const rows = await listAll(repository);
-        if (rows.length) requireEtag(etag, 'etag da configuração');
-        const record = rows.length ? await repository.findById(rows[0].id) : null;
         for (const field of ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles']) {
           const existing = field === 'sitenamePagetitles' ? record?.[field] || 'none' : record?.[field] ?? '';
           if (input[field] !== undefined && optionalText(input[field]) !== existing) throw new ValidationError('Metadados e SEO indisponíveis: não há contrato para alterar os metadados globais do host. Os valores existentes foram preservados.');
         }
-        if (!rows.length) return repository.create(dropUnprovisionedDefaults(normalized, null, SITE_CONFIG_V2_DEFAULTS));
+        if (!rows.length) return repository.create({ ...dropUnprovisionedDefaults(normalized, null, SITE_CONFIG_V2_DEFAULTS), ...(initialDefaults ? initialSiteFields(normalized) : undefined) });
         return repository.update(rows[0].id, dropUnprovisionedDefaults(normalized, record, SITE_CONFIG_V2_DEFAULTS), { etag });
       },
       toConfigOverrides: toSiteConfigOverrides

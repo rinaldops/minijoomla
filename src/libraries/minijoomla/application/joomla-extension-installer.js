@@ -1,5 +1,5 @@
 import { ValidationError } from '../core/contracts.js';
-import { normalizeParamDefinitions, normalizeParamValues } from './declared-params.js';
+import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
 import { MODULE_ADVANCED_PARAMS } from './module-catalog.js';
 
 const conflict = (message) => Object.assign(new ValidationError(message), { code: 'concurrency-conflict' });
@@ -72,8 +72,10 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
   async function validateInstances(key, descriptor) {
     const instances = await admin.moduleInstances.list();
     for (const row of instances.filter((item) => item.extensionKey === key)) {
-      let settings;
-      try { settings = JSON.parse(row.settingsJson || '{}'); } catch { throw new ValidationError('Configuracao de instancia invalida; atualizacao cancelada.'); }
+      // Validate every persisted instance, including disabled/trashed rows.
+      // Legacy absence is allowed; nonobject JSON must not become defaults.
+      // Normalization is validation only: never rewrite the stored wire data.
+      const settings = parseJsonObject(row.settingsJson, { strict: true, field: 'settingsJson' });
       normalizeParamValues([...descriptor.params, ...MODULE_ADVANCED_PARAMS], settings, { keepUndeclared: true });
     }
   }

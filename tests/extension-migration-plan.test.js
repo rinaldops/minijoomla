@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import * as migration from '../src/libraries/minijoomla/application/extension-migration-plan.js';
+import { parseJoomlaManifest } from '../src/libraries/minijoomla/application/joomla-manifest.js';
 
 const { planExtensionMigration } = migration;
 const target = { baseUrl: '/sites/example/SiteAssets/packages/2.0.0', manifestPath: 'modules/mod_example/mod_example.xml' };
@@ -204,6 +205,15 @@ export async function runExtensionMigrationPlanTests() {
     `<field name="message" type="text" label="${'a'.repeat(201)}" />`,
     `<field name="message" type="text" description="${'a'.repeat(501)}" />`
   ]) refused(input({ targetXml: xml(field) }), /correcao explicita/);
+  // Strict migration metadata is opt-in; legacy discovery retains its existing
+  // normalization/truncation rather than adopting stricter migration semantics.
+  const legacyXml = xml(`<field name=" message" type="text" label="${'a'.repeat(201)}" description="${'b'.repeat(501)}" />`);
+  const legacyParams = parseJoomlaManifest(legacyXml, target).params;
+  assert.equal(legacyParams[0].name, 'message');
+  assert.equal(legacyParams[0].label.length, 200);
+  assert.equal(legacyParams[0].description.length, 500);
+  assert.deepEqual(parseJoomlaManifest(legacyXml, { ...target, strictMetadata: false }).params, legacyParams);
+  assert.throws(() => parseJoomlaManifest(legacyXml, { ...target, strictMetadata: true }), /correcao explicita/);
   const objectSnapshot = input(); objectSnapshot.instances[0].settingsJson = {}; refused(objectSnapshot, /string JSON persistida/);
   for (const status of ['unsupported', 'skipped', 'conflict', 'invalid']) { const bad = input(); bad.instances[0].status = status; refused(bad, /não suportada/); }
   const wrongKey = input(); wrongKey.instances[0].extensionKey = 'other'; refused(wrongKey, /extensionKey/);

@@ -109,6 +109,22 @@ export async function runPluginsSaveEventsTests() {
   assert.equal(await noContentAdmin.articles.update(original.id, { title: 'Saved without observation' }, { etag: updated204.etag }), null);
   assert.equal((await noContent.findById(original.id)).title, 'Saved without observation!');
   assert.equal(observed204.length, 1, 'failed reread skips observers, never sends a fabricated patch snapshot');
+  // Optional guards are synchronous own data functions. Reject accessors without
+  // invoking them, and reject promise-returning guards before persistence.
+  let guardGetterCalls = 0;
+  const writesBeforeGuard = articles.rows.size;
+  for (const guard of ['getter', 'async', 'async-reject', 'throw']) {
+    const handle = { beforeSave: (value) => value, afterSave: () => {} };
+    if (guard === 'getter') Object.defineProperty(handle, 'assertBeforeWrite', { get() { guardGetterCalls += 1; return () => {}; } });
+    else handle.assertBeforeWrite = guard === 'async' ? async () => {}
+      : guard === 'async-reject' ? async () => { throw new Error('invalid async guard'); }
+        : () => { throw new ValidationError('cancelled before write'); };
+    const guarded = createAdminService({ articles }, { pluginManager: { beforeSave: handle.beforeSave, afterSave: handle.afterSave, captureSaveOperation: () => handle } });
+    await assert.rejects(() => guarded.articles.create({ title: 'Guarded', alias: 'guarded' }), guard === 'throw' ? ValidationError : TypeError);
+    assert.equal(articles.rows.size, writesBeforeGuard);
+  }
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(guardGetterCalls, 0, 'guard getters must never execute');
   assert.throws(() => createAdminService({ articles }, { pluginManager: {} }), TypeError);
   console.log('ok - article save hooks: transform/veto, post-save isolation, duplicate/batch and captured non-enumerable ETags');
 }

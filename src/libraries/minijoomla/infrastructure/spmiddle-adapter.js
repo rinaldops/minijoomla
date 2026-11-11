@@ -1,8 +1,8 @@
 import { inDateWindow } from '../core/date-window.js';
-import { normalizeQuery } from '../core/contracts.js';
+import { matchesSearch, normalizeQuery, normalizePageSize, normalizePageNumber } from '../core/contracts.js';
 
 const DEFAULT_FIELDS = {
-  article: { id: 'id', title: 'title', alias: 'alias', introtext: 'introtext', fulltext: 'fulltext', categoryId: 'categoryId', state: 'state', featured: 'featured', publishUp: 'publishUp', publishDown: 'publishDown', featuredUp: 'featuredUp', featuredDown: 'featuredDown', author: 'author', authorAlias: 'authorAlias', created: 'created', modified: 'modified', language: 'language', attribsJson: 'attribsJson', metaDescription: 'metaDescription', metaKeywords: 'metaKeywords', tags: 'tags' },
+  article: { id: 'id', title: 'title', alias: 'alias', introtext: 'introtext', fulltext: 'fulltext', categoryId: 'categoryId', state: 'state', featured: 'featured', publishUp: 'publishUp', publishDown: 'publishDown', featuredUp: 'featuredUp', featuredDown: 'featuredDown', author: 'author', authorAlias: 'authorAlias', created: 'created', modified: 'modified', language: 'language', attribsJson: 'attribsJson', metaKeywords: 'metaKeywords', metaDescription: 'metaDescription', tags: 'tags' },
   category: { id: 'id', title: 'title', alias: 'alias', parentId: 'parentId', description: 'description', image: 'image', state: 'state' },
   tag: { id: 'id', name: 'name', alias: 'alias', state: 'state' },
   menu: { id: 'id', title: 'title', path: 'path', parentId: 'parentId', published: 'published', ordering: 'ordering' }
@@ -54,7 +54,7 @@ function mapArticle(item, mapping, now) {
     featured: (read(item, mapping, 'featured') === true || read(item, mapping, 'featured') === 1 || read(item, mapping, 'featured') === '1') && inDateWindow(read(item, mapping, 'featuredUp'), read(item, mapping, 'featuredDown'), now),
     publishUp: read(item, mapping, 'publishUp') ?? null, publishDown: read(item, mapping, 'publishDown') ?? null,
     author: read(item, mapping, 'author') ?? '',
-    ...Object.fromEntries(['authorAlias', 'language', 'attribsJson', 'created', 'modified', 'metaDescription', 'metaKeywords'].filter((name) => read(item, mapping, name) !== undefined).map((name) => [name, read(item, mapping, name) ?? ''])),
+    ...Object.fromEntries(['authorAlias', 'language', 'attribsJson', 'created', 'modified', 'metaKeywords', 'metaDescription'].filter((name) => read(item, mapping, name) !== undefined).map((name) => [name, read(item, mapping, name) ?? ''])),
     tags: mapTags(read(item, mapping, 'tags'))
   };
 }
@@ -93,21 +93,13 @@ function inArchiveMonth(item, year, month) {
   return (year == null || date.getUTCFullYear() === Number(year)) && (month == null || date.getUTCMonth() + 1 === Number(month));
 }
 
-function searchMatch(article, term, mode) {
-  if (!term) return true;
-  const text = normalizeQuery(`${article.title} ${article.introtext} ${article.fulltext} ${article.tags.join(' ')}`, Infinity).toLowerCase();
-  const tokens = term.split(' ');
-  return mode === 'all' ? tokens.every((token) => text.includes(token))
-    : mode === 'any' ? tokens.some((token) => text.includes(token)) : text.includes(term);
-}
-
 export function createSPMiddleAdapter({ articleRepository, categoryRepository, tagRepository, menuRepository, fields = {}, pageSize = 5, now, cacheMs = 0, clockMs = Date.now } = {}) {
   const repositories = {
     articles: repository(articleRepository, 'articleRepository'), categories: repository(categoryRepository, 'categoryRepository'),
     tags: tagRepository ? repository(tagRepository, 'tagRepository') : null, menus: menuRepository ? repository(menuRepository, 'menuRepository') : null
   };
   const mapping = { article: { ...DEFAULT_FIELDS.article, ...fields.article }, category: { ...DEFAULT_FIELDS.category, ...fields.category }, tag: { ...DEFAULT_FIELDS.tag, ...fields.tag }, menu: { ...DEFAULT_FIELDS.menu, ...fields.menu } };
-  const boundedPageSize = Math.min(50, Math.max(1, Number(pageSize) || 5));
+  const boundedPageSize = normalizePageSize(pageSize);
   const clock = (options) => {
     if (options?.now !== undefined) return options.now;
     if (now !== undefined) return now;
@@ -165,10 +157,10 @@ export function createSPMiddleAdapter({ articleRepository, categoryRepository, t
     async listArticles({ category: categoryAlias, tag, featured = false, year, month, search = '', searchMode = 'exact', titleContains = '', page: pageNumber = 1, pageSize: requestedPageSize = boundedPageSize, sort = 'publishUp', direction = 'desc', now: currentTime } = {}) {
       const categories = categoryAlias ? (await publishedCategories()).map((item) => mapCategory(item, mapping.category)) : [];
       const selectedCategory = categories.find((item) => item.alias === categoryAlias);
-      if (categoryAlias && !selectedCategory) return page([], Math.max(1, Number(pageNumber) || 1), Math.min(50, Math.max(1, Number(requestedPageSize) || boundedPageSize)));
-      const term = normalizeQuery(search).toLowerCase(); const titleTerm = String(titleContains).trim().toLocaleLowerCase();
-      const items = sortArticles((await allArticles({ now: currentTime })).filter((item) => (!selectedCategory || item.categoryId === selectedCategory.id) && (!tag || item.tags.includes(tag)) && (!featured || item.featured) && inArchiveMonth(item, year, month) && (!titleTerm || item.title.toLocaleLowerCase().includes(titleTerm)) && searchMatch(item, term, searchMode)), sort, direction);
-      return page(items, Math.max(1, Number(pageNumber) || 1), Math.min(50, Math.max(1, Number(requestedPageSize) || boundedPageSize)));
+      if (categoryAlias && !selectedCategory) return page([], normalizePageNumber(pageNumber), normalizePageSize(requestedPageSize, boundedPageSize));
+      const titleTerm = normalizeQuery(titleContains).toLocaleLowerCase();
+      const items = sortArticles((await allArticles({ now: currentTime })).filter((item) => (!selectedCategory || item.categoryId === selectedCategory.id) && (!tag || item.tags.includes(tag)) && (!featured || item.featured) && inArchiveMonth(item, year, month) && (!titleTerm || normalizeQuery(item.title, Infinity).toLocaleLowerCase().includes(titleTerm)) && matchesSearch(item, search, searchMode)), sort, direction);
+      return page(items, normalizePageNumber(pageNumber), normalizePageSize(requestedPageSize, boundedPageSize));
     },
     async getArticle(alias, options = {}) { return (await allArticles(options)).find((item) => item.alias === alias) ?? null; },
     async getCategory(alias) { return (await publishedCategories()).map((item) => mapCategory(item, mapping.category)).find((item) => item.alias === alias) ?? null; },

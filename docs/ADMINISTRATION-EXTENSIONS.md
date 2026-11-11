@@ -6,6 +6,12 @@
 > XML de plugins/templates e migração assistida estão incluídos como evolução,
 > não suporte já implementado. SEO do host/i18n/histórico/check-in de artigos
 > excluídos desta etapa; estados antigos abaixo são históricos.
+>
+> **Consolidação atual:** integração das branches preserva contratos nativos,
+> Sample Data e contribuições locais de plugins administrativos. A fila vigente
+> está no [plano de continuidade](PLANO-CONTINUIDADE-MINIJOOMLA.md), com expansão
+> Videoteca/Forum suspensa. Organização/controllers e perfis XML novos ainda
+> dependem dos gates próprios; testes locais não são save/lifecycle no tenant.
 
 ## Estado da integração — 03/11/2026 (atualizado nesta sessão)
 

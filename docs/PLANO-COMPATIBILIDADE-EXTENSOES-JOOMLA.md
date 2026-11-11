@@ -7,6 +7,12 @@
 > histórico e check-in/check-out de artigos estão excluídos nesta etapa.
 > O diagnóstico inicial abaixo é histórico: o perfil XML de módulos já foi
 > implementado/publicado conforme registros, mas seu aceite integral é separado.
+>
+> **Prioridade posterior:** somente fechamento Joomla padrão; Videoteca/Forum
+> e expansão externa suspensos. Primeiro consolidar trabalho validado e as
+> contribuições nativas preservadas da principal. XML de plugins/templates e
+> migrações permanecem evolução delimitada, não paridade PHP/ZIP/ACL.
+> [Fila vigente](PLANO-CONTINUIDADE-MINIJOOMLA.md).
 
 Data: 05/11/2026 (America/Sao_Paulo).
 Estado: analise concluida e proposta de implementacao; nenhuma funcionalidade,

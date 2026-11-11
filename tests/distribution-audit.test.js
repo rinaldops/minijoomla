@@ -156,13 +156,23 @@ export async function runDistributionAuditTests() {
     assert.equal(coreReport.target, 'core');
     assert.equal(coreReport.integrity, 'all-declared-file-hashes-verified');
     assert.equal(coreReport.counts.files, core.manifest.files.length);
-    assert.equal(core.manifest.files.length, 146, 'Current real core inventory; update explicitly when its graph changes (mod_articles_featured added in the Iteração 5 destaques module, camap-v3 files removed from MINIJOOMLA in the Iteração 4.0 packaging pivot — now confined to web-devs/CAMAP-V3/minijoomla-template/)');
+    // Exact output inventory, not a hardcoded file count that goes stale across
+    // merges. Existing release tests independently enforce mandatory roots/deps
+    // and strict graph closure.
+    const inventory = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? inventory(path) : [relative(core.output, path).split('\\').join('/')];
+    });
+    assert.deepEqual(inventory(core.output).sort(), [...core.manifest.files.map(entry => entry.path), 'manifest.json'].sort());
+    assert.equal(new Set(core.manifest.files.map(entry => entry.path)).size, core.manifest.files.length);
+    assert.deepEqual(core.manifest.files.filter(entry => entry.path.startsWith('libraries/vendor/')).map(entry => entry.path).sort(), [...parserNames].sort());
+    assert.ok(!core.manifest.files.some(entry => /camap-v3|camapv3/.test(entry.path)), 'Suspended CAMAPv3 is not a core dependency');
     assert.ok(!coreReport.counts.byCategory['outside-core-scope'], 'A real core stage must not be rejected as unauthorized vendor');
-    for (const path of parserNames) assert.ok(core.manifest.files.some(entry => entry.path === path));
+    for (const path of ['index.js', 'administrator/components/com_minijoomla/app.js', 'libraries/minijoomla/application/joomla-discovery.js', 'libraries/minijoomla/application/joomla-extension-installer.js', ...parserNames]) assert.ok(core.manifest.files.some(entry => entry.path === path));
     assert.equal(coreReport.publicDistributionApproved, false);
     assert.equal(coreReport.rightsReviewed, false);
     assert.equal(coreReport.privacyCertified, false);
-    console.log(`ok - real core distribution audit: ${coreReport.counts.files} verified staged files, exact parser scope, no vendor/signature exemption or approval`);
+    console.log(`ok - real core distribution audit: ${coreReport.counts.files} verified staged files, exact parser scope/inventory, no vendor/signature exemption or approval`);
 
     const many = fixture(Object.fromEntries(Array.from({ length: 125 }, (_, index) => [`libraries/minijoomla/fixture-${index}.js`, `const token = "${fakeSecret}";`])));
     const bounded = auditDistribution({ manifest: many.manifest });

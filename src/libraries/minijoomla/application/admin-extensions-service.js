@@ -4,15 +4,17 @@
  * com_installer). Compõe os namespaces CRUD já validados por
  * admin-service.js; nenhuma escrita contorna ETag/validação de lá.
  */
-import { ValidationError } from '../core/contracts.js';
-import { STRUCTURAL_TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_KEYS, NATIVE_PLUGIN_URLS, templatePositions } from './extension-input.js';
+import { ValidationError, ownDataValue } from '../core/contracts.js';
+import { STRUCTURAL_TEMPLATE_POSITIONS, BUILTIN_MODULE_KEYS, NATIVE_PLUGIN_KEYS, NATIVE_PLUGIN_URLS, templatePositions, isWellFormedPositionName } from './extension-input.js';
 import { moduleTypeCatalog } from './module-catalog.js';
 import { moduleState } from './module-assignment.js';
 import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
 import { BUILTIN_TEMPLATES, effectiveTemplateStyles, templateParamDefinitions, validateTemplateStyles, parseTemplateStyles } from './template-styles.js';
 import { COMPONENT_OPTIONS, findComponentOptions, mergeComponentParams, resolveComponentParams } from './component-options.js';
 import { parseExtensionManifest, manifestRecordJson } from './extension-manifest.js';
+import { readTemplateMetadata } from './template-metadata.js';
 
+export const MODULE_POSITIONS = Object.freeze([...STRUCTURAL_TEMPLATE_POSITIONS.filter((position) => position !== 'component'), 'sidebar', 'content']);
 export const MODULE_BATCH_ACTIONS = Object.freeze(['publish', 'unpublish', 'trash', 'restore', 'delete', 'move']);
 
 function conflict(message) { return Object.assign(new Error(message), { code: 'concurrency-conflict' }); }
@@ -43,7 +45,7 @@ const NATIVE_PLUGINS = Object.freeze({
 });
 const isNative = (row) => NATIVE_PLUGIN_URLS.includes(row.entryPointUrl);
 
-function optionalPluginGroup(value, field) {
+export function optionalPluginGroup(value, field) {
   if (value === undefined || value === null || value === '') return '';
   if (typeof value !== 'string' || !/^[a-z][a-z0-9_-]{0,39}$/.test(value.trim())) throw new ValidationError(`${field} (grupo de plugin) persistido inválido. Nenhum dado foi alterado.`);
   return value.trim();
@@ -70,62 +72,52 @@ export function createExtensionAdministration({ repositories, extensions, module
     const builtins = BUILTIN_TEMPLATES.map((key) => ({ key, title: key === 'default' ? 'MiniJoomla (padrão)' : key === 'cassiopeia' ? 'Cassiopeia' : 'CAMAP', builtin: true, enabled: true, positions: STRUCTURAL_TEMPLATE_POSITIONS.filter((position) => position !== 'component') }));
     const registered = rows.filter((row) => !BUILTIN_TEMPLATES.includes(row.key)).map((row) => {
       // Ausência legada é distinta de JSON persistido inválido.
-      const positions = row.positionsJson === undefined || row.positionsJson === null || row.positionsJson === '' ? [] : JSON.parse(templatePositions(row.positionsJson));
-      // `paramDefinitions` (Gap B): definições declaradas pelo próprio
-      // template instalado (`row.paramDefinitionsJson`), repassadas no
-      // catálogo para que `templateStyles` as use em vez do mapa estático
-      // de builtins — ausência/erro de parse vira `[]` (template sem
-      // parâmetros declarados), nunca interrompe a listagem.
-      let paramDefinitions = [];
-      try { paramDefinitions = row.paramDefinitionsJson ? normalizeParamDefinitions(JSON.parse(row.paramDefinitionsJson)) : []; } catch { paramDefinitions = []; }
-      return { key: row.key, title: row.title || row.key, builtin: false, enabled: row.enabled !== false, positions: positions.filter((position) => position !== 'component'), paramDefinitions, id: row.id };
+      const descriptor = Object.getOwnPropertyDescriptor(row, 'positionsJson');
+      if (descriptor && !Object.hasOwn(descriptor, 'value')) throw new ValidationError('positionsJson deve ser uma propriedade de dados.');
+      const value = descriptor?.value;
+      const positions = value === undefined || value === null || value === '' ? [] : JSON.parse(templatePositions(value));
+      const { definitions } = readTemplateMetadata(row);
+      return { key: row.key, title: row.title || row.key, builtin: false, enabled: row.enabled !== false, positions: positions.filter((position) => position !== 'component'), definitions, id: row.id };
     });
     return [...builtins, ...registered];
   }
 
-  function paramDefinitionsByKey(catalog) {
-    return Object.fromEntries(catalog.filter((entry) => Array.isArray(entry.paramDefinitions) && entry.paramDefinitions.length).map((entry) => [entry.key, entry.paramDefinitions]));
-  }
-
-  /*
-   * Lista completa de posições válidas para uma instância de módulo
-   * (dropdown de posição, validação de `batch({action:'move'})`):
-   * união das posições de TODOS os templates do catálogo (builtins +
-   * templates instalados, cada um contribuindo suas próprias `positions`)
-   * com as duas posições de catch-all `sidebar`/`content` — nunca mais uma
-   * lista fechada fixa. Um template instalado passa a contribuir suas
-   * posições automaticamente ao registrar-se, sem exigir edição deste
-   * arquivo (generalização do pivô de empacotamento do `camap-v3`, mas
-   * válida para qualquer template instalado futuro).
-   */
-  async function modulePositions() {
-    const catalog = await templateCatalog();
-    const positions = new Set(['sidebar', 'content']);
-    for (const template of catalog) for (const position of template.positions) positions.add(position);
-    return [...positions];
-  }
+  // Metadados de templates desabilitados continuam úteis para editar módulos;
+  // a seleção não ativa templates nem cria configuração do site.
+  const modulePositions = (catalog) => [...new Set([...MODULE_POSITIONS, ...catalog.flatMap((template) => template.positions)])];
+  const templateDefinitions = (catalog) => Object.fromEntries(catalog.filter((entry) => !entry.builtin).map((entry) => [entry.key, entry.definitions]));
 
   const modules = {
     async catalog() { return moduleTypeCatalog(await extensionRows()); },
     async positions(templateKey) {
-      const [catalog, all] = await Promise.all([templateCatalog(), modulePositions()]);
-      const key = templateKey || (await siteConfig.get())?.templateKey || 'default';
+      const catalog = await templateCatalog();
+      const key = templateKey || (await siteConfig.get())?.templateKey || siteConfig.defaults?.templateKey || 'default';
       const template = catalog.find((entry) => entry.key === key) ?? catalog[0];
-      return { template: template.key, positions: template.positions, all };
+      return { template: template.key, positions: template.positions, all: modulePositions(catalog) };
     },
     async duplicate(id) {
       const record = await moduleInstances.get(id);
       if (!record) throw new ValidationError('Módulo não encontrado.');
       const { id: _id, etag: _etag, ...copy } = record;
       for (const field of Object.keys(copy)) if (copy[field] === undefined || copy[field] === null) delete copy[field];
+      // Uma posição customizada sem declaração atual é rejeitada na criação,
+      // nunca substituída silenciosamente por uma posição estrutural.
       return moduleInstances.create({ ...copy, title: `${record.title} (cópia)`, enabled: false, trashed: false });
     },
     async setState(id, state, { etag } = {}) {
       return modules.batch([{ id, etag }], { publish: 'publish', unpublish: 'unpublish', trash: 'trash' }[state] ?? state);
     },
-    async batch(items, action, { position } = {}) {
+    async batch(items, action, options = {}) {
       if (!MODULE_BATCH_ACTIONS.includes(action)) throw new ValidationError(`Ação em lote desconhecida: ${String(action)}.`);
-      if (action === 'move' && !(await modulePositions()).includes(position)) throw new ValidationError('Escolha uma posição válida para mover.');
+      requireItems(items);
+      let position;
+      if (action === 'move') {
+        const descriptor = Object.getOwnPropertyDescriptor(options, 'position');
+        if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new ValidationError('Escolha uma posição válida para mover.');
+        position = descriptor.value;
+        if (position === 'component' || (!MODULE_POSITIONS.includes(position) && !isWellFormedPositionName(position))) throw new ValidationError('Escolha uma posição válida para mover.');
+        if (!MODULE_POSITIONS.includes(position) && !modulePositions(await templateCatalog()).includes(position)) throw new ValidationError('Escolha uma posição válida para mover.');
+      }
       return runBatch(items, async ({ id, etag }) => {
         if (action === 'delete') {
           const record = await moduleInstances.get(id);
@@ -150,15 +142,21 @@ export function createExtensionAdministration({ repositories, extensions, module
     },
     // Lista com os plugins nativos sempre presentes; sem registro aparecem desabilitados (id/etag ausentes).
     async catalog() {
-      const rows = (await plugins.list()).map((row) => (isNative(row) && NATIVE_PLUGINS[row.key] ? { ...row, description: row.description || NATIVE_PLUGINS[row.key][1], native: true } : row));
+      const rows = (await plugins.list()).map((row) => (isNative(row) && Object.hasOwn(NATIVE_PLUGINS, row.key) ? { ...row, description: row.description || NATIVE_PLUGINS[row.key][1], native: true } : row));
       const virtual = NATIVE_PLUGIN_KEYS.filter((key) => !rows.some((row) => row.key === key)).map((key) => ({
         id: `native:${key}`, type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], description: NATIVE_PLUGINS[key][1], enabled: false, group: 'content', ordering: 0, version: '', definitions: [], params: {}, native: true, virtual: true
       }));
       return [...rows, ...virtual].sort((a, b) => a.group.localeCompare(b.group) || a.ordering - b.ordering || String(a.title).localeCompare(String(b.title)));
     },
-    async setNative(key, enabled) {
+    async setNative(key, enabled, { etag } = {}) {
       if (!NATIVE_PLUGIN_KEYS.includes(key)) throw new ValidationError('Plugin nativo desconhecido.');
-      return extensions.create({ type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], version: '1.0.0', entryPointUrl: `native:${key}`, enabled });
+      const existing = (await extensionRows()).find((row) => row.key === key);
+      if (existing) {
+        if (existing.type !== 'Plugin' || !isNative(existing)) throw new ValidationError('Esta chave não identifica um plugin nativo registrado.');
+        // Não substitua params/manifest/group ao habilitar registros existentes.
+        return plugins.update(existing.id, { enabled }, { etag });
+      }
+      return extensions.create({ type: 'Plugin', key, title: NATIVE_PLUGINS[key][0], entryPointUrl: `native:${key}`, enabled, manifestJson: '{"version":"1.0.0","group":"content","params":[]}' });
     },
     groups(rows) { return [...new Set(rows.map((row) => row.group))].sort(); },
     async update(id, input = {}, { etag } = {}) {
@@ -200,23 +198,29 @@ export function createExtensionAdministration({ repositories, extensions, module
     async list() {
       const [config, catalog] = await Promise.all([siteConfig.get(), templateCatalog()]);
       const titles = Object.fromEntries(catalog.map((entry) => [entry.key, entry.title]));
-      const activeKey = config?.templateKey || 'default';
-      const styles = effectiveTemplateStyles(config?.templateStylesJson, catalog.filter((entry) => entry.enabled || entry.key === activeKey).map((entry) => entry.key), titles, { strict: true }, paramDefinitionsByKey(catalog))
+      const activeKey = config?.templateKey || siteConfig.defaults?.templateKey || 'default';
+      const styles = effectiveTemplateStyles(config?.templateStylesJson, catalog.filter((entry) => entry.enabled || entry.key === activeKey).map((entry) => entry.key), titles, { strict: true }, templateDefinitions(catalog))
         .map((style) => ({ ...style, templateTitle: titles[style.template] ?? style.template, isDefault: style.template === activeKey && style.home }));
       return { etag: config?.etag, templateKey: activeKey, styles, catalog };
     },
     async get(id) {
       const { etag, styles, templateKey, catalog } = await templateStyles.list();
       const style = styles.find((entry) => entry.id === String(id));
-      return style ? { ...style, etag, templateKey, definitions: templateParamDefinitions(style.template, paramDefinitionsByKey(catalog)[style.template]) } : null;
+      return style ? { ...style, etag, templateKey, definitions: templateParamDefinitions(style.template, ownDataValue(templateDefinitions(catalog), style.template)) } : null;
     },
-    async save(id, { title, params } = {}, { etag } = {}) {
+    async save(id, input = {}, { etag } = {}) {
+      const title = ownDataValue(input, 'title');
+      const params = ownDataValue(input, 'params');
       return persistStyles(etag, (styles, config, catalog) => {
         const style = styles.find((entry) => entry.id === String(id));
         if (!style) throw new ValidationError('Estilo não encontrado.');
-        const definitions = templateParamDefinitions(style.template, paramDefinitionsByKey(catalog)[style.template]);
         if (title !== undefined) style.title = String(title).trim();
-        if (params !== undefined) style.params = normalizeParamValues(definitions, params, { keepUndeclared: !definitions.length });
+        if (params !== undefined) {
+          const values = parseJsonObject(params, { strict: true, field: 'params' });
+          const definitions = templateParamDefinitions(style.template, ownDataValue(templateDefinitions(catalog), style.template));
+          const submitted = definitions.filter((definition) => Object.hasOwn(values, definition.name));
+          style.params = { ...style.params, ...normalizeParamValues(submitted, values, { keepUndeclared: false }) };
+        }
         return styles;
       });
     },
@@ -258,12 +262,12 @@ export function createExtensionAdministration({ repositories, extensions, module
     if (config) requireEtagValue(etag);
     const catalog = await templateCatalog();
     const titles = Object.fromEntries(catalog.map((entry) => [entry.key, entry.title]));
-    const activeKey = config?.templateKey || 'default';
+    const activeKey = config?.templateKey || siteConfig.defaults?.templateKey || 'default';
     const keys = [...new Set([...catalog.filter((entry) => entry.enabled).map((entry) => entry.key), activeKey])];
-    const definitionsByKey = paramDefinitionsByKey(catalog);
+    const definitionsByKey = templateDefinitions(catalog);
     const styles = effectiveTemplateStyles(config?.templateStylesJson, keys, titles, { strict: true }, definitionsByKey).map(({ virtual, ...style }) => style);
     const next = mutate(styles, config, catalog);
-    const patch = { templateStylesJson: validateTemplateStyles(next, definitionsByKey) };
+    const patch = { templateStylesJson: validateTemplateStyles(next, definitionsByKey, {preserveValues:true}) };
     if (extraPatch) Object.assign(patch, extraPatch(next.find((entry) => entry.id === String(styleId))));
     return siteConfig.save(patch, config ? { etag } : {});
   }
@@ -292,7 +296,7 @@ export function createExtensionAdministration({ repositories, extensions, module
       const manifest = parseExtensionManifest(input);
       if (manifest.type === 'Template') {
         if (!templates.available) throw new ValidationError('Catálogo de templates não configurado nesta composição.');
-        return templates.create({ title: manifest.title, key: manifest.key, version: manifest.version, entryPointUrl: manifest.entryPointUrl, styles: manifest.styles, positionsJson: manifest.positionsJson, discoveredFrom: 'manifesto', enabled: false });
+        return templates.create({ title: manifest.title, key: manifest.key, version: manifest.version, entryPointUrl: manifest.entryPointUrl, styles: manifest.styles, paramDefinitions: manifest.paramDefinitions, positionsJson: manifest.positionsJson, discoveredFrom: 'manifesto', enabled: false });
       }
       return extensions.create({
         title: manifest.title, key: manifest.key, type: manifest.type, entryPointUrl: manifest.entryPointUrl, discoveredFrom: 'manifesto',

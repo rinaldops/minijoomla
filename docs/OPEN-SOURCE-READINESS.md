@@ -5,6 +5,12 @@
 > remotos e versões antigos abaixo são históricos. Isso não certifica a
 > privacidade do import atual, o histórico legado externo nem direitos de terceiros.
 > A seleção técnica cresceu para 304 arquivos na avaliação; não é liberação pública.
+>
+> **Consolidação em andamento:** branches, código e evidências privadas são
+> preservados antes da retirada de worktrees. Testes verdes e integração
+> funcional não aprovam privacidade, origem/build/licenças de todos os
+> terceiros ou divulgação pública. Ver a
+> [avaliação da integração](AVALIACAO-INTEGRACAO-WORKTREES.md).
 
 ## Objetivo confirmado — 03/11/2026
 

@@ -83,7 +83,15 @@ function adminDefinition(module) {
 export function createAdminPluginsRuntime({ getPlugins, importModule = DEFAULT_IMPORT } = {}) {
   if (typeof getPlugins !== 'function' || typeof importModule !== 'function') throw new TypeError('Runtime administrativo requer getPlugins e importModule.');
   const manager = createPluginManager();
-  const loader = createExtensionLoader({ importModule: async (url) => adminDefinition(await importModule(sameSiteModuleUrl(url))), onError: () => {} });
+  // Preparation is shared/cacheable but never owns manager registrations.
+  // Slow obsolete reads/imports must not occupy the commit/lifecycle queue.
+  const preparedImports = new Map();
+  function prepareImport(url) {
+    url = sameSiteModuleUrl(url);
+    if (!preparedImports.has(url)) preparedImports.set(url, Promise.resolve().then(() => importModule(url)).then(adminDefinition));
+    return preparedImports.get(url);
+  }
+  const loader = createExtensionLoader({ importModule: prepareImport, onError: () => {} });
   let active = false;
   let stopped = false;
   let generation = 0;
@@ -100,13 +108,20 @@ export function createAdminPluginsRuntime({ getPlugins, importModule = DEFAULT_I
     active = true;
   }
 
-  function refresh({ isCurrent = () => true } = {}) {
+  async function refresh({ isCurrent = () => true } = {}) {
     const revision = generation;
     const current = () => active && generation === revision && isCurrent();
-    const operation = queue.then(async () => {
+    try {
       if (!current()) throw cancelled();
-      try {
-        const rows = configurations(await getPlugins());
+      const snapshot = await getPlugins();
+      if (!current()) throw cancelled();
+      const rows = configurations(snapshot);
+      await Promise.all(rows.map((row) => {
+        if (!current()) throw cancelled();
+        return prepareImport(row.entryPointUrl);
+      }));
+      if (!current()) throw cancelled();
+      const operation = queue.then(async () => {
         if (!current()) throw cancelled();
         await loader.ensurePluginsRegistered(manager, rows, {
           onRegister: (name) => current() ? manager.init(ADMIN_CONTEXT, name) : undefined,
@@ -118,13 +133,15 @@ export function createAdminPluginsRuntime({ getPlugins, importModule = DEFAULT_I
         // missing; never treat failed imports as an empty successful catalog.
         if (rows.some((row) => !manager.has(row.key))) throw failure();
         return manager.captureSaveOperation();
-      } catch {
-        if (!current()) throw cancelled();
-        throw failure();
-      }
-    });
-    queue = operation.catch(() => {});
-    return operation;
+      });
+      queue = operation.catch(() => {});
+      const captured = await operation;
+      if (!current()) throw cancelled();
+      return captured;
+    } catch {
+      if (!current()) throw cancelled();
+      throw failure();
+    }
   }
 
   function stop() {
@@ -145,7 +162,11 @@ export function createAdminPluginsRuntime({ getPlugins, importModule = DEFAULT_I
     const revision = generation;
     const operation = await refresh();
     if (!active || generation !== revision) throw cancelled();
+    const assertBeforeWrite = () => { if (!active || generation !== revision) throw cancelled(); };
     return Object.freeze({
+      // The persistence caller invokes this synchronously AFTER awaiting the
+      // hook; the hook's own final check cannot cover that microtask boundary.
+      assertBeforeWrite,
       async beforeSave(data, context = {}) {
         if (!active || generation !== revision) throw cancelled();
         let result;

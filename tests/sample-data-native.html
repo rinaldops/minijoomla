@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sample Data — fixture local</title><link rel="stylesheet" href="../src/media/templates/administrator/atum/css/template.css"></head>
+<body><div data-minijoomla-admin-root></div>
+<script type="module">
+import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+import { createSampleDataService } from '../src/libraries/minijoomla/application/sample-data-service.js';
+import { createSampleDataJournal } from '../src/libraries/minijoomla/infrastructure/sample-data-journal.js';
+import { loadJoomlaBlogPackage } from '../src/plugins/sampledata/blog/blog.js';
+import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
+
+const memory = new Map(); let writes = 0; const requests = [];
+const domains = ['articles', 'categories', 'tags', 'menu', 'extensions', 'templates', 'moduleInstances', 'siteConfig'];
+const repositories = Object.fromEntries(domains.map(domain => {
+  const rows = []; return [domain, { findMany: async () => ({ items: structuredClone(rows) }), findById: async id => structuredClone(rows.find(row => row.id === id) ?? null), create: async values => { const row = { ...structuredClone(values), id: rows.length + 1, etag: `"${++writes}"` }; rows.push(row); return structuredClone(row); }, update: async () => { throw Error('No update permitted'); }, delete: async () => { throw Error('No delete permitted'); } }];
+}));
+const journal = createSampleDataJournal({ storage: { getItem: key => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value) }, key: 'local-sample-fixture', locks: navigator.locks });
+const sample = createSampleDataService({ adminService: createAdminService(repositories), loadPackage: async () => loadJoomlaBlogPackage({ releaseBase: new URL('../src/', location.href).pathname, fetchImpl: (url, init) => { requests.push(url); return fetch(url, init); } }), journalStore: journal });
+const root = document.querySelector('[data-minijoomla-admin-root]');
+const app = createAdminApplication({ adminService: createAdminService(repositories), sampleDataService: sample, documentRef: { body: root, title: '' }, autoStart: false });
+await app.start(); await app.router.navigate('#/sampledata');
+window.__sampleFixture = { app, sample, state: async () => ({ status: (await sample.inspect()).status, writes, imageReads: requests.length, articleCount: (await repositories.articles.findMany()).items.length, errors: root.querySelectorAll('[role="alert"]').length }) };
+</script></body></html>

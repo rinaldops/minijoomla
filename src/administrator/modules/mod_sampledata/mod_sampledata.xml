@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="administrator" method="upgrade">
+  <name>mod_sampledata</name>
+  <version>1.0.0</version>
+  <description>Dados de exemplo com confirmação, diário e instalação explícita.</description>
+  <files><filename module="mod_sampledata">mod_sampledata.js</filename><folder>src</folder><folder>tmpl</folder></files>
+</extension>

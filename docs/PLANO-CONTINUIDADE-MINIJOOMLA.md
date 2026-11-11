@@ -1,5 +1,374 @@
 # Plano de continuidade — MINIJOOMLA
 
+## Prioridade vigente — finalizar somente o Joomla padrão
+
+**Separação de produto explicitada posteriormente:** Videoteca/Forum e seus
+materiais específicos são transferidos para TD. Instalação deve ser genérica:
+cópia fiel do pacote no SharePoint, duas páginas MSE e instalação inicial pelo
+painel; extensões/templates são escolhidos somente depois. CAMAP atuais são
+referência transitória do template definitivo externo CAMAP-V3 e serão retirados
+depois de sua conclusão, não antecipadamente. Ver
+[contrato de instalação genérica](INSTALACAO-GENERICA-MINIJOOMLA.md).
+
+Diretriz posterior do usuário: **Videoteca e Forum não devem ser desenvolvidos
+neste momento; foco somente nos itens padrões do Joomla original.** Esta diretriz
+prevalece sobre a fila de expansão externa abaixo. Interrompida a frente de
+Videoteca; todo trabalho local parcial é preservado sem integração, publicação
+ou instalação. Não iniciar Forum, novos ciclos externos ou grupo de adoção
+como pré-condição do fechamento nativo. Os ensaios externos anteriores ficam
+históricos; não remover nem desabilitar módulos já instalados por inferência.
+
+Objetivo: fechar o CMS minimalista Joomla-like acordado, com Atum/Cassiopeia,
+preservação editorial/ETags/JSON e ciclo Desenvolvimento → Teste no site →
+Análise → Validação → Documentação. Não significa implementar o Joomla PHP
+integral nem acrescentar implicitamente ACL/com_users, SQL, ZIP genérico,
+workflow, contatos/banners/feeds ou índice Finder completo. As exclusões
+anteriores (i18n, SEO integrado ao host, histórico e check-in/check-out de
+artigos) permanecem, até decisão explícita diferente.
+
+### Seis blocos para o fechamento nativo
+
+**Generalização prioritária em andamento:** primeira instalação independente do
+dashboard/listas anteriores, infraestrutura vazia e configuração operacional
+exclusiva. Engine/port/UI/bootstrap/pacote implementados localmente; revisão
+orientou correções de cancelamento/dispatch, marcador de configuração e inspeção
+instalada sem journal. Teste no site e instalação em destino vazio continuam
+gates separados. [Ciclo desta generalização](CICLO-GENERALIZACAO-INSTALACAO.md).
+
+**Continuidade do incremento validada localmente:** primeiro salvamento
+completo/parcial agora preserva os ajustes iniciais; configuração do painel,
+estilos e home vazia permanecem coerentes. Host exato do pacote executado offline
+com SPMIDDLE real e REST simulado (subsite e raiz `/`); Mídia vazia não cria pasta,
+primeiro upload explícito cria somente `uploads`. UI nativa da configuração em
+memória passou; **109 suítes / 0 skips / 0 falhas**, parse 333 JS/MJS. Instalação
+SharePoint real segue pendente de destino vazio específico, e raízes/extensões
+pós-instalação ainda precisam de desenvolvimento.
+[Resultados e limites](CICLO-INSTALACAO-CONTINUIDADE.md).
+
+**Checkpoint enviado:** `765e174` na branch step2, confirmado no remoto após
+autorização explícita. Próximo incremento de raízes pelo painel implementado e
+validado localmente (112/0/0 e 339 JS/MJS): arquivo separado, aprovações/ETags/CSS de revisão preservados,
+sem instalar extensões ao aprovar. [Ciclo atual](CICLO-RAIZES-EXTENSOES.md).
+
+**Reavaliação do merge (10/11):** raízes commitadas/enviadas em `c6c083c`;
+112/0/0 integrado e 95/17 skips esperados/0 num clone Git novo limpo. Histórico
+permite fast-forward, mas main tem 59 arquivos locais, incluindo novo mecanismo
+genérico de templates ainda não reconciliado. Nova captura privada preservada;
+wt02 requer suplemento dos outputs ignorados/relocação operacional. **Merge e
+retirada ainda bloqueados; nenhuma worktree removida.**
+[Parecer completo e critérios](AVALIACAO-INTEGRACAO-WORKTREES.md#reavaliação-solicitada--10112026).
+
+**Reconciliação incremental de templates em execução:** posições próprias no
+catálogo/runtime, preservação de posições órfãs na edição e recusa de metadata
+inválida. Ensaio isolado no SharePoint com repositórios em memória passou após
+correções/reteste; 48 registros/ETags, páginas e host preservados. Regressão
+114/0/0, parse 342 JS/MJS e contributor 433 caminhos. Parâmetros
+de estilos e demais contribuições da principal ainda não reconciliados. Captura
+atual de 65 arquivos conservada; não atualizar main/retirar worktrees por este
+incremento parcial. [Ciclo atual](CICLO-TEMPLATES-POSICOES.md).
+
+**Próximo ciclo — parâmetros de templates:** envelope no campo Styles existente,
+sem nova coluna; formulários/runtime ligados e preservação de estilos futuros/
+não relacionados corrigida. Ensaio real SharePoint isolado em memória passou,
+48 registros/ETags/páginas/host preservados. Reteste integrado **118/0/0**, parse
+349 JS/MJS e contributor 441 caminhos; revisão independente sem P1 remanescente
+no recorte. XML e demais deltas da principal seguem pendentes, sem merge automático.
+[Ciclo de parâmetros](CICLO-TEMPLATES-PARAMETROS.md).
+
+**Checkpoint de templates enviado:** `4029c48`. Próximo incremento nativo
+`articles-featured` com imagem/resumo reconciliado da principal, sem substituir
+`articles-news` ou chaves previamente registradas. Ensaio isolado SharePoint
+com memória passou, 48 registros/ETags/páginas/host preservados; reauditoria e
+regressão após correções **120/0/0**, parse 354 JS/MJS, contributor 448 caminhos.
+[Ciclo do destaque](CICLO-ARTICLES-FEATURED-NATIVO.md).
+
+**Destaque enviado em `e70067e`. FullBleed informado pelo usuário:** integração
+dos snippets com wrapper oficial SPMIDDLE, sem alterar o algoritmo/ancestrais
+ou as páginas aceitas. Prova temporária SharePoint com dois wrappers, Enter,
+resize e cleanup passou; regressão completa aprovada após correções. Não é ativação MSE
+persistida ou remoção dos limites internos dos templates.
+[Ciclo FullBleed](CICLO-MSE-FULLBLEED.md).
+
+Validação posterior FullBleed: **121/0/0**, parse 356 JS/MJS e contributor 453
+caminhos; reauditoria sem P1/P2 no recorte. Integração ainda local, sem mudar
+as páginas aceitas nem a configuração de publicação do SPMIDDLE.
+
+**Publicação autorizada FullBleed 0.16.0:** integração enviada em `20feabc`;
+CONFIG legado inteiro/raízes/pins preservados, sem provisioning ou writes no
+CMS. Ambas páginas já estavam publicadas no preflight fresco e continuam assim,
+com snippets FullBleed atualizados e ETags de página deliberadamente novos.
+48 registros/ETags de dados preservados, mount/resize/navegação readonly reais
+conferidos. [Resultado e próximo tooling](PUBLICACAO-FULLBLEED-0.16.0.md).
+
+**Continuidade do empacotamento operacional validada:** ferramenta offline
+reutilizável preserva CONFIG/roots/CSS/pins/chaves futuras; corrigidos ancestor
+junction e semântica `__proto__`, sem alterar o bootstrap genérico vazio.
+Pacote CONFIG-injetado em nova prova SharePoint montou site/admin; 48 registros/
+ETags, páginas e host ativo intactos antes/depois. Reauditoria sem P1/P2 no recorte;
+**122/0/0**, parse 358 JS/MJS, contributor 456 caminhos. Release ativa 0.16.0 não
+reescrita; XML/migração/reconciliação main e destino vazio continuam pendentes.
+
+**0.16.1 publicada após nova solicitação:** empacotador de `e0e4e67`, CONFIG
+fresco preservado, 265 arquivos enviados/conferidos e ambas MSE ativas/recarregadas.
+FullBleed/resize/readonly/Enter aprovados; 48 dados/ETags intactos. Não substitui
+aceite de instalação vazia/CRUD/editor/zoom. [Recibo funcional](PUBLICACAO-FULLBLEED-0.16.0.md#atualização-posterior--0161).
+
+### Estimativa de conclusão — após publicação 0.16.1
+
+Solicitada pelo usuário. **Faixa de planejamento: 20–35 dias úteis de esforço
+(aproximadamente 4–7 semanas)** para o CMS mínimo Joomla-like acordado. Inclui
+Desenvolvimento → Teste no site → Análise/correções/reteste → Validação → Documentação;
+não mede paridade integral Joomla nem constitui promessa de data.
+
+| Frente restante | Esforço estimado |
+| --- | --- |
+| Reconciliação final da principal, preview/tooling e preservação das worktrees | 2–4 dias |
+| Perfil XML de plugins, instalação/lifecycle/negativos | 3–5 dias |
+| Perfil XML de templates, estilos/posições/parâmetros/recuperação | 3–5 dias |
+| Migração assistida: executor/UI/diário/falhas parciais/recuperação | 4–7 dias |
+| Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias |
+| Integração final, documentação e margem para correções | 4–7 dias |
+
+O total é esforço agregado; não é um cronograma serial com datas fixas.
+Dependências externas podem alongar o calendário: destino SharePoint **vazio e
+especificamente autorizado**, janela sem edição concorrente na `main`, acesso e
+decisões para testes com writes. Revisão jurídica/proveniência/marcas, privacidade/
+histórico e prontidão para distribuição pública não têm data nesta faixa.
+Reestimar após cada bloco, principalmente XML/migração; não prometer conclusão
+enquanto gates externos estiverem indisponíveis.
+
+Próximo incremento iniciado: servidor de preview local com montagem explícita de
+pacotes, contribuição nativa da principal ainda ausente. Principal novamente
+preservada: 68 arquivos / 1.038.925 bytes, sem alterar originais. Runtime nativo
+restante parece já reconciliado na comparação semântica; não é freeze ou gate
+automático de merge. CAMAP-V3/Videoteca/Forum não são importados.
+
+**Desenvolvimento → teste no site do preview local:** `serve-local` agora monta
+somente pacotes explicitamente selecionados sob `packages/<id>`, sem shadowing,
+links/ancestors, traversal ou writes. API/CLI e negativos HTTP bruto passaram;
+FIORI-AUTO local importou JS relativo/CSS/imagem, Enter/reflow 320/768/1366 e
+storage preservado. Mesmo fechamento sintético em iframe SharePoint passou,
+48 registros/ETags/páginas/host 0.16.1 intactos. Não é seleção por catálogo nem
+mount de produção. [Contrato local](LOCAL-DEMO.md#explicit-local-package-mounts).
+
+Revisão do preview encontrou aliases de raízes próprias e IDs privados aceitos;
+corrigidos e negativos ampliados. Reteste local nativo e prova SharePoint readonly
+passaram novamente, sem uploads novos ou writes; reauditoria sem P1/P2 no recorte.
+Não interpretar validação do diretório como prova de direitos/ausência de segredos.
+
+**Validação final do preview concluída:** execução sequencial completa
+**122/0/0**, parse 358 JS/MJS e contributor 456 caminhos; sete grupos standalone
+e regressões focais de consultas/templates/plugins também aprovados. Timeout
+externo anterior mantido como execução incompleta, não passe. Incremento altera
+tooling/documentação, sem nova substituição da release operacional 0.16.1.
+Próximo delta funcional: preview opt-in de template já registrado, sem seeds ou
+defaults corporativos. Merge/retirada continuam condicionados aos gates próprios.
+
+**Preview por catálogo implementado:** `examples/index.html` aceita `?template=`
+com qualquer chave habilitada do catálogo em memória além dos três builtins;
+chave desconhecida/desabilitada continua recusada e a seleção nunca persiste
+`templateKey`/cria registro. Novo grupo de teste cria/desabilita um registro
+real no catálogo da demo e confirma a ausência de escrita extra no storage.
+Correção real encontrada durante esse teste: o harness VM standalone não expunha
+`TextEncoder`/`TextDecoder` ao contexto isolado, falha só percebida ao exercitar
+um template não-builtin (que usa o envelope de metadata). Corrigido no harness
+de teste, não no runtime. Regressão: `test-standalone-examples.js` com **8 grupos
+aprovados** (antes 7).
+
+Reauditoria independente encontrou a primeira asserção de "nenhuma escrita extra"
+tautológica: como a demo usa uma única chave de storage, comparar o `Map` inteiro
+sempre aprovava, mesmo com uma escrita real. Corrigido comparando a string bruta
+do `storage.getItem` antes/depois do preview; confirmado por prova negativa
+(mutação deliberada de outro domínio detectada corretamente). Também reforçada
+a asserção final para confirmar positivamente `data-template="cassiopeia"`, não
+só a ausência de `camap`. Regressão completa executada após a correção.
+[Contrato de preview](TEMPLATE-INSTALL-CONTRACT.md#preview-local-seleção-por-catálogo).
+
+**Teste real concluído na página administrativa:** mesmo grafo publicado em
+pasta de prova nova/isolada, exercitado via FIORI-AUTO num iframe dedicado.
+Descoberta/correção de CSP do SharePoint bloqueando `<script>` inline mesmo em
+iframe filho; entrypoint externo `type="module" src` com cache-buster resolveu.
+Seis condições do contrato aprovadas ao vivo: chave desconhecida/desabilitada
+rejeitadas, chave habilitada selecionada, nenhuma escrita extra no storage e
+fallback ao template salvo preservado. **48 registros/ETags, host 0.16.1 e
+canvas das duas páginas idênticos**; só a versão do arquivo Administrator.aspx
+avançou sem mudança de conteúdo. `localStorage` da prova limpo após o teste;
+sessão FIORI-AUTO encerrada. Sem instalação/registro persistente de extensão.
+
+**Requisito transversal da instalação genérica:** bootstrap independente de
+listas/mapa já gerados, wizard inicial no painel, infraestrutura/configuração
+nativa vazia e extensão/template somente após a instalação. O botão de dados
+de exemplo não é o instalador inicial. A auditoria identificou essa lacuna e o
+conflito de Sample Data com configuração inicial já existente; resolver por
+contrato explícito, não sobrescrever config/dados do administrador.
+
+**Gate anterior aos novos blocos:** avaliar/consolidar agora as branches e o
+trabalho local, preservando contribuições da principal e artefatos das worktrees.
+[Avaliação da integração](AVALIACAO-INTEGRACAO-WORKTREES.md): histórico linear
+permite fast-forward, mas deltas locais/finais de linha/dependências precisam
+ser tratados antes. Execução foi autorizada: candidata `b5c548f` commitada,
+100/0/0 integrado e 86/14 skips esperados/0 no checkout novo. Cópia privada de
+tmp verificada. A principal voltou a mudar por outra frente após congelamento:
+57 arquivos atuais preservados em nova captura. **Main/retirada das worktrees
+bloqueados até cessar concorrência e reconciliar esse delta**; nenhuma exclusão
+ou publicação no site executada. Não iniciar bloco 1 antes de fechar esse marco.
+
+1. **Organização e contratos nativos:** concluir controllers/bindings por
+   componente e manifestos nativos ainda faltantes; verificar/concluir conexão
+   de plugins administrativos persistidos no host ativo. Views, módulos e hooks
+   já existentes não são tratados como recursos ausentes. Trabalho antigo da
+   principal não é implementação validada desta branch.
+2. **XML de plugins:** parser/descoberta/inventário e lifecycle de identidade,
+   grupo/client/eventos, registro desabilitado, revisão e reversão seguros.
+3. **XML de templates:** perfil próprio, posições/params/assets, estilos/default
+   e revisão/reversão, sem trocar default ao descobrir/registrar.
+4. **Migrações assistidas necessárias:** prévia, mapeamentos explícitos,
+   confirmação, executor/diário/recuperação e ETags. A antiga prévia em outra
+   árvore não é authoritative; esta application não contém seu executor/UI.
+5. **Aceite real do núcleo:** save/upload editorial com TinyMCE, CRUD de plugins
+   e estilos, Sample Data em destino vazio/recuperação interrompida sem reinstalar
+   o atual, e aceites de teclado/zoom/contraste/mídia/leitor aplicáveis.
+6. **Integração e entrega:** integrar somente mudanças verificadas das branches,
+   preservar trabalho alheio da principal, release nativa imutável, releitura e
+   rollback/documentação final. Privacidade/proveniência/terceiros e distribuição
+   pública permanecem gates separados, não satisfeitos pelos testes funcionais.
+
+O núcleo operacional já cobre conteúdo, categorias/tags, menus, módulos,
+estilos/configuração, plugins nativos, editor/imagens/agendas, dados de exemplo
+e persistência. Regressão observada: 94 suítes aprovadas e 275 JS verificados,
+incluindo suítes de ferramentas externas; isso não mede porcentagem de paridade
+com todo Joomla nem comprova todos os aceites reais pendentes. Os seis blocos
+são fila de fechamento, não seis comandos nem prazo estimado. Próxima execução:
+auditar/concluir bloco 1 antes dos perfis XML, sem trabalho novo de Videoteca/Forum.
+
+## Histórico da expansão e ciclos anteriores
+
+> **Retomada de Documentation:** seis edições de artigo foram confirmadas pelo
+> usuário como referência de preservação; 48/48 registros, canvas e estado das
+> páginas conferidos contra essa referência. Pública permanece em rascunho,
+> administrador publicado, sem rollback/publicação automática. Vínculo upstream
+> da licença e mapa de derivação foram materializados no novo perfil 0.5.x;
+> gate técnico específico SOURCE/NOTICE aprovado em revisão independente.
+> 0.4.x permaneceu local por mapa incompleto. Ensaio de 0.5.x em pastas de prova
+> no site validado após correções/retestes do runner; falhas históricas preservadas.
+> Público/admin, teclado, navegação e formulário em memória passaram; cleanup e
+> 48/48 registros/ETags/configuração/oito raízes conferidos. Sem adoção ou raiz
+> persistida; não é aprovação jurídica/global ou acessibilidade integral.
+> Próximo desenvolvimento individual: Videoteca. Regressão 94/94; código local
+> desta retomada ainda sem novo commit/push.
+> **Videoteca iniciada localmente**, após fechar Documentation: 16 campos,
+> URLs/mídia/dados inertes e apresentação estática honesta em desenvolvimento.
+> Ciclo individual transferido para TD. Nenhum asset Videoteca enviado,
+> registro/raiz configurado ou módulo instalado por essa preparação.
+
+> **Documentation — gate local / bloqueio upstream (09/11/2026):** preparação
+> técnica com 24 campos, árvores/ciclos/URLs seguros e reflow profundo validada;
+> publicação, pacote final no site e adoção ainda não liberados. Atribuições e
+> obrigações Phoca/Joomla precisam ser mapeadas, sem inferir MIT do derivado por
+> licença do agregador. [Estado e critérios](CICLO-DOCUMENTATION-ISOLADO.md).
+> Sem envio de assets, módulo/raiz nova ou writes nas listas. Videoteca não iniciada;
+> sete módulos ainda aguardam adoção persistida, grupo definitivo não congelado.
+> Regressão local 93/93; último snapshot observou 47/48 itens exatos e página
+> pública em rascunho após alterações não feitas por este ciclo. Preservar trabalho
+> e reconciliar referência antes do aceite final, sem rollback/publicação automática.
+> Checkpoint Git somente documental; builder, fixtures e integrações preservados
+> localmente, sem envio do código pendente de revisão upstream.
+
+> **Showcase (09/11/2026) — ensaio isolado validado:** 0.5.x passou nos cinco modos
+> público/admin, formulário em memória e sequência contínua de Tab/Shift+Tab/Enter.
+> Sphere estático por escolha do usuário; versões .3/.4 imutáveis mantidas sem
+> promover suas falhas de teclado a aprovação. [Ciclo/limites](CICLO-SHOWCASE-ISOLADO.md).
+> 0.15.0/Cassiopeia/três estilos/oito raízes/48 itens preservados, 92 suítes aprovadas.
+> Não instalado. Próximo ciclo: Documentation; três inputs reais restantes antes
+> do grupo definitivo, sete módulos ainda aguardam lifecycle/adoção persistida.
+
+> **Recursos (09/11/2026) — ensaio isolado validado:** 0.4.x passou no público/
+> admin, ranges de conteúdo e formulário/teclado em memória. Usuário confirmou
+> experiência de layout; Cassiopeia reativada por patch único com ETag, três
+> estilos conservados. 48 registros íntegros desde a referência reconciliada,
+> 0.15.0/oito roots intactos. [Resultado/limites](CICLO-RECURSOS-ISOLADO.md).
+> Recursos não instalado. Próximo ciclo isolado: Showcase; quatro inputs reais
+> restantes antes de congelar grupo, sete módulos ainda pendentes de adoção.
+
+> **Ciclo Home isolado (09/11/2026):** 0.4.0/0.4.1 testadas no público/admin após
+> descoberta/correção do defeito de stats a 180 px. Formulário e teclado em memória;
+> **não instalado**, nenhuma nova raiz publicada. 0.15.0/oito raízes/48 registros
+> íntegros, 90 suítes aprovadas. [Evidências e limites](CICLO-HOME-ISOLADO.md).
+> Próximo desenvolvimento: Recursos em ensaio isolado. Sete módulos ainda não
+> adotados; congelar o grupo exige os ciclos dos cinco inputs restantes, sem
+> fabricar capacidade, limpar dados ou absorver a principal antiga indiscriminadamente.
+
+> **Ciclo Hero isolado (08/11/2026):** três patches delimitados, testes reais de
+> imagem/ações/layout e formulário em memória, sem cadastro/root novo. 0.15.0,
+> oito raízes/48 itens íntegros; 89 suítes aprovadas. [Evidências](CICLO-HERO-ISOLADO.md).
+> Próximo desenvolvimento: Home em ensaio isolado, após este fechamento. Sete
+> módulos pendentes de adoção; não consumir capacidade ou publicar grupo incompleto.
+
+> **Ciclo de capacidade (08/11/2026):** agrupamento finito validado com dois
+> módulos neutros/revisões no site, sem configurar/instalar. Oito raízes/48 itens
+> da 0.15.0 preservados. [Provas/contraprovas e fila](CICLO-CAPACIDADE-XML.md).
+> Próximo desenvolvimento: Hero em ensaio isolado, sem consumir última capacidade
+> antes de comprovar o conjunto finito. Sete módulos, XML plugins/templates,
+> migração assistida e aceites integrais pendentes; não há expansão automática.
+
+> **Estado vigente — Topsections (08/11/2026):** 0.15.0 ativa/publicada nas duas
+> páginas, Topsections 0.3.0 em `bottom-a`, itemLimit 2, oito raízes aprovadas.
+> Ciclo desenvolvimento/site/análise/validação/documentação executado; 243 assets,
+> 87 suítes aprovadas, 48 itens totais e os 46 anteriores/ETags intactos.
+> [Resultado e limites](CICLO-TOPSECTIONS.md). Sete módulos restantes; próximo gate
+> [capacidade das raízes](CAPACIDADE-RAIZES-XML.md), antes de consumir últimas vagas.
+> XML plugins/templates, migração assistida e aceites integrais continuam pendentes.
+
+> **Estado vigente — ciclo Highlights (08/11/2026):** 0.14.0 ativa nas duas
+> páginas publicadas, Highlights 0.3.0/horizontal em `top-a`, seis raízes aprovadas.
+> Ciclo **Desenvolvimento → Teste no site → Análise → Validação → Documentação**
+> executado com correções/contraprovas; 243 assets, 86 suítes aprovadas, 46 itens
+> totais e os 44 anteriores/ETags preservados. [Resultado/limites](CICLO-HIGHLIGHTS.md).
+> Próximo ciclo individual: Topsections. Oito módulos, XML plugins/templates e
+> migração assistida pendentes. Histórico anterior abaixo não substitui o estado vigente.
+
+> **Estado vigente — etapa 2C (07/11/2026):** 0.13.0 ativa nas duas páginas
+> publicadas, foco corrigido/aceito na 0.12.0 e editorial externo 0.3.0 adotado
+> individualmente com pacote corrigido e avisos MIT/GPL. Registrar pelo diálogo
+> real, instância/edit/toggles pelo painel e revisões pelo serviço comprovados.
+> Os 42 itens anteriores/ETags intactos, 44 totais; 243 assets/85 suítes aprovadas.
+> [Evidências/fila restante](ETAPA-2C-EDITORIAL-ADOTADO.md).
+> Nove módulos, XML plugins/templates e migração assistida seguem pendentes.
+> Não alterar pacotes/fontes externos ou dados automaticamente. Histórico abaixo.
+
+> **Estado vigente — etapa 2B (07/11/2026):** 0.11.0 ativa, ambas páginas
+> publicadas/sem checkout; rascunho conciliado por histórico de restauração e
+> conteúdo, sem regravar canvas. Confirmação modal real e Cancelar/Escape,
+> upgrade/rollback/Enter, conflito visível e toggles aceitos pelo painel.
+> 243 assets, 84 suítes/zero skips/falhas, 40 registros originais/ETags intactos
+> e 42 itens totais. [Evidências e próximos gates](ETAPA-2B-CONFIRMACAO-E-ACEITE-XML.md).
+> Dez módulos permanecem preparados, **não instalados**: [bloqueios por módulo](MATRIZ-ADOPTION-MODULOS.md).
+> Cadastro inicial pelo diálogo novo e aceites integrais continuam pendentes;
+> hardening posterior de foco corrigido localmente, ainda não na 0.11.0.
+> não reinstalar amostra/piloto para testá-los. Blocos anteriores são histórico.
+
+> **Estado autoritativo — etapa 2:** 0.10.0 ativada/relida, 242 assets;
+> piloto XML 0.2.0/0.2.1 com instalação desabilitada, instância/edit via UI,
+> ETag 412, upgrade/rollback, enable/disable e remoção protegida exercitados.
+> Os 40 registros originais/ETags intactos, dois registros novos do piloto.
+> Dez módulos preparados individualmente, **não instalados**. Fonte isolada
+> `feat/joomla-finalization-step2`, sem merge na principal suja.
+> **Bloqueios:** confirmação nativa e ciclo integral de UI não aceitos; pública
+> tornou-se rascunho após ativação com ETag nova/canvas idêntico, não republicada
+> automaticamente. Administrador publicado. [Resultado e próximos gates](ETAPA-2-PILOTO-XML.md).
+> Concluir esses gates antes da adoção real dos dez; depois perfis XML próprios
+> de plugins/templates e migração assistida. Blocos anteriores abaixo são histórico.
+
+> **Atualização autoritativa — etapa 1:** 0.9.0 publicada nas duas páginas,
+> fonte `34f0a6e`, 241 assets/79 suítes e 40 registros/ETags preservados.
+> Correção Folder, opções de consulta e Sample Data no painel; installed
+> reconhecido sem novas escritas. [Publicação e limites](ETAPA-1-SAMPLE-DATA.md).
+> Desenvolvimento isolado na branch `feat/joomla-finalization-step1`, sem
+> absorver patches antigos da árvore principal. Próxima frente funcional:
+> ciclo completo do piloto XML e preparação dos outros dez módulos, depois
+> plugins/templates XML e migração assistida. Aceites reais ainda descritos
+> como abertos no contrato não são fechados pelo deploy.
+
 > **População posterior autorizada:** funcionamento confirmado pelo responsável,
 > commit/push `57ef821` e carga fonte Joomla original sobre listas vazias da 0.8.0.
 > 40 registros/12 imagens, 101 verificações de releitura aprovadas; frontpage e

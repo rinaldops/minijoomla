@@ -1,5 +1,107 @@
 # MINIJOOMLA
 
+> **Produto genérico Joomla-like:** distribuir o núcleo e bootstrap MSE para
+> duas páginas (site/admin), instalar o CMS pelo painel e só depois instalar
+> extensões/templates escolhidos pelo administrador. Videoteca/Forum pertencem
+> ao TD. CAMAP é referência temporária do template externo CAMAP-V3, não default
+> de instalação. [Contrato e gates reais](docs/INSTALACAO-GENERICA-MINIJOOMLA.md).
+
+> **Instalação genérica — incremento local validado:** bootstrap sem listas,
+> plano/diário de infraestrutura vazia, UI própria e pacote copiável implementados;
+> 106 suítes aprovadas. Teste nativo da UI em memória passou, mas instalação real
+> sob SharePoint/MSE ainda não aceita. [Ciclo e limites](docs/CICLO-GENERALIZACAO-INSTALACAO.md).
+
+> **Continuidade pós-instalação validada localmente:** ajustes iniciais conservados
+> no primeiro save/recarga; host exato do pacote passa offline em subsite e raiz,
+> Mídia vazia/primeiro upload explícito tratados. 109 suítes aprovadas; teste real
+> SharePoint depende de destino vazio específico.
+> [Resultados desta rodada](docs/CICLO-INSTALACAO-CONTINUIDADE.md).
+
+> **Prioridade atual: finalizar o Joomla padrão.** Videoteca e Forum suspensos;
+> expansão externa não é pré-condição do fechamento nativo. Trabalho parcial
+> preservado sem instalar/publicar. [Fila de fechamento](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
+> **Documentation — ensaio isolado 0.5.x validado:** atribuições, vínculo GPL upstream,
+> mapa de derivação e fontes/rebuild offline passaram no gate técnico específico.
+> Testes público/admin, teclado, navegação e formulário em memória passaram;
+> não é aprovação jurídica/global ou acessibilidade integral. Expansão externa suspensa.
+> **Não instalado**; 0.15.0/Cassiopeia/três estilos/oito raízes/48 itens fora do
+> escopo de escrita. [Ciclo e retomada](docs/CICLO-DOCUMENTATION-ISOLADO.md).
+> Seis edições de artigo confirmadas como referência de preservação; página
+> pública continua em rascunho, sem rollback/publicação automática. Código e
+> integração desta retomada ainda locais, sem novo commit/push.
+
+> **Showcase — ensaio isolado validado:** 0.5.x retestada nos cinco modos, público/
+> admin, após correções de texto e sequência de teclado. Sphere usa a lista estática
+> escolhida pelo usuário. **Não instalado**; 0.15.0/Cassiopeia/três estilos/oito
+> raízes/48 registros preservados. 92 suítes aprovadas. [Ciclo/limites](docs/CICLO-SHOWCASE-ISOLADO.md).
+> Próximo ciclo: Documentation isolado; sete módulos ainda pendentes de adoção.
+
+> **Recursos — ensaio isolado validado:** 0.4.x passou no público/admin após
+> correção da compacta e reconciliação com o usuário. Cassiopeia ativa, três
+> estilos conservados; 0.15.0/oito raízes/48 itens íntegros desde essa referência.
+> **Não instalado.** [Resultados e limites](docs/CICLO-RECURSOS-ISOLADO.md).
+> Próximo ciclo isolado: Showcase; sete módulos ainda pendentes de adoção.
+
+> **Ciclo Home isolado:** corrigido e retestado no site público/admin, inclusive
+> reflow por contêiner a 180 px e formulário/teclado em memória. **Home não
+> instalado**; 0.15.0, oito raízes e 48 itens/ETags preservados. 90 suítes aprovadas.
+> [Resultado e limites](docs/CICLO-HOME-ISOLADO.md). Próximo ciclo: Recursos isolado;
+> os sete módulos continuam pendentes de adoção, sem configuração do grupo definitivo.
+
+> **Ciclo Hero isolado:** adaptação testada no site com/sem imagem, textos longos,
+> parâmetros/teclado em memória e finalizador endurecido. **Hero não instalado**;
+> 0.15.0, oito raízes e 48 itens/ETags preservados. 89 suítes aprovadas.
+> [Resultado/limites](docs/CICLO-HERO-ISOLADO.md). Próximo ciclo isolado: Home;
+> sete módulos continuam pendentes de adoção definitiva.
+
+> **Ciclo de capacidade XML:** agrupador finito desenvolvido e testado no site
+> com dois módulos de prova, sem instalação. 0.15.0 permanece ativa, oito raízes/
+> 48 itens intactos. [Resultados e limites](docs/CICLO-CAPACIDADE-XML.md).
+> Sete módulos externos continuam pendentes; agrupamento não permite inclusão
+> posterior em raiz imutável nem dispensa ciclos individuais.
+
+> **Vigente — 0.15.0:** Topsections corrigido/adotado pelo ciclo desenvolvimento
+> → site → análise → validação → documentação. 48 itens totais, os 46 anteriores/
+> ETags intactos; ambas páginas publicadas, 243 assets e 87 suítes aprovadas.
+> [Ciclo e limites](docs/CICLO-TOPSECTIONS.md). Sete módulos pendentes; próximo
+> gate é a capacidade das oito raízes atuais, sem instalação em lote ou limpeza.
+
+> **Vigente — 0.14.0:** Highlights corrigido/adotado após ciclos de desenvolvimento,
+> teste no site, análise, validação e documentação. 46 itens totais, os 44
+> anteriores/ETags intactos, ambas páginas publicadas; 243 assets/86 suítes
+> aprovadas. [Ciclo e limites](docs/CICLO-HIGHLIGHTS.md). Restam oito módulos,
+> XML plugins/templates e migração assistida; distribuição pública não pronta.
+
+> **Vigente — 0.13.0:** primeiro editorial externo corrigido e adotado
+> individualmente; confirmação inicial pelo painel, revisões/rollback e
+> preservação dos 42 registros anteriores comprovados. 44 itens totais,
+> ambas páginas publicadas, 243 assets e 85 suítes aprovadas.
+> [Resultado e limites](docs/ETAPA-2C-EDITORIAL-ADOTADO.md). Nove módulos ainda
+> pendentes; principal preservada sem merge e distribuição pública não pronta.
+
+> **Vigente — 0.11.0:** ambas páginas publicadas; confirmação modal real,
+> atualização/reversão e conflito do piloto aceitos pelo painel. 243 assets,
+> 84 suítes aprovadas, 40 registros originais/ETags preservados e 42 itens totais.
+> Dez módulos preparados, ainda não instalados; defeitos/contratos e proveniência
+> precisam ser resolvidos antes de exposição. [Resultado e limites](docs/ETAPA-2B-CONFIRMACAO-E-ACEITE-XML.md).
+> Principal preservada sem merge; distribuição pública ainda não pronta.
+
+> **Etapa 2 — runtime 0.10.0:** piloto XML com ciclo real de serviço e criação/
+> edição de instância pelo painel; 242 assets e 40 registros originais/ETags
+> preservados, dois recursos novos de demonstração. Dez módulos preparados
+> offline, não instalados. [Evidências e bloqueios](docs/ETAPA-2-PILOTO-XML.md):
+> confirmação nativa/ciclo completo pela UI pendentes; pública com rascunho
+> concorrente após ativação, não republicado automaticamente. Admin publicado.
+> Principal preservada sem merge; distribuição pública ainda não pronta.
+
+> **Etapa 1 publicada — 0.9.0:** correções de plugins/consultas e
+> instalação de dados de exemplo em `administrator/modules/mod_sampledata/`,
+> com pacote `plugins/sampledata/blog/`. [Contrato e validação](docs/ETAPA-1-SAMPLE-DATA.md).
+> 241 assets conferidos, 79 suítes aprovadas e 40 registros/ETags preservados.
+> Tela instalada reconhecida após reload; não houve reinstalação da amostra.
+> A instalação aceita 0.8.0 permanece para rollback. Estado antigo abaixo é histórico.
+
 > **Estado posterior à confirmação de funcionamento:** commit `57ef821`
 > enviado; Joomla Blog Sample Data populado na release 0.8.0: **40 registros
 > em oito listas e 12 imagens originais**, com releitura independente.

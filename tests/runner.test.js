@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { TEST_SUITES, runTestSuites } from './run-tests.js';
+import { CONTRIBUTOR_FILES } from '../scripts/stage-contributor.js';
 import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js';
 
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
@@ -11,8 +12,9 @@ const OPTIONAL_FILES = [
   'admin-joomla-forms.test.js', 'admin-integrity.test.js', 'admin-extensions-service.test.js',
   'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
-  'schema-migration.test.js', 'entity-contracts-final.test.js',
-  'admin-plugins-runtime.test.js', 'provisioning-model.test.js'
+  'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js',
+  'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js',
+  'sharepoint-installation.test.js', 'generic-installation-package.test.js', 'generic-installation-host.test.js', 'installed-template-params-spmiddle.test.js', 'operational-upgrade-stage.test.js'
 ];
 
 function put(path, content) {
@@ -59,13 +61,27 @@ function runIsolated(project, files) {
   return result;
 }
 
-// Default runner coverage includes the entire standalone checkout once. A
-// focused invocation can test negative/scheduling contracts without repeating
-// the complete contributor staging workflow while other agents are working.
+// Default coverage includes the entire standalone checkout. Focal negatives
+// can be run while core integration is underway without claiming a full pass.
 export async function runRunnerTests({ completeStandalone = true } = {}) {
   assert.deepEqual(TEST_SUITES.filter((suite) => suite.requiresSPMiddle).map((suite) => suite.file).sort(), [...OPTIONAL_FILES].sort());
   assert.equal(new Set(TEST_SUITES.map((suite) => suite.file)).size, TEST_SUITES.length);
-  for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js']) {
+  // These DOM helpers are exercised by registered suites/browser fixtures, not
+  // independent Node suites. Everything else must be registered explicitly.
+  const helpers = ['admin-errors-dom.test.js', 'admin-layout-dom.test.js', 'admin-management-dom.test.js', 'final-acceptance-dom.test.js'];
+  const discovered = readdirSync(join(PROJECT, 'tests')).filter(file => file.endsWith('.test.js'));
+  assert.deepEqual(discovered.filter(file => !TEST_SUITES.some(suite => suite.file === file)).sort(), [...helpers].sort(), 'No unregistered test suites except explicit DOM helpers');
+  for (const suite of TEST_SUITES) {
+    assert.ok(existsSync(join(PROJECT, 'tests', suite.file)), `Declared suite must exist: ${suite.file}`);
+    assert.match(readFileSync(join(PROJECT, 'tests', suite.file), 'utf8'), new RegExp(`export (?:(?:async )?function ${suite.entryPoint}\\b|\\{\\s*${suite.entryPoint}\\s*\\} from )`), `Declared entry point must be exported: ${suite.file}`);
+  }
+  for (const file of ['scripts/prepare-videoteca-adaptation.js', 'tests/videoteca-adaptation.test.js', 'scripts/prepare-forum-adaptation.js', 'tests/forum-adaptation.test.js']) {
+    assert.ok(!CONTRIBUTOR_FILES.includes(file), 'TD-specific sources must not enter generic contributor selection');
+    assert.ok(!existsSync(join(PROJECT, file)), 'TD-specific source belongs in TD, not MINIJOOMLA');
+  }
+  assert.ok(!TEST_SUITES.some(suite => /camap-v3|camapv3|videoteca|forum/.test(suite.file)), 'TD-specific and experimental suites must not execute');
+  assert.ok(!CONTRIBUTOR_FILES.some(file => /camap-v3|camapv3/.test(file)), 'Suspended CAMAPv3 sources must not enter contributor selection');
+  for (const file of ['spmiddle-adapter.test.js', 'spmiddle-error-translation.test.js', 'standalone-examples.test.js', 'query-options-main-regression.test.js', 'extension-migration-plan.test.js', 'tooling-validation.test.js']) {
     assert.equal(TEST_SUITES.find((suite) => suite.file === file).requiresSPMiddle, false);
   }
 
@@ -75,17 +91,10 @@ export async function runRunnerTests({ completeStandalone = true } = {}) {
   try {
     const project = join(base, 'standalone', 'MINIJOOMLA');
     mkdirSync(project, { recursive: true });
-    for (const directory of ['src', 'tests', 'examples']) copyTestTree(join(PROJECT, directory), join(project, directory));
-    cpSync(join(PROJECT, 'package.json'), join(project, 'package.json'));
-    mkdirSync(join(project, 'scripts'), { recursive: true });
-    cpSync(join(PROJECT, 'scripts', 'module-manifests.js'), join(project, 'scripts', 'module-manifests.js'));
-    mkdirSync(join(project, 'docs'), { recursive: true });
-    cpSync(join(PROJECT, 'docs', 'EXTENSOES-JOOMLA.md'), join(project, 'docs', 'EXTENSOES-JOOMLA.md'));
-    cpSync(join(PROJECT, 'docs', 'CONTRATOS-EVOLUCAO-XML.md'), join(project, 'docs', 'CONTRATOS-EVOLUCAO-XML.md'));
-    for (const file of ['.gitignore', '.gitattributes', 'scripts/check-syntax.js', 'scripts/stage-contributor.js', 'scripts/release-check.js', 'scripts/serve-local.js', 'scripts/test-standalone-examples.js', 'scripts/stage-release.js', 'scripts/audit-distribution.js', 'scripts/test-admin-layout.js', 'README.md', 'LICENSE.md', 'docs/ADMIN-LAYOUT-TESTS.md', 'docs/CONTRIBUTING.md', 'docs/CONTRIBUTOR-SELECTION.md', 'docs/SECURITY.md', 'docs/RELEASE-CORE.md', 'docs/LOCAL-DEMO.md', 'docs/THIRD-PARTY-NOTICES.md', 'docs/licenses/GPL-2.0.txt']) {
-      mkdirSync(dirname(join(project, file)), { recursive: true });
-      cpSync(join(PROJECT, file), join(project, file));
-    }
+    // The same reviewed exact paths as contributor staging: no recursive source
+    // discovery, suspended fixtures, tmp, siblings or omissions of script deps.
+    for (const file of CONTRIBUTOR_FILES) copyTestTree(join(PROJECT, file), join(project, file));
+    for (const suite of TEST_SUITES) assert.ok(CONTRIBUTOR_FILES.includes(`tests/${suite.file}`), `Standalone selection must include ${suite.file}`);
     const coreCount = TEST_SUITES.length - OPTIONAL_FILES.length - 1;
     if (completeStandalone) {
       const absent = runIsolated(project);
@@ -100,14 +109,9 @@ export async function runRunnerTests({ completeStandalone = true } = {}) {
       console.log(`ok - actual standalone checkout: ${coreCount} core/local suites pass (including actual examples); ${OPTIONAL_FILES.length} visible integration skips`);
     }
 
-    // Full standalone coverage runs once. Negative runner regressions need only
-    // their affected real suites plus optional suites and a continuation probe;
-    // re-staging contributor four times obscured failures with Windows I/O cost.
-    const negativeFiles = (...files) => [...files, 'spmiddle-error-translation.test.js', ...OPTIONAL_FILES];
-
     // Break a core import only in our copy and check the real process exit.
     put(join(project, 'tests', 'core.test.js'), "import './missing-core.js'; export function runTests() {}");
-    const brokenCore = runIsolated(project, negativeFiles('core.test.js'));
+    const brokenCore = runIsolated(project, ['core.test.js', 'spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(brokenCore.error);
     assert.equal(brokenCore.status, 1, brokenCore.stdout + brokenCore.stderr);
     assert.ok(brokenCore.stdout.includes(`Suites: 1 passed, ${OPTIONAL_FILES.length} skipped, 1 failed`), brokenCore.stdout);
@@ -119,7 +123,7 @@ export async function runRunnerTests({ completeStandalone = true } = {}) {
     const example = join(project, 'examples', 'index.html');
     const originalExample = readFileSync(example, 'utf8');
     put(example, originalExample.replace("'../src/index.js'", "'../src/missing-example-entry.js'"));
-    const brokenExample = runIsolated(project, negativeFiles('serve-local.test.js', 'standalone-examples.test.js'));
+    const brokenExample = runIsolated(project, ['serve-local.test.js', 'standalone-examples.test.js', 'spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(brokenExample.error);
     assert.equal(brokenExample.status, 1, brokenExample.stdout + brokenExample.stderr);
     // Static entrypoint serving and offline evaluation both detect this defect.
@@ -132,7 +136,7 @@ export async function runRunnerTests({ completeStandalone = true } = {}) {
     // An empty sibling is deliberately broken, not a middleware implementation.
     // All real integration imports must fail, rather than be skipped.
     mkdirSync(join(base, 'standalone', 'SPMIDDLE'));
-    const partial = runIsolated(project, negativeFiles());
+    const partial = runIsolated(project, ['spmiddle-error-translation.test.js', ...OPTIONAL_FILES]);
     assert.ifError(partial.error);
     assert.equal(partial.status, 1, partial.stdout + partial.stderr);
     assert.ok(partial.stdout.includes(`Suites: 1 passed, 0 skipped, ${OPTIONAL_FILES.length} failed`), partial.stdout);

@@ -1,0 +1,22 @@
+import {createAdminService}from'../libraries/minijoomla/application/admin-service.js';
+import {createAdminApplication}from'../administrator/components/com_minijoomla/app.js';
+import {createApplication}from'../index.js';
+import {createSPMiddleAdapter}from'../libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+import {toSiteConfigOverrides}from'../libraries/minijoomla/application/site-config-overrides.js';
+const domains=Object.fromEntries(['articles','categories','tags','menu','extensions','templates','moduleInstances','siteConfig'].map(d=>[d,new Map()]));
+let rev=0;const writes=[];
+const repos=Object.fromEntries(Object.entries(domains).map(([domain,rows])=>[domain,{findMany:async()=>({items:structuredClone([...rows.values()])}),findById:async id=>structuredClone(rows.get(id)??null),create:async input=>{const row={...structuredClone(input),id:Math.max(0,...rows.keys())+1,etag:'"memory-'+(++rev)+'"'};rows.set(row.id,row);writes.push({domain,action:'create'});return structuredClone(row);},update:async(id,input,{etag})=>{if(rows.get(id)?.etag!==etag)throw Object.assign(Error('ETag'),{code:'concurrency-conflict'});const row={...rows.get(id),...structuredClone(input),etag:'"memory-'+(++rev)+'"'};rows.set(id,row);writes.push({domain,action:'update'});return structuredClone(row);}}]));
+const initial={siteName:'Site de parâmetros',templateKey:'cassiopeia',homeView:'featured',homeCategory:'',timezone:'UTC',pageSize:10};
+const admin=createAdminService(repos,{initialSiteConfig:initial});
+const definitions=[{name:'heroTitle',type:'text',label:'Título do destaque',default:'Título inicial',maxLength:200},{name:'itemsLimit',type:'number',label:'Quantidade',default:3,min:1,max:9},{name:'tone',type:'select',label:'Tom',options:['blue','green'],default:'blue'}];
+const template=await admin.templates.create({title:'Template externo de prova',key:'params-proof',version:'1.0.0',entryPointUrl:new URL('./fixtures/installed-template/params-template.js',import.meta.url).pathname,positions:['custom-hero','component'],styles:[new URL('./fixtures/installed-template/template.css',import.meta.url).pathname],paramDefinitions:definitions,enabled:true});
+await admin.templates.create({title:'Outro template',key:'other-proof',version:'1',entryPointUrl:new URL('./fixtures/installed-template/params-template.js',import.meta.url).pathname,positions:['footer'],paramDefinitions:[{name:'amount',type:'number',default:1},{name:'added',type:'text',default:'Do not persist'}],enabled:true});
+const unrelatedStyle={id:'other-home',template:'other-proof',title:'Outro estilo preservado',home:true,futureStyle:{keep:[false,null]},params:{amount:'2.5',future:{keep:true}}};
+domains.siteConfig.set(1,{...initial,id:1,title:'MiniJoomlaSiteConfig',etag:'"fixture-config"',templateStylesJson:JSON.stringify([unrelatedStyle])});
+const root=document.querySelector('#params-app'),status=document.querySelector('#params-status');let app;
+const doc={body:root,head:document.head,baseURI:document.baseURI,createElement:document.createElement.bind(document)};
+async function edit(){app?.stop();app=createAdminApplication({adminService:admin,documentRef:doc,autoStart:false});await app.start();await app.router.navigate('#/templates/styles/params-proof-default');}
+document.querySelector('#params-edit').addEventListener('click',()=>edit().catch(()=>{status.textContent='Falha ao abrir edição';}));
+document.querySelector('#params-public').addEventListener('click',async()=>{try{app?.stop();const c=await admin.siteConfig.get();await admin.siteConfig.save({templateKey:'params-proof'},c?{etag:c.etag}:{});const saved=await admin.siteConfig.get();app=createApplication({documentRef:doc,autoStart:false,config:{...initial,...toSiteConfigOverrides(saved)},adapter:createSPMiddleAdapter({articleRepository:repos.articles,categoryRepository:repos.categories,tagRepository:repos.tags,menuRepository:repos.menu}),getModuleInstances:async()=>[],getExtensions:async()=>[],getTemplate:async()=>[...domains.templates.values()]});await app.start();await app.router.navigate('#/');status.textContent='Parâmetros consumidos pelo template externo';}catch(error){status.textContent='Falha: '+error.message;}});
+globalThis.__paramsProof={admin,repos,domains,writes,template,unrelatedStyle,stop:()=>app?.stop()};
+status.textContent='Prova pronta, persistência em memória';

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Raízes de extensões — prova em memória</title><link rel="stylesheet" href="../src/media/templates/administrator/atum/css/template.css"></head>
+<body><main data-roots-native-root></main><script type="module">
+import { createExtensionRootsService } from '../src/libraries/minijoomla/application/extension-roots-service.js';
+import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
+import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+import { createDemoRepositories } from '../examples/demo-repositories.js';
+const webUrl='/sites/example',libraryPath=webUrl+'/SiteAssets/minijoomla';
+let saved=null,etag=null;const writes=[];
+const port={webUrl,libraryPath,read:async()=>({configuration:structuredClone(saved),etag}),verifyPackage:async config=>structuredClone(config),write:async(config,options)=>{if(options.isCurrent()!==true||options.expectedETag!==etag)throw Error('Stale write');writes.push(structuredClone(config));saved=structuredClone(config);etag='"roots-'+writes.length+'"';return {configuration:structuredClone(saved),etag};}};
+const service=createExtensionRootsService({port});
+const values=new Map([['minijoomla-demo-v1',JSON.stringify({revision:1,domains:Object.fromEntries(['articles','categories','tags','menu','extensions','templates','moduleInstances','siteConfig'].map(domain=>[domain,[]]))})]]);
+const storage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+const repositories=createDemoRepositories({storage});
+const root=document.querySelector('[data-roots-native-root]');
+const app=createAdminApplication({adminService:createAdminService(repositories),extensionRootsService:service,documentRef:{body:root,documentElement:null,title:''},autoStart:false});
+const base=webUrl+'/SiteAssets/packages/example-v1/';
+const proposal={joomlaDiscoveryRoots:[{id:'example-v1',baseUrl:base,immutable:true,inventoryHash:'a'.repeat(64),discover:true}],moduleStyles:{'example.mod_message':[base+'media/mod_message/css/message.css']},moduleStyleRevisions:{'example.mod_message':{[base+'modules/mod_message/mod_message.js']:[base+'media/mod_message/css/message.css']}}};
+globalThis.__rootsNative={writes,read:()=>structuredClone(saved),proposal,app,repositories};
+await app.start();await app.router.navigate('#/installer/roots');
+</script></body></html>

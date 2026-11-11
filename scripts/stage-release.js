@@ -251,6 +251,9 @@ export function stageRelease({ version, output, target = 'all', sourceRoot: sour
   }
   // Host-injected file clients must also be available without the development tree.
   if (src === SOURCE && target === 'all') enqueue(join(packages, 'sharepoint-files', 'src', 'index.js'), 'libraries/vendor/spmiddle/sharepoint-files/src/index.js');
+  // Sample Data is an explicit administrative feature. The core includes its
+  // injectable service/view, while all includes the approved dataset/assets.
+  if (src === SOURCE && target === 'all') enqueue(join(src, 'plugins/sampledata/blog/blog.js'), 'plugins/sampledata/blog/blog.js');
   for (let i = 0; i < queue.length; i += 1) {
     const { source, target } = queue[i];
     const text = files.get(target).toString('utf8');

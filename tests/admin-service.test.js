@@ -29,7 +29,92 @@ function createFakeRepository(seed = []) {
   };
 }
 
+async function runJsonObjectAdminTests() {
+  // Exercise the public local service, without importing SPMIDDLE/composition.
+  const writes = [];
+  const repositories = Object.fromEntries(['extensions', 'moduleInstances'].map((domain) => {
+    const repo = createFakeRepository();
+    for (const operation of ['create', 'update', 'delete']) {
+      const original = repo[operation];
+      repo[operation] = (...args) => { writes.push(`${domain}.${operation}`); return original(...args); };
+    }
+    return [domain, repo];
+  }));
+  const snapshot = async () => Object.fromEntries(await Promise.all(Object.entries(repositories).map(async ([domain, repo]) =>
+    [domain, await Promise.all((await repo.findMany()).items.map((row) => repo.findById(row.id)))])));
+  const admin = createAdminService(repositories);
+  const moduleInput = { title: 'JSON data', extensionKey: 'articles-latest', position: 'footer' };
+  const pluginInput = { title: 'JSON params', key: 'json-params', type: 'Plugin', entryPointUrl: '/json-params.js' };
+  const exact = '  {"limit":"4","unknown":{"values":[null,false,42,"",{"constructor":{"prototype":{"keep":true}}}]},"__proto__":{"keep":[1,false]},"toJSON":"data"}\n';
+  const expected = JSON.stringify(JSON.parse(exact));
+  const settings = Object.assign(Object.create(null), JSON.parse(exact));
+  const instance = await admin.moduleInstances.create({ ...moduleInput, settings });
+  const plugin = await admin.extensions.create({ ...pluginInput, params: settings });
+  assert.equal(instance.settingsJson, expected);
+  assert.equal(plugin.paramsJson, expected);
+  assert.equal(JSON.parse(instance.settingsJson).limit, '4', 'coercion validates but does not rewrite direct-create wire values');
+  assert.equal(Object.hasOwn(JSON.parse(instance.settingsJson), 'moduleClass'), false, 'validation defaults are not persisted');
+  assert.ok(Object.hasOwn(JSON.parse(instance.settingsJson), '__proto__'));
+  assert.equal(Object.getPrototypeOf(settings), null);
+  assert.equal(JSON.stringify(settings), expected, 'serialization does not mutate the caller data');
+  assert.equal({}.keep, undefined);
+  assert.equal(settings.limit, '4');
+  await admin.moduleInstances.update(instance.id, { settingsJson: exact }, { etag: instance.etag });
+  const current = await admin.moduleInstances.get(instance.id);
+  assert.equal(current.settingsJson, expected, 'explicit JSON saves retain the historical canonical serialization');
+  assert.notEqual(current.etag, instance.etag);
+
+  let executions = 0;
+  const getter = Object.defineProperty({}, 'value', { enumerable: true, get() { executions += 1; return 'data'; } });
+  const hookGetter = Object.defineProperty({}, 'toJSON', { get() { executions += 1; return () => ({}); } });
+  const hook = { toJSON() { executions += 1; return {}; } };
+  const dropHook = { toJSON() { executions += 1; return undefined; } };
+  const cycle = {}; cycle.self = cycle;
+  const hidden = Object.defineProperty({}, 'value', { value: 1 });
+  const extraArray = [1]; extraArray.extra = true;
+  let deep = {}; for (let index = 0; index < 33; index += 1) deep = { nested: deep };
+  const invalid = [
+    getter, hookGetter, hook, dropHook, { unknown: getter }, { unknown: hook }, cycle,
+    { limit: undefined }, { unknown: undefined }, { unknown: { nested: undefined } },
+    { unknown: [undefined] }, { unknown: Number.NaN }, { unknown: Infinity },
+    { unknown: 1n }, { unknown() {} }, { unknown: Symbol('data') },
+    { [Symbol('key')]: true }, hidden, { unknown: new Date(0) },
+    { unknown: Object.create({ inherited: true }) }, { unknown: new Array(1) },
+    { unknown: extraArray }, deep, { unknown: Array(50000).fill(null) }
+  ];
+  const before = await snapshot();
+  const writeCount = writes.length;
+  for (const value of invalid) {
+    for (const operation of [
+      () => admin.moduleInstances.create({ ...moduleInput, settings: value }),
+      () => admin.moduleInstances.update(instance.id, { settings: value }, { etag: current.etag }),
+      () => admin.extensions.create({ ...pluginInput, key: 'invalid-params', params: value }),
+      () => admin.extensions.update(plugin.id, { params: value }, { etag: plugin.etag })
+    ]) {
+      await assert.rejects(operation, ValidationError);
+      assert.equal(writes.length, writeCount, 'invalid data never reaches a repository write');
+      assert.deepEqual(await snapshot(), before, 'invalid data preserves every row and ETag');
+      assert.equal(executions, 0, 'serialization never executes getters or toJSON');
+    }
+  }
+  for (const value of ['{broken', '[]', 'null', '42', 'true', '"text"', '{"unknown":1e400}']) {
+    await assert.rejects(() => admin.moduleInstances.create({ ...moduleInput, settingsJson: value }), ValidationError);
+    await assert.rejects(() => admin.moduleInstances.update(instance.id, { settingsJson: value }, { etag: current.etag }), ValidationError);
+    await assert.rejects(() => admin.extensions.create({ ...pluginInput, key: 'invalid-params', params: value }), ValidationError);
+    assert.equal(writes.length, writeCount);
+    assert.deepEqual(await snapshot(), before);
+  }
+  for (const settingsJson of [undefined, null, '']) {
+    const legacy = await admin.moduleInstances.create({ ...moduleInput, settingsJson });
+    assert.equal(legacy.settingsJson, settingsJson === undefined ? undefined : '');
+  }
+  const cleared = await admin.moduleInstances.create({ ...moduleInput, settings: null });
+  assert.equal(cleared.settingsJson, '', 'explicit historical null settings remain supported');
+  console.log('ok - admin service: strict data-only JSON serialization rejects hooks/cycles/undefined before writes and preserves wire values/unknown own data');
+}
+
 export async function runAdminServiceTests() {
+  await runJsonObjectAdminTests();
   await runAdminManagementTests();
   const repositories = {
     articles: createFakeRepository([{ id: 1, etag: '"1"', title: 'Artigo', alias: 'artigo', introtext: '', fulltext: '', categoryId: 10, state: 'Published', featured: false, publishUp: null, publishDown: null, author: '', authorAlias: '', language: '', note: '', versionNote: '', featuredUp: null, featuredDown: null, metaDescription: '', metaKeywords: '', attribsJson: '', tags: '' }]),
@@ -122,5 +207,5 @@ export async function runAdminServiceTests() {
   console.log('ok - admin service: instâncias de módulo serializam settings e validam escopo');
   console.log('ok - admin service: configuração do site como upsert de linha única com etag');
   console.log('ok - admin service: overview agrega contagens e repositório ausente produz ValidationError');
-  console.log('admin service: 4 testes aprovados');
+  console.log('admin service: cenários locais aprovados');
 }

@@ -14,6 +14,7 @@
  * com defeito não pode derrubar o resto do shell).
  */
 import { moduleAssignmentMatches } from '../application/module-assignment.js';
+import { isWellFormedPositionName, templatePositions } from '../application/extension-input.js';
 
 export const DEFAULT_IMPORT = (url) => import(url);
 
@@ -189,6 +190,13 @@ export const TEMPLATE_MODULE_POSITIONS = Object.freeze(['topbar', 'below-top', '
 const KNOWN_POSITIONS = new Set(['sidebar', 'content', ...TEMPLATE_MODULE_POSITIONS]);
 const HEADER_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
 
+function modulePositions(value) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw new TypeError('As posições do template devem ser um array de dados.');
+  const positions = value.length === 0 && Reflect.ownKeys(value).length === 1 ? [] : JSON.parse(templatePositions(value));
+  if (positions.some((position) => position === 'component' || !isWellFormedPositionName(position))) throw new TypeError('Posição de módulo inválida.');
+  return positions;
+}
+
 function safeParseSettings(settingsJson) {
   if (!settingsJson) return undefined;
   try { const value = JSON.parse(settingsJson); return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined; } catch { return undefined; }
@@ -255,20 +263,12 @@ function chromeAndSettings(settingsJson) {
  * `sidebar`. Linhas despublicadas (desabilitadas, na lixeira ou fora da
  * janela de publicação) ou fora da atribuição/escopo da rota/categoria
  * atual são omitidas. `now` (default: momento da chamada) existe só para
- * permitir testes determinísticos da janela de publicação.
- *
- * `activeTemplatePositions` (opcional, pivô de empacotamento): quando o
- * template ativo é um template INSTALADO (não builtin), o call site
- * (`src/libraries/minijoomla/index.js`) repassa aqui o array de posições
- * declaradas por ele (`positionsJson` da linha do catálogo) — essas
- * posições passam a ter sua própria lista em `byPosition` e um módulo
- * atribuído a uma delas é roteado para lá, em vez de cair em `sidebar`.
- * Ausência/parâmetro vazio preserva o comportamento atual exatamente como
- * era (builtins, sem linha de catálogo).
+ * permitir testes determinísticos da janela de publicação. Posições extras
+ * pertencem apenas ao template ativo; uma lista inválida é rejeitada.
  */
 export function resolveModuleEntries(moduleInstances, scope = {}, now = new Date(), activeTemplatePositions = []) {
   const rows = Array.isArray(moduleInstances) ? moduleInstances : [];
-  const extraPositions = Array.isArray(activeTemplatePositions) ? activeTemplatePositions.filter((position) => !KNOWN_POSITIONS.has(position)) : [];
+  const extraPositions = modulePositions(activeTemplatePositions).filter((position) => !KNOWN_POSITIONS.has(position));
   const knownForThisRender = extraPositions.length ? new Set([...KNOWN_POSITIONS, ...extraPositions]) : KNOWN_POSITIONS;
   const byPosition = { sidebar: [], content: [] };
   for (const position of TEMPLATE_MODULE_POSITIONS) byPosition[position] = [];

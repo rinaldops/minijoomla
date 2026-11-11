@@ -7,17 +7,30 @@ export async function runSiteConfigOverridesTests() {
   assert.deepEqual(toSiteConfigOverrides(null), {});
   assert.deepEqual(toSiteConfigOverrides(undefined), {});
   const empty = toSiteConfigOverrides({});
+  const exactStyles='  [{"id":"installed-home","template":"installed","title":"Home","home":true,"params":{"caption":"Saved","future":{"keep":true}}}]\n';
+  assert.equal(toSiteConfigOverrides({templateKey:'installed',templateStylesJson:exactStyles}).templateStylesJson,exactStyles,'Raw template styles survive composition without reserializing');
   assert.equal(empty.siteName, undefined);
   assert.equal(empty.templateKey, undefined);
+  for (const field of ['siteName', 'templateKey', 'siteDescription', 'language', 'timezone', 'basePath', 'pageSize']) assert.equal(Object.hasOwn(empty, field), false);
   assert.ok('templateParams' in empty);
   assert.ok('templateStyleId' in empty);
   assert.ok('componentParams' in empty);
-  assert.equal(Object.hasOwn(empty, 'componentParamsJson'), true, 'Absent saved limits remain distinguishable from resolved form defaults');
+  assert.equal(empty.templateStyleId, 'default-default');
+  assert.ok(Object.hasOwn(empty, 'componentParamsJson'));
   assert.equal(empty.componentParamsJson, undefined);
   const storedParams = ' { "content": { "listLimit": 10 }, "future": { "keep": true } } ';
   assert.equal(toSiteConfigOverrides({ componentParamsJson: storedParams }).componentParamsJson, storedParams,
-    'Preserve exact provenance without canonicalizing unknown saved configuration');
-  assert.equal(empty.templateStyleId, 'default-default');
+    'Preserve exact provenance without canonicalizing whitespace or unknown saved configuration');
+  assert.equal(empty.componentParams.content.listLimit, 10, 'display defaults remain declared');
+  assert.deepEqual(empty.queryParams, { content: { orderBy: 'publishUp-desc' }, search: { searchPhrases: 'all' } }, 'missing persisted limits must not become saved 10');
+  const queryJson = '{"content":{"listLimit":10,"orderBy":"title-asc","showTitle":false,"unknown":true},"search":{"resultsLimit":2,"searchPhrases":"any","highlightTerms":false},"custom":{"secret":"not-a-query"}}';
+  const queryOverrides = toSiteConfigOverrides({ componentParamsJson: queryJson });
+  assert.equal(queryOverrides.componentParamsJson, queryJson, 'raw provenance stays exact and is not rewritten');
+  assert.deepEqual(queryOverrides.queryParams, { content: { listLimit: 10, orderBy: 'title-asc' }, search: { resultsLimit: 2, searchPhrases: 'any' } });
+  assert.ok(Object.isFrozen(queryOverrides.queryParams.content));
+  for (const componentParamsJson of [undefined, '', '{bad', '[]', '{"content":{"listLimit":true,"orderBy":["title-asc"]},"search":{"resultsLimit":[2],"searchPhrases":"bad"}}']) {
+    assert.deepEqual(toSiteConfigOverrides({ componentParamsJson }).queryParams, empty.queryParams, 'invalid queries resolve safe filtered defaults without affecting provenance');
+  }
 
   // Test with minimal record
   const minimal = { siteName: 'Test Site' };
@@ -123,6 +136,14 @@ export async function runSiteConfigOverridesTests() {
   assert.equal('homeView' in legacyOverrides, false, 'homeView ausente no registro legado não deve aparecer como override');
   assert.equal('homeCategory' in legacyOverrides, false, 'homeCategory ausente no registro legado não deve aparecer como override');
   const { createConfig } = await import('../src/libraries/minijoomla/core/config.js');
+  const initial = {siteName:'Site recém-instalado',siteDescription:'Descrição inicial',timezone:'UTC',pageSize:10,templateKey:'cassiopeia',homeView:'featured',homeCategory:''};
+  const partialSaved = toSiteConfigOverrides({siteName:undefined,timezone:null,siteDescription:'',homeView:'featured',homeCategory:''});
+  const continued = createConfig({...initial,...partialSaved});
+  assert.equal(continued.siteName,initial.siteName);
+  assert.equal(continued.timezone,'UTC');
+  assert.equal(continued.siteDescription,'','Explicit saved blank remains authoritative');
+  assert.equal(continued.homeCategory,'');
+  assert.equal(continued.pageSize,10);
   const migratedConfig = createConfig(legacyOverrides);
   assert.equal(migratedConfig.homeView, 'category', 'config aplica o default category quando o registro legado não declara homeView');
   assert.equal(migratedConfig.homeCategory, 'noticias', 'config aplica o default noticias quando o registro legado não declara homeCategory');

@@ -23,6 +23,7 @@ import { createJoomlaDiscoveryService } from '../src/libraries/minijoomla/applic
 import { packageAsset } from '../src/libraries/minijoomla/application/package-path.js';
 import { createSharePointFileClient } from '../../SPMIDDLE/packages/sharepoint-files/src/files.js';
 import { createAtomicExtensionKeyGuard } from '../src/libraries/minijoomla/infrastructure/spmiddle-extension-guard.js';
+import { assertJoomlaPackageAssets } from '../src/libraries/minijoomla/application/joomla-package-assets.js';
 
 const PROJECT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const MODERN_SCRIPT_EDITOR = '3a328f0a-99c4-4b28-95ab-fe0847f657a3';
@@ -141,7 +142,9 @@ async function verifyExtensionPackages() {
     const service = createJoomlaDiscoveryService({ roots: [{ ...root, discover: true, files }] });
     const report = await service.scanReport();
     if (!report.complete || !report.entries.length || report.entries.some((entry) => entry.error)) throw new Error(`Preflight XML falhou: ${root.id}.`);
-    for (const candidate of report.entries) await service.verify(candidate);
+    const descriptors = [];
+    for (const candidate of report.entries) descriptors.push(await service.verify(candidate));
+    assertJoomlaPackageAssets(extensionConfig, descriptors);
     console.log(`pacote XML verificado sem executar codigo: ${root.id}`);
   }
 }
@@ -167,10 +170,12 @@ function buildStage(lists) {
   execFileSync(process.execPath, ['scripts/stage-release.js', '--version', version, '--output', stage, '--target', 'all'], { cwd: PROJECT, stdio: 'inherit' });
   const root = join(PROJECT, stage);
   const host = readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'host.js'), 'utf8')
-    .replace('__CONFIG__', () => JSON.stringify({ webUrl: web, libraryPath: assets, lists, ...extensionConfig }));
-  if (host.includes('__CONFIG__')) throw new Error('Host com configuração não substituída.');
+    .replace('/* MINIJOOMLA_CONFIG */ null', () => JSON.stringify({ webUrl: web, libraryPath: assets, lists, ...extensionConfig }));
+  if (host.includes('/* MINIJOOMLA_CONFIG */ null')) throw new Error('Host com configuração não substituída.');
   mkdirSync(join(root, 'host'), { recursive: true });
   writeFileSync(join(root, 'host', 'host.js'), host);
+  writeFileSync(join(root, 'host', 'installation-context.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'installation-context.js')));
+  writeFileSync(join(root, 'host', 'mse-layout.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'mse-layout.js')));
   writeFileSync(join(root, 'host', 'loader.js'), `import(${JSON.stringify(`${release}/host/host.js`)}).catch((error) => console.error('MINIJOOMLA: falha ao importar o host.', error));\n`);
   writeFileSync(join(root, 'host', 'admin.scoped.css'), scopedAdminCss(readFileSync(join(PROJECT, 'src', 'media', 'templates', 'administrator', 'atum', 'css', 'template.css'), 'utf8')));
   return walk(root).map((path) => ({ path, name: relative(root, path).split(sep).join('/') }));

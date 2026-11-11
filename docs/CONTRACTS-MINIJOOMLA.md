@@ -9,7 +9,7 @@
 
 ### Extensão de consultas — 06/11/2026
 
-O desenvolvimento atual conecta opções existentes às consultas sem alterar
+O desenvolvimento local conectou opções existentes às consultas sem alterar
 schemas: **rota explícita válida → valor salvo → padrão**. `listLimit` aplica-se
 às listas de categoria e arquivo; blog/home/tags conservam a quantidade de
 `blogSettings`/`pageSize`. `orderBy` salvo aplica-se também aos blogs quando a
@@ -17,22 +17,12 @@ rota não fornece ordenação. Limites resolvidos do formulário não contam com
 explicitamente salvos: `componentParamsJson` conserva essa proveniência, inclusive
 ausência, mantendo `pageSize` histórico até existir limite salvo.
 
-O port `listArticles` aceita `searchMode: all|any|exact`. Texto/query são
-normalizados para NFC e whitespace simples, sem regex de usuário; `all` exige
-todos os tokens literais, `any` exige um, `exact` exige a frase contígua. Ambos
-os adapters usam a mesma semântica e contam/paginam após filtrar. Sem `searchMode`
-no adapter, mantém-se a correspondência histórica exata; a busca do serviço usa
-o padrão declarado `all`. Filtros/modo/limite explícitos persistem nos links
-de paginação, sem regravar configuração.
-
 `metaDescription`/`metaKeywords` do artigo são dados públicos preservados pelo
-adapter, inclusive para related-items por keywords sem tags. Não são emission
+adapter, inclusive para related-items por keywords sem tags. Não são emissão
 de SEO no host; SEO integrado ao host está excluído desta etapa, assim como
 i18n, histórico editorial e check-in/check-out do artigo.
 
 Critérios e baseline completos no [relatório vigente](AVALIACAO-E-ESCOPO-2026-11-06.md).
-Este bloco descreve o delta local em desenvolvimento; não amplia o aceite do
-host nem altera o contrato de erro/transporte das seções históricas abaixo.
 
 ### Plugins administrativos — conexão local
 
@@ -55,6 +45,68 @@ O contrato de injeção antigo beforeSave/afterSave continua aceito; o handle
 opcional `captureSaveOperation` fixa a operação completa nos managers suportados.
 Validação/revalidação e ETag de escrita permanecem no serviço, sem imports na
 descoberta. Esses testes são locais; não certificar save ou lifecycle no tenant.
+
+### Consolidação nativa — plugins administrativos e Sample Data
+
+As contribuições locais da principal foram reconciliadas com a branch validada:
+runtime administrativo de plugins e Sample Data coexistem na composição, app
+e host. Managers explicitamente injetados mantêm precedência; o contrato legado
+beforeSave/afterSave é preservado. Managers com `captureSaveOperation` capturam
+as duas fases/params para uma operação, inclusive se a persistência iniciada
+termina depois de refresh/stop. Guardas impedem novas escritas pré-operação em
+tela abandonada, mas não cancelam uma escrita já iniciada.
+
+MERGE 204/null continua preservado; releitura posterior alimenta somente a
+observação, não é snapshot atômico, retry ou transformação retroativa do artigo
+persistido. Falha de observer/releitura não mascara gravação concluída. Grupos,
+JSON desconhecido, ETags e validação existentes permanecem. A migração adicionada
+é **prévia privada sem executor**, e `strictMetadata` XML é opt-in para não
+regredir o perfil legado.
+
+Validação deste incremento foi local/focal; não certifica save/lifecycle de
+plugins no tenant nem instalação de Sample Data com plugins transformadores.
+O site aceito não foi publicado/modificado como efeito da integração Git.
+Fila de fechamento em [continuidade](PLANO-CONTINUIDADE-MINIJOOMLA.md).
+
+O runtime nativo fornece guard síncrono imediatamente antes da persistência,
+cobrindo cancelamento após a conclusão assíncrona do hook. Preparação de catálogo
+e imports obsoletos não bloqueia a navegação atual; commits/lifecycle continuam
+serializados e lifecycle já iniciado não recebe timeout/cancelamento forçado.
+Guards customizados que retornam valor/Promise são inválidos. Rejeições de Promise
+normal são observadas sem `await`, mas Promises com constructor/species adulterado
+e proxies não fazem parte do contrato suportado nem de uma promessa de sandbox.
+
+Na composição administrativa, `pluginManager: null` é opt-out explícito;
+manager ausente permite o runtime persistido somente se o repositório de extensões
+estiver configurado. Omissão deliberada do repositório mantém a composição parcial
+sem plugins; falha de catálogo configurado bloqueia saves. Apenas plugins do grupo
+`content` com os eventos administrativos de save entram nesse runtime. Lifecycle
+exige `adminLifecycle: true` no **código exportado**; `onAppInit` público não é esse
+opt-in. Módulos aprovados ainda executam seu código top-level ao importar, por isso
+isolamento de eventos não significa sandbox. Não promover plugins nativos de
+exibição a plugins de save automaticamente.
+
+### Consultas reconciliadas na consolidação
+
+`resolveContentQuery` conserva compatibilidade de chamadas da principal usando
+a resolução protegida atual. Rota explícita válida prevalece sobre valores
+salvos e padrões; aliases `orderBy`/`dir`/`searchPhrases` sobrevivem nos links de
+paginação sem chegar como campos livres ao port. Limite salvo de lista não
+substitui capacidade de blog/home/tags; matching literal NFC/whitespace e metadata
+pública permanecem nos adapters atuais. `componentParamsJson` mantém proveniência
+dos valores efetivamente salvos, sem tratar defaults de formulário como gravação.
+
+Os testes da principal foram preservados em regressão distinta, sem substituir
+os testes/guardas atuais. Integração SPMIDDLE tem entrada explícita e não mascara
+ausência/falha do irmão. Não houve emissão de SEO no host, migração automática
+ou regravação da configuração por essa compatibilidade.
+
+Precisão dos defaults existentes: `listArticles` no port, sem `searchMode`, mantém
+matching literal **`exact`**; a busca do `ContentService`, sem escolha salva/rota,
+usa **`all`**. `all` exige todos os tokens, `any` algum token, `exact` a frase
+contígua. Unicode/NFC e whitespace são normalizados sem interpretar regex ou
+emitir SEO no host. Esta explicitação da contribuição da principal não altera
+os defaults nem a implementação já testada.
 
 Este documento congela o contrato de leitura que qualquer adapter de
 conteúdo — hoje o `FakeAdapter` (`src/libraries/minijoomla/infrastructure/fake-adapter.js`) e um

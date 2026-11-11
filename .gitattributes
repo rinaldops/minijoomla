@@ -1,2 +1,9 @@
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.xml text eol=lf
+*.md text eol=lf
 src/media/vendor/tinymce/** -text
 src/libraries/vendor/parse-xml/** -text
+src/media/sampledata/joomla-blog/** -text
+scripts/documentation-frozen-build/** -text whitespace=cr-at-eol

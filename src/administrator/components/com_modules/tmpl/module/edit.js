@@ -22,6 +22,7 @@ export function renderModuleForm({ isNew, typeKey, type, catalog, values, positi
     : `<div class="admin-field"><span class="admin-field-label">Tipo de módulo</span><p><strong>${esc(type?.title ?? typeKey)}</strong> <code>${esc(typeKey)}</code></p></div>`;
   const templatePositions = positions.positions.map((position) => [position, position]);
   const otherPositions = positions.all.filter((position) => !positions.positions.includes(position)).map((position) => [position, position]);
+  if (!isNew && typeof values.position === 'string' && values.position && !positions.all.includes(values.position)) otherPositions.push([values.position, `${values.position} (atual — fora do catálogo)`]);
   const positionSelect = `<div class="admin-field"><label for="admin-module-position">Posição</label><select id="admin-module-position" name="position" required><optgroup label="Template ativo (${esc(positions.template)})">${options(templatePositions, values.position)}</optgroup>${otherPositions.length ? `<optgroup label="Outras posições">${options(otherPositions, values.position)}</optgroup>` : ''}</select></div>`;
   const moduleTab = `${typeField}<div class="admin-field"><label for="admin-module-title">Título *</label><input type="text" id="admin-module-title" name="title" required value="${esc(values.title)}"></div>
 <div class="admin-field admin-field-checkbox"><input type="checkbox" id="admin-module-showTitle" name="showTitle"${values.showTitle !== false ? ' checked' : ''}><label for="admin-module-showTitle">Mostrar título</label></div>

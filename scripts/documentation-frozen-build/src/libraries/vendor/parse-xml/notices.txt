@@ -1,0 +1,7 @@
+@rgrove/parse-xml 5.0.0, ISC License, Copyright Ryan Grove.
+Source: https://github.com/rgrove/parse-xml
+Unmodified npm dist/browser.js is shipped here as parse-xml.js.
+The same standalone ES module is used in Node tests and browsers; no CDN is used.
+npm tarball integrity:
+sha512-SgHFyisNAkS2ZbM8SCriUm1N0bxLiz0POKvpDeAtrnLrXaYG1PawNwu1rSjmE/vcVHbZzYWNgVP6xkep6R4uXg==
+The original license is included in LICENSE.

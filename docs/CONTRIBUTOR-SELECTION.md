@@ -11,6 +11,74 @@ distribuição pública aprovada**. O estágio `core` 0.3.1 é runtime-only: nã
 contém demos, testes nem o runtime TinyMCE e não deve ser chamado de contributor.
 O novo target `contributor-local` não é uma versão de release/host.
 
+## Consolidação local — 09/11/2026
+
+**Checkpoint posterior de generalização:** seleção atual com 418 caminhos
+exatos, quatro arquivos de bootstrap genérico (host, contexto e dois snippets),
+109 suítes registradas, 17 integrações SPMIDDLE opcionais somente quando o irmão
+está ausente. Regressão integrada completa aprovada, 333 JS/MJS parse-only;
+contador de upload não é baseline fixo da ordem de suítes.
+[Ciclo e limites atuais](CICLO-INSTALACAO-CONTINUIDADE.md). Os resultados abaixo
+continuam sendo registros históricos da consolidação anterior.
+
+> **Separação posterior:** fontes/teste/documentação específicos de Videoteca
+> foram transferidos para TD; Forum não tem implementação ativa neste núcleo.
+> O runner não permite mais exceção para fixtures suspensas TD na pasta tests.
+> CAMAP permanece referência transitória até o template externo CAMAP-V3 estar
+> pronto, não parte da instalação padrão. O
+> [contrato genérico](INSTALACAO-GENERICA-MINIJOOMLA.md) integra a seleção.
+> Contagens abaixo são snapshots históricos, não metas fixas.
+> A nova suíte de escopo genérico verifica ausência de implementações TD na
+> seleção/pasta ativa e mantém explícito o aceite real pendente em SharePoint/MSE.
+
+As contagens de 04/11 abaixo são **históricas**, não o inventário desta worktree.
+O grafo step2 (sample data, pilotos/adaptações XML e Documentation) é preservado;
+o tooling útil do snapshot MAIN é integrado sem ativar CAMAPv3. Videoteca parcial
+continua suspensa: seu script/teste não entram na seleção nem no runner. O gate
+geral de sintaxe pode analisar esses arquivos existentes, mas não executa fixtures.
+
+O runner registra explicitamente plugins administrativos, plano de migração,
+regressão de queries, provisionamento e tooling. A cópia standalone usa os mesmos
+**caminhos exatos** de `CONTRIBUTOR_FILES`, incluindo dependências de scripts, sem
+descobrir fontes por glob/cópia recursiva e sem copiar projetos irmãos. Quatorze
+suítes requerem SPMIDDLE, incluindo plugins administrativos, provisionamento e
+o wrapper explícito `query-options-main-spmiddle.test.js`;
+regressão de queries, plano de migração e tooling são core/local. Só irmão ausente
+gera skip; checkout parcial/import/export/assertion inválidos continuam falhas.
+
+O source package Documentation mantém suas onze referências upstream locais
+pinned e o build histórico `.5` separado em `scripts/documentation-frozen-build/`.
+Os **18 caminhos exatos** desse suporte foram acrescentados à lista canônica,
+incluindo scripts, dependências próprias, parser/avisos/licenças e package.json.
+A fachada usa esse build congelado; não se ajustam pins para aceitar qualquer
+fonte corrente. Preservação histórica não aprova direitos/publicação, nem essa
+inclusão implica revalidação do pacote/contributor completo.
+
+Validação focal desta consolidação:
+
+- Manifestos: **100 suítes / 14 opcionais / 391 caminhos contributor / 18 frozen**,
+  sem arquivos declarados ausentes ou suítes registradas omitidas.
+- Tooling parse-only/cópia/cleanup e os onze cenários de provisionamento passaram.
+  Sintaxe geral: **319 JS/MJS**, sem avaliar imports/fixtures.
+- Auditoria adversarial + core local passou com **147 arquivos declarados**,
+  hashes/inventário e escopo exato do parser; nenhuma aprovação pública.
+- Contributor focal passou com **391 arquivos / 6.820.364 bytes** no snapshot
+  daquela execução: hashes/bytes determinísticos, flags false, inventário,
+  exclusão de fontes não listadas, hardlinks/CLI e três junction checks;
+  uma criação de symlink pendente indisponível por permissão, não simulada.
+  Os bytes mudam quando fontes/docs são editadas; não é um baseline imutável.
+- Runner focal (`completeStandalone: false`) passou negativos reais/scheduling,
+  14 skips visíveis sem irmão e 14 falhas (não skips) no checkout parcial.
+  O wrapper de queries passou com SPMIDDLE real/transporte local: 1 passe, zero
+  skips/falhas. Não prova execução standalone completa.
+- Uma tentativa release-core foi recusada por edição paralela de
+  `src/libraries/minijoomla/index.js`; a **repetição estável passou**, mantendo
+  comparação de bytes/manifestos, 147 arquivos, loader offline e gates estritos.
+
+Runner completo e workflow `--commands` **não executados nesta consolidação**;
+nenhuma contagem histórica é um passe da nova seleção completa. Não houve
+navegador, publicação ou alteração do snapshot MAIN.
+
 ## Criar e conferir
 
 Na raiz MINIJOOMLA, com Node LTS mantido (22 ou posterior) e npm, sem instalação:
@@ -57,10 +125,10 @@ fixtures, regras de auditoria, exemplos ou avisos.
   Isso permite servir os assets do editor local atual, não comprova seu aceite
   real em navegador nem licença completa/proveniência/fonte-build correspondente.
 - Scripts de teste/sintaxe/servidor/gates locais, incluindo `stage-release.js`.
-- Somente docs de entrada revisáveis: este documento, `CONTRIBUTING.md`,
-   `SECURITY.md`, `LOCAL-DEMO.md`, `ADMIN-LAYOUT-TESTS.md`, `RELEASE-CORE.md`,
-   `EXTENSOES-JOOMLA.md`, `CONTRATOS-EVOLUCAO-XML.md`,
-   `THIRD-PARTY-NOTICES.md` e o texto GPL. README/avisos ainda contêm contexto
+- Somente docs de entrada e contratos utilizados pelos testes: este documento, `CONTRIBUTING.md`,
+  `SECURITY.md`, `LOCAL-DEMO.md`, `ADMIN-LAYOUT-TESTS.md`, `RELEASE-CORE.md`,
+  `THIRD-PARTY-NOTICES.md`, `EXTENSOES-JOOMLA.md`, `CONTRATOS-EVOLUCAO-XML.md`,
+  `ETAPA-1-SAMPLE-DATA.md`, `PROVENIENCIA-DOCUMENTATION.md` e o texto GPL. README/avisos ainda contêm contexto
   histórico: sua inclusão **não** autoriza redistribuí-los como documentação OSS.
 
 Não entram o irmão SPMIDDLE nem sua licença sem seu código, Git/índice/histórico,
@@ -100,13 +168,12 @@ node scripts/serve-local.js
 node scripts/stage-release.js --version 0.3.1 --output tmp/core-local-01 --target core
 ```
 
-- `npm test`: o runner real registra as suítes; **onze integration skips** são
+- `npm test`: o runner real registra as suítes; **quatorze integration skips** são
   esperados sem `../SPMIDDLE`. Falha local ou irmão presente/incompleto continua
   sendo falha. `runner.test.js` cria e executa seu child isolado atual, excluindo
   apenas a si próprio para evitar recursão; nenhuma transformação do runner aqui.
-- `npm run check`: sintaxe de `.js/.mjs` em src/tests/examples/scripts, sem
-  executar módulos. Imports ausentes continuam sendo verificados pelo runner,
-  não certificados pelo parser de sintaxe.
+- `npm run check`: sintaxe de `src/tests/examples/scripts`, incluindo `.js/.mjs`,
+  com raiz baseada no próprio script. Não avalia módulos, imports ou fixtures.
 - Standalone: sete grupos Node com os módulos originais dos exemplos, sem
   navegador/TinyMCE real. Consulte `LOCAL-DEMO.md`.
 - Servidor: loopback somente leitura, MIME explícito/no-store/nosniff. Demos em
@@ -122,7 +189,8 @@ node scripts/stage-release.js --version 0.3.1 --output tmp/core-local-01 --targe
 
 O teste está integrado ao runner; seu child isolado também copia os novos
 scripts/documentos selecionados. A função exportada usa `commands: false` por
-padrão para não recursar npm; a CLI direta com `--commands` executa o workflow completo. Nenhuma
+padrão para não recursar npm; a CLI direta também é focal por padrão, e somente
+`node tests/contributor-stage.test.js --commands` executa o workflow completo. Nenhuma
 falha local de import/integração instalada é convertida em skip.
 
 ## Gates ainda bloqueantes
@@ -147,7 +215,7 @@ falha local de import/integração instalada é convertida em skip.
    não lido, limpo ou reescrito por esta seleção. Não gerar ZIP/distribuição
    pública nem publicar com base neste inventário.
 
-### Validação desta frente
+### Histórico — validação de 04/11/2026 (não baseline atual)
 
 Execute `node tests/contributor-stage.test.js --commands` para reproduzir allowlist/hashes,
 bytes vendor, destinação/imutabilidade/links/hardlinks, extras/tamper, CLI a partir

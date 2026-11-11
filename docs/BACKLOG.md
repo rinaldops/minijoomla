@@ -13,6 +13,11 @@ See [contribution guidance](CONTRIBUTING.md) and [security policy](SECURITY.md).
 > Module XML generation exists; save hooks exist with injected manager.
 > The current repository has no tracked tmp files; older aggregator counts
 > are not its inventory. [Evolution contracts](CONTRATOS-EVOLUCAO-XML.md).
+>
+> The current [continuity plan](PLANO-CONTINUIDADE-MINIJOOMLA.md) also
+> prioritizes consolidation and Joomla-standard features. Videoteca/Forum and
+> further external adoption are suspended; existing work and installed modules
+> are preserved.
 
 Coordinator-reported production versions are **public 0.2.11 / admin 0.2.10**.
 The saved-image fix has **user-reported acceptance**, not a fresh agent

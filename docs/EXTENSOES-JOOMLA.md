@@ -4,6 +4,10 @@
 > plugins/templates e migração assistida. [Contratos e gates](CONTRATOS-EVOLUCAO-XML.md).
 > O suporte descrito abaixo continua sendo o perfil de módulos implementado;
 > planejamento não habilita novos tipos nem converte dados automaticamente.
+>
+> **Fila vigente:** finalizar os recursos nativos após consolidar as branches.
+> Videoteca/Forum e expansão externa suspensos conforme
+> [plano atual](PLANO-CONTINUIDADE-MINIJOOMLA.md).
 
 ## Contrato implementado
 

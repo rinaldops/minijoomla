@@ -28,6 +28,8 @@ import { createTemplateDiscoveryService } from '../application/extension-discove
 import { createJoomlaDiscoveryService } from '../application/joomla-discovery.js';
 import { createJoomlaExtensionInstaller } from '../application/joomla-extension-installer.js';
 import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
+import { createSampleDataService } from '../application/sample-data-service.js';
+import { assertJoomlaPackageAssets } from '../application/joomla-package-assets.js';
 
 /*
  * `mediaFileClientFactory`, quando informado, segue o MESMO padrão de
@@ -40,8 +42,8 @@ import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
  * imagem na origem (ver src/administrator/components/com_minijoomla/editor.js), nunca insere um
  * `data:` URI inline.
  */
-export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, importModule,
-  joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, ...appOptions } = {}) {
+export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, importModule, sampleDataPackageLoader, sampleDataJournalStore,
+  joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, approvedPackageAssets, ...appOptions } = {}) {
   const app = createMiniJoomlaSharePointApp(appOptions);
   // An explicitly injected manager (including null to opt out) has precedence;
   // never load persisted plugins into a caller-owned/public manager. Deliberate
@@ -50,18 +52,23 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
   let admin;
   const adminPlugins = pluginManager === undefined && app.repositories.extensions
     ? createAdminPluginsRuntime({ importModule, getPlugins: () => admin.extensions.list() }) : null;
-  admin = createAdminService(app.repositories, { pluginManager: adminPlugins ?? pluginManager });
+  admin = createAdminService(app.repositories, { pluginManager: adminPlugins ?? pluginManager, initialSiteConfig: appOptions.config });
   const fileClient = typeof extensionsFileClientFactory === 'function' ? extensionsFileClientFactory({ webUrl: appOptions.webUrl }) : null;
   const legacy = fileClient ? createExtensionDiscoveryService(fileClient) : null;
   if (!Array.isArray(joomlaDiscoveryRoots)) throw new TypeError('joomlaDiscoveryRoots deve ser uma lista.');
   if (joomlaDiscoveryRoots.length && typeof joomlaFileClientFactory !== 'function') throw new TypeError('Raizes XML requerem joomlaFileClientFactory.');
-  const discovery = joomlaDiscoveryRoots.length ? createJoomlaDiscoveryService({ legacy,
+  const xmlDiscovery = joomlaDiscoveryRoots.length ? createJoomlaDiscoveryService({ legacy,
     roots: joomlaDiscoveryRoots.map((root) => ({ ...root, files: joomlaFileClientFactory({ webUrl: appOptions.webUrl, root }) })) }) : legacy;
+  const discovery = xmlDiscovery && approvedPackageAssets ? Object.freeze({ ...xmlDiscovery,
+    async verify(candidate, options) { const descriptor=await xmlDiscovery.verify(candidate,options);assertJoomlaPackageAssets(approvedPackageAssets,[descriptor]);return descriptor; },
+    async verifyRevision(metadata, options) { const descriptor=await xmlDiscovery.verifyRevision(metadata,options);assertJoomlaPackageAssets(approvedPackageAssets,[descriptor]);return descriptor; }
+  }) : xmlDiscovery;
   const templates = fileClient ? createTemplateDiscoveryService(fileClient) : null;
   const installer = joomlaDiscoveryRoots.length ? createJoomlaExtensionInstaller({ discovery, admin, repositories: app.repositories, assertAtomicKey: assertAtomicExtensionKey }) : null;
   const discoveryWithTemplates = discovery ? Object.freeze({ ...discovery, templates, ...(installer ? { installer } : {}) }) : null;
   const media = typeof mediaFileClientFactory === 'function'
     ? createMediaUploadService(mediaFileClientFactory({ webUrl: appOptions.webUrl }))
     : null;
-  return Object.freeze({ ...app, admin, adminPlugins, discovery: discoveryWithTemplates, templates, media });
+  const sampleData = createSampleDataService({ adminService: admin, loadPackage: sampleDataPackageLoader, journalStore: sampleDataJournalStore });
+  return Object.freeze({ ...app, admin, adminPlugins, discovery: discoveryWithTemplates, templates, media, sampleData });
 }

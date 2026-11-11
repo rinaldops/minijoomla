@@ -31,7 +31,8 @@ export const SEARCH_ARTICLES = [
 ].map((item) => ({ category: 'noticias', published: true, publishUp: '2026-01-01', ...item }));
 
 // Same literal phrase semantics and pagination for Fake and SPMiddle, including
-// canonical Unicode equivalence, terms in different fields and regex-looking input.
+// canonical Unicode equivalence, terms in different fields, regex-looking input,
+// totals and pagination.
 export async function runSearchAdapterContract(adapter) {
   for (const [searchMode, aliases] of [
     ['exact', ['phrase']], ['all', ['phrase', 'split', 'tagged']], ['any', ['phrase', 'split', 'single', 'tagged']]
@@ -73,6 +74,15 @@ export async function runContentAdapterContract({ adapter, fixture, report = () 
     }],
     ['listArticles resolves a well-formed Page even with no filters', async () => {
       assertPageShape(await adapter.listArticles(), 'listArticles()');
+    }],
+    ['pagination limits reject coercible and fractional values and retain a valid default', async () => {
+      const fallback = (await adapter.listArticles()).pageSize;
+      for (const pageSize of [true, false, [], [2], {}, 1.5, '2.5', 0, 51, Infinity, NaN, '', null]) {
+        const result = await adapter.listArticles({ pageSize });
+        assert.equal(result.pageSize, fallback);
+        assert.ok(Number.isInteger(result.pages));
+      }
+      for (const pageSize of [1, 50, '2']) assert.equal((await adapter.listArticles({ pageSize })).pageSize, Number(pageSize));
     }],
     ['getCategory resolves null for an unknown alias and an entity for a known one', async () => {
       assert.equal(await adapter.getCategory(unknownCategoryAlias), null);

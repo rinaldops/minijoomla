@@ -2,8 +2,9 @@ import { createConfig } from './core/config.js';
 import { Router } from './core/router.js';
 import { EventBus } from './core/events.js';
 import { createFakeAdapter } from './infrastructure/fake-adapter.js';
-import { createContentService, resolveContentQuery } from './application/content-service.js';
+import { createContentService } from './application/content-service.js';
 import { createTemplateRuntime } from './application/template-runtime.js';
+import { resolveTemplateParams, resolveTemplateStyleId, BUILTIN_TEMPLATES } from './application/template-styles.js';
 import { createModuleStyles } from './application/module-styles.js';
 import { createModuleRegistry, menuModule } from './modules/registry.js';
 import { breadcrumbsModule } from '../../modules/mod_breadcrumbs/mod_breadcrumbs.js';
@@ -13,6 +14,7 @@ import { articlesLatestModule } from '../../modules/mod_articles_latest/mod_arti
 import { articlesCategoryModule } from '../../modules/mod_articles_category/mod_articles_category.js';
 import { articlesNewsModule } from '../../modules/mod_articles_news/mod_articles_news.js';
 import { articlesFeaturedModule } from '../../modules/mod_articles_featured/mod_articles_featured.js';
+import { selectFeaturedArticles } from '../../modules/mod_articles_featured/tmpl/default.js';
 import { tagsSimilarModule } from '../../modules/mod_tags_similar/mod_tags_similar.js';
 import { tagsPopularModule } from '../../modules/mod_tags_popular/mod_tags_popular.js';
 import { articlesArchiveModule } from '../../modules/mod_articles_archive/mod_articles_archive.js';
@@ -41,6 +43,7 @@ import { renderArchive } from '../../components/com_content/tmpl/archive/default
 import { renderShell } from '../../templates/cassiopeia/index.js';
 import { renderCamapShell } from '../../templates/camap/index.js';
 import { escapeHtml } from './security/sanitize.js';
+import { normalizePageSize, queryInteger } from './core/contracts.js';
 
 const ROUTES = [
   { name: 'article', pattern: /^\/article\/([^/]+)$/, keys: ['alias'] },
@@ -67,8 +70,7 @@ export function createApplication({
   const modules = createModuleRegistry()
     .register('menu', menuModule).register('breadcrumbs', breadcrumbsModule).register('search', searchModule)
     .register('articles-latest', articlesLatestModule).register('articles-category', articlesCategoryModule)
-    .register('articles-news', articlesNewsModule).register('articles-featured', articlesFeaturedModule)
-    .register('tags-similar', tagsSimilarModule)
+    .register('articles-news', articlesNewsModule).register('tags-similar', tagsSimilarModule)
     .register('tags-popular', tagsPopularModule).register('articles-archive', articlesArchiveModule)
     .register('custom-html', customHtmlModule).register('login', loginModule)
     .register('articles-categories', articlesCategoriesModule).register('related-items', relatedItemsModule)
@@ -78,9 +80,11 @@ export function createApplication({
   const externalStyles = createModuleStyles({ moduleStyles, moduleStyleRevisions, documentRef });
   const templateKey = template ?? siteConfig.templateKey;
   let activeRenderer = templateKey === 'camap' ? renderCamapShell : renderShell;
+  let featuredOwnership;
+  let renderConfig=siteConfig;
   let cleanupShell = () => {};
   function renderPage(args) {
-    try { return activeRenderer(args); }
+    try { return activeRenderer({...args,config:renderConfig}); }
     catch {
       console.warn('MINIJOOMLA: falha no template selecionado.');
       return renderShell({ ...args, content: LOAD_ERROR });
@@ -104,10 +108,11 @@ export function createApplication({
   const PLACEHOLDER = /\{(?:loadmodule|loadposition)\b[^}]*\}/g;
 
   // Cards das listagens: plugins de conteúdo só sobre a introdução (módulos só rodam se citados no texto).
-  async function prepareCards(result, moduleContext, renderedModules) {
+  async function prepareCards(result, moduleContext, renderedModules, allowModuleExpansion = true) {
     if (!Array.isArray(result?.items)) return result;
     const items = await Promise.all(result.items.map(async (item) => {
-      const text = await plugins.prepareContent(item.introtext, { ...pluginContext(item, 'introtext', moduleContext, renderedModules), card: true });
+      const context=pluginContext(item,'introtext',moduleContext,renderedModules);
+      const text = await plugins.prepareContent(item.introtext, { ...context, ...(!allowModuleExpansion?{renderModule:()=>'',renderPosition:()=>''}:{}), card: true });
       return { ...item, introtext: String(text ?? '').replace(PLACEHOLDER, '') };
     }));
     return { ...result, items };
@@ -174,16 +179,28 @@ export function createApplication({
       ]);
       if (navigationId !== latestNavigation) return;
       menus = menuRows;
+      const legacyFeatured = Array.isArray(extensions) && extensions.some(row=>row?.key==='articles-featured'&&row.type==='Module');
+      if(featuredOwnership===undefined){featuredOwnership=legacyFeatured?'registered':'native';if(!legacyFeatured)modules.register('articles-featured',articlesFeaturedModule);}
+      if(featuredOwnership==='native'&&legacyFeatured)throw new TypeError('Chave nativa em conflito com extensão registrada; recarregue para preservar sua origem.');
       selectedTemplate = await templateRuntime.resolve(templateKey, templates);
+      if (navigationId !== latestNavigation) return;
+      renderConfig=siteConfig;
+      if(!BUILTIN_TEMPLATES.includes(selectedTemplate.key)){
+        const selectedConfig={...siteConfig,templateKey:selectedTemplate.key};
+        const params=resolveTemplateParams(selectedConfig,selectedTemplate.definitions);
+        renderConfig={...selectedConfig,templateParams:params,styleParams:params,templateStyleId:resolveTemplateStyleId(selectedConfig)};
+      }
       await extensionLoader.ensurePluginsRegistered(plugins, extensions, {
         onRegister: (name) => started ? plugins.init({ config: siteConfig }, name) : undefined,
         onRemove: (name) => started ? plugins.finalize({ config: siteConfig }, name) : undefined
       });
       if (navigationId !== latestNavigation) return;
       const link = (path, params) => router.link(path, params);
-      // Preserve explicit query overrides when following pagination, without
-      // copying path aliases or arbitrary parameters into adapter requests.
-      const queryParams = Object.fromEntries(['pageSize', 'sort', 'dir', 'orderBy', 'searchPhrases'].filter((key) => Object.hasOwn(location.params, key)).map((key) => [key, location.params[key]]));
+      // Main's orderBy/dir aliases share the guarded service resolver. Pagination
+      // writes canonical sort/dir values, never forwards arbitrary route params.
+      const sortOptions = Object.fromEntries(['sort', 'dir', 'orderBy'].filter((key) => Object.hasOwn(location.params, key)).map((key) => [key, location.params[key]]));
+      const explicitOrder = Object.keys(sortOptions).length ? content.queryOptions(sortOptions) : null;
+      const sortParams = explicitOrder ? { sort: explicitOrder.sort, dir: explicitOrder.direction } : {};
 
       // Maintenance gate: keeps the shell (menus/modules/template) but replaces
       // the main content for any route.
@@ -199,20 +216,22 @@ export function createApplication({
       } else if (location.route?.name === 'category') {
         const { layout: layoutParam, filter = '' } = location.params;
         const layout = layoutParam === 'list' ? 'list' : 'blog';
-        const { sort = 'publishUp', direction = 'desc', pageSize } = resolveContentQuery(siteConfig, queryParams, { list: layout === 'list' });
-        const blog = blogSettings(componentParams?.content, pageSize);
+        const { sort, direction } = content.queryOptions(sortOptions);
+        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
+        const pageSize = queryInteger(location.params.pageSize);
         const vm = await content.category(location.params.alias, layout === 'list'
-          ? { page: location.params.page, pageSize, sort, direction, titleContains: filter, layout }
-          : { page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize, sort, direction });
+          ? { page: location.params.page, pageSize, sort, direction, titleContains: filter }
+          : { page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize), sort, direction });
         const categoryPath = await content.categoryPath(location.params.alias);
-        const listParams = { ...queryParams, layout: layout === 'list' ? 'list' : undefined, sort: layout === 'list' ? sort : undefined, dir: layout === 'list' ? direction : undefined, filter };
+        const listParams = { layout: layout === 'list' ? 'list' : undefined, sort, dir: direction, filter, pageSize };
+        const blogParams = { ...sortParams, filter, pageSize };
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Categoria não encontrada.</p></section>';
         if (vm) {
           const children = await content.subcategories(vm.category);
           renderDeferred = async (prepare) => renderCategory(await prepare(vm), {
             layout, settings: blog, route: location.path, sort, direction, filter,
             children, categoryLink: (alias) => link(`/category/${encodeURIComponent(alias)}`),
-            link: (page) => router.link(location.path, { ...queryParams, page }),
+            link: (page) => router.link(location.path, { ...(layout === 'list' ? listParams : blogParams), page }),
             listLink: (changes) => router.link(location.path, { ...listParams, ...changes }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
@@ -228,12 +247,13 @@ export function createApplication({
         body = renderTagList(await content.tags(), { tagLink: (name) => link(`/tag/${encodeURIComponent(name)}`) });
         crumbs.push({ label: 'Tags' });
       } else if (location.route?.name === 'tag') {
-        const blog = blogSettings(componentParams?.content, resolveContentQuery(siteConfig, queryParams).pageSize);
-        const vm = await content.tag(location.params.alias, { ...queryParams, page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize });
+        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
+        const pageSize = queryInteger(location.params.pageSize);
+        const vm = await content.tag(location.params.alias, { ...sortOptions, page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize) });
         body = '<section class="error-state" role="alert"><h1>404</h1><p>Tag não encontrada.</p></section>';
         if (vm) {
           renderDeferred = async (prepare) => renderTag(await prepare(vm), {
-            settings: blog, link: (page) => router.link(location.path, { ...queryParams, page }),
+            settings: blog, link: (page) => router.link(location.path, { ...sortParams, page, pageSize }),
             articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
             componentParams: componentParams?.content
           });
@@ -241,29 +261,32 @@ export function createApplication({
         crumbs.push({ label: 'Tags', href: link('/tags') }, { label: vm ? vm.tag : '404' });
       } else if (location.route?.name === 'search') {
         const query = await plugins.prepareSearchQuery(location.params.q ?? '', {});
-        const found = await content.search(query, { ...queryParams, page: location.params.page });
+        const searchOptions = content.queryOptions({ ...sortOptions, pageSize: location.params.pageSize, searchMode: location.params.searchMode ?? location.params.searchPhrases ?? location.params.searchphrase }, 'search');
+        const found = await content.search(query, { page: location.params.page, ...searchOptions });
         renderDeferred = async (prepare) => renderSearch(found.query, await prepare(found), {
-          link: (page) => link(location.path, { ...queryParams, q: found.query, page }),
+          link: (page) => link(location.path, { ...sortParams, q: found.query, page, ...(queryInteger(location.params.pageSize) ? { pageSize: searchOptions.pageSize } : {}), ...(location.params.searchMode !== undefined || location.params.searchPhrases !== undefined || location.params.searchphrase !== undefined ? { searchMode: searchOptions.searchMode } : {}) }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams
         });
         crumbs.push({ label: 'Busca' });
       } else if (location.route?.name === 'archive') {
         const { year, month, page } = location.params;
-        const archived = await content.archive({ ...queryParams, year, month, page });
+        const pageSize = queryInteger(location.params.pageSize);
+        const archived = await content.archive({ ...sortOptions, year, month, page, pageSize });
         const months = await content.archiveMonths({ limit: 50 });
         renderDeferred = async (prepare) => renderArchive(await prepare(archived), {
-          year, month, months, link: (nextPage) => link(location.path, { ...queryParams, year, month, page: nextPage }),
+          year, month, months, link: (nextPage) => link(location.path, { ...sortParams, year, month, page: nextPage, pageSize }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });
         crumbs.push({ label: 'Arquivo' });
       } else if (location.route?.name === 'home') {
-        const blog = blogSettings(componentParams?.content, resolveContentQuery(siteConfig, queryParams).pageSize);
-        const result = await content.home({ ...queryParams, page: location.params.page, pageSize: resolveContentQuery({ ...siteConfig, pageSize: blog.pageSize }, queryParams).pageSize });
+        const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
+        const pageSize = queryInteger(location.params.pageSize);
+        const result = await content.home({ ...sortOptions, page: location.params.page, pageSize: normalizePageSize(pageSize, blog.pageSize) });
         renderDeferred = async (prepare) => renderFeatured(await prepare(result), {
           siteName: siteConfig.siteName, siteDescription: siteConfig.siteDescription, settings: blog,
-          link: (page) => link('/', { ...queryParams, page }),
+          link: (page) => link('/', { ...sortParams, page, pageSize }),
           articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
           componentParams: componentParams?.content
         });
@@ -278,7 +301,7 @@ export function createApplication({
         route: location.route?.name,
         categoryAlias: location.route?.name === 'category' ? location.params.alias : undefined,
         menuItemId: resolveActiveMenuItemId(menus, menuActivePath)
-      }, new Date(), selectedTemplate?.positions);
+      }, new Date(), selectedTemplate.positions);
       await plugins.afterRoute(location);
       // A supplied repository is authoritative: removing its last row must remove the module too.
       if (!getModuleInstances) entries.sidebar.push(
@@ -295,6 +318,7 @@ export function createApplication({
         menus, activePath: menuActivePath,
         articles: await withCategoryAlias((await adapter.listArticles({ pageSize: 50 })).items),
         featuredArticles: (await adapter.listArticles({ featured: true, pageSize: 50 })).items,
+        articleLink: (alias) => link(`/article/${encodeURIComponent(alias)}`), timezone: siteConfig.timezone,
         similarArticles, tags: await adapter.listTags({ popular: true }), months: await content.archiveMonths(), link,
         // `articleLink`/`timezone`/`componentParams` (Iteração 5): mesmo
         // contrato já usado pelos call sites de `renderArticleCard()` em
@@ -317,6 +341,12 @@ export function createApplication({
           if (entry.name === 'articles-category' && entry.settings?.category) {
             const category = await content.category(entry.settings.category, { pageSize: entry.settings.limit });
             context = { ...moduleContext, items: category?.items ?? [] };
+          }
+          if(entry.name==='articles-featured'&&featuredOwnership==='native'){
+            const selected=selectFeaturedArticles(moduleContext.featuredArticles,entry.settings);
+            const prepared=await prepareCards({items:selected},moduleContext,{},false);
+            if(navigationId!==latestNavigation)return;
+            context={...moduleContext,featuredArticles:prepared.items,componentParams:componentParams?.content};
           }
           fragments.push(modules.renderPosition(position, [entry], context));
         }

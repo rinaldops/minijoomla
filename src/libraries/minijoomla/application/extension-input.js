@@ -1,4 +1,5 @@
 import { ValidationError } from '../core/contracts.js';
+import { parseJsonObject } from './declared-params.js';
 
 // Lista reservada, sempre válida, de posições ESTRUTURAIS: usada pelos
 // templates builtin (`default`/`cassiopeia`/`camap`) e como piso mínimo
@@ -24,10 +25,13 @@ export const BUILTIN_MODULE_KEYS = Object.freeze(['articles-latest', 'articles-c
  * APENAS de forma — não verifica pertencimento a nenhuma enumeração. Usada
  * por `templatePositions()` para aceitar posições fora de
  * `STRUCTURAL_TEMPLATE_POSITIONS` sem abrir a porta para valores
- * arbitrários (espaços, maiúsculas, símbolos).
+ * arbitrários (espaços, maiúsculas, símbolos). Também recusa nomes que
+ * colidiriam com propriedades herdadas de Object (`constructor`,
+ * `prototype`, `__proto__`), evitando poluição de protótipo em consumidores
+ * que indexam um mapa por nome de posição.
  */
 export function isWellFormedPositionName(value) {
-  return typeof value === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(value);
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(value) && !['constructor', 'prototype', '__proto__'].includes(value);
 }
 
 export const NATIVE_PLUGIN_KEYS = Object.freeze(['emailcloak', 'pagebreak', 'loadmodule', 'pagenavigation']);
@@ -76,18 +80,10 @@ export function enabledValue(value, field = 'enabled') {
 }
 
 export function jsonObject(value, field = 'settings') {
-  let parsed = value;
-  if (typeof parsed === 'string') {
-    try { parsed = JSON.parse(parsed); } catch { throw new ValidationError(`${field} deve ser JSON válido.`); }
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || ![Object.prototype, null].includes(Object.getPrototypeOf(parsed))) throw new ValidationError(`${field} deve ser um objeto JSON.`);
-  try {
-    const serialized = JSON.stringify(parsed, (key, entry) => {
-      if (typeof entry === 'number' && !Number.isFinite(entry) || ['function', 'undefined', 'symbol', 'bigint'].includes(typeof entry)) throw new Error();
-      return entry;
-    });
-    return serialized;
-  } catch { throw new ValidationError(`${field} deve ser um objeto JSON serializável.`); }
+  // Callers handle historical absent/null/empty fields explicitly. This
+  // serialization boundary accepts data only, never getters or toJSON hooks.
+  if (value === undefined || value === null || value === '') throw new ValidationError(`${field} deve ser um objeto JSON.`);
+  return JSON.stringify(parseJsonObject(value, { strict: true, field }));
 }
 
 /*
@@ -104,8 +100,19 @@ export function templatePositions(value) {
   if (typeof positions === 'string') {
     try { positions = JSON.parse(positions); } catch { throw new ValidationError('positionsJson deve ser um array JSON válido.'); }
   }
-  if (!Array.isArray(positions) || !positions.length || positions.some((position) => !STRUCTURAL_TEMPLATE_POSITIONS.includes(position) && !isWellFormedPositionName(position))) throw new ValidationError('positions contém uma posição inválida.');
-  return JSON.stringify([...new Set(positions)]);
+  if (!Array.isArray(positions) || positions.length < 1 || positions.length > 100) throw new ValidationError('positions contém uma posição inválida.');
+  const descriptors = Object.getOwnPropertyDescriptors(positions);
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.length !== positions.length + 1 || keys.some(key => typeof key !== 'string' || key !== 'length' && !/^(0|[1-9]\d*)$/.test(key))) throw new ValidationError('positions deve ser uma lista densa de dados.');
+  const values = [];
+  for (let index = 0; index < positions.length; index++) {
+    const descriptor = descriptors[index];
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw new ValidationError('positions deve ser uma lista densa de dados.');
+    const value = descriptor.value;
+    if (!STRUCTURAL_TEMPLATE_POSITIONS.includes(value) && !isWellFormedPositionName(value)) throw new ValidationError('positions contém uma posição inválida.');
+    values.push(value);
+  }
+  return JSON.stringify([...new Set(values)]);
 }
 
 export function templateStyles(value) {

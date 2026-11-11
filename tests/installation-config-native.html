@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configuração inicial — prova em memória</title><link rel="stylesheet" href="../src/media/templates/administrator/atum/css/template.css"></head>
+<body><main data-config-native-root></main><script type="module">
+import { createDemoRepositories } from '../examples/demo-repositories.js';
+import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
+import { toSiteConfigOverrides } from '../src/libraries/minijoomla/application/site-config-overrides.js';
+import { createSPMiddleAdapter } from '../src/libraries/minijoomla/infrastructure/spmiddle-adapter.js';
+import { createApplication } from '../src/index.js';
+const initialSite={siteName:'Portal vazio escolhido',siteDescription:'Descrição escolhida na instalação',timezone:'UTC',language:'pt-BR',pageSize:10,templateKey:'cassiopeia',homeView:'featured',homeCategory:'',offline:false,offlineMessage:''};
+const state=new Map([['minijoomla-demo-v1',JSON.stringify({revision:1,domains:Object.fromEntries(['articles','categories','tags','menu','extensions','templates','moduleInstances','siteConfig'].map(domain=>[domain,[]]))})]]);
+const storage={getItem:key=>state.get(key)??null,setItem:(key,value)=>state.set(key,value)};
+const repositories=createDemoRepositories({storage});
+const admin=createAdminService(repositories,{initialSiteConfig:initialSite});
+const root=document.querySelector('[data-config-native-root]');
+const app=createAdminApplication({adminService:admin,documentRef:{body:root,documentElement:null,title:''},autoStart:false});
+globalThis.__configNative={admin,repositories,initialSite,app,async reload(){app.stop();const next=createAdminApplication({adminService:createAdminService(createDemoRepositories({storage}),{initialSiteConfig:initialSite}),documentRef:{body:root,documentElement:null,title:''},autoStart:false});this.app=next;await next.start();await next.router.navigate('#/config');},async openPublic(){this.app.stop();const saved=await admin.siteConfig.get();const publicApp=createApplication({documentRef:{body:root,head:document.head,baseURI:document.baseURI,createElement:document.createElement.bind(document)},autoStart:false,config:{...initialSite,...toSiteConfigOverrides(saved)},adapter:createSPMiddleAdapter({articleRepository:repositories.articles,categoryRepository:repositories.categories,tagRepository:repositories.tags,menuRepository:repositories.menu}),getModuleInstances:async()=>[],getExtensions:async()=>[],getTemplate:async()=>[]});await publicApp.start();await publicApp.router.navigate('#/');this.publicApp=publicApp;}};
+await app.start();await app.router.navigate('#/config');
+</script></body></html>

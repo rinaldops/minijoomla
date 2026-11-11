@@ -66,7 +66,7 @@ export async function runAdminIntegrityTests() {
   }
   console.log('ok - admin integrity: invalid module settings/manifests reject changes, duplication and batch before persistence');
 
-  for (const positionsJson of ['{broken', '{}', 'null', '[]', '["UNKNOWN"]', '["footer",42]']) {
+  for (const positionsJson of ['{broken', '{}', 'null', '[]', '["UNKNOWN"]', '["unknown slot"]', '["footer",42]']) {
     const repos = extensionFixture();
     repos.templates.rows.set(8, { id: 8, etag: '"1"', key: 'registered', title: 'Registered', positionsJson, enabled: true });
     const before = snapshot(repos);

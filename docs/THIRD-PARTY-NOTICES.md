@@ -2,6 +2,18 @@
 
 ## Original MINIJOOMLA code
 
+### Joomla Blog Sample Data
+
+`src/plugins/sampledata/blog/data.js` is generated from Joomla sampledata Blog
+PHP/INI at revision `52559589cb6a02c9e2fc48270f92b3aff7b8b7a0`.
+Source text: GPL-2.0-or-later, (C) 2017 Open Source Matters, Inc.
+`scripts/generate-joomla-sampledata.js` retains original text, translating only
+supported paths/relationships into the MiniJoomla JavaScript profile.
+The JPEG subset in `src/media/sampledata/joomla-blog/` preserves original bytes;
+NASA captions from the sample data are retained. Byte correspondence to the
+local Joomla checkout is not universal media-rights or acquisition certification.
+See [implementation and limits](ETAPA-1-SAMPLE-DATA.md). No PHP plugin is executed.
+
 Licensed under GPL-2.0-or-later, selected by the project owner on 2026-11-03.
 See [LICENSE.md](../LICENSE.md) and the [GPL version 2 text](licenses/GPL-2.0.txt).
 This selection does not replace existing third-party notices or resolve rights

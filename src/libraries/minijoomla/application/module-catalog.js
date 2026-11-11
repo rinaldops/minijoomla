@@ -70,7 +70,8 @@ export function moduleTypeCatalog(extensions = []) {
     const params = normalizeParamDefinitions(manifest.params);
     return Object.freeze({ key: row.key, title: row.title || row.key, description: String(manifest.description ?? ''), params, builtin: false, enabled: row.enabled !== false, version: String(manifest.version ?? '') });
   });
-  return [...BUILTIN_MODULE_TYPES, ...registered.filter((row) => !BUILTIN_MODULE_KEYS.includes(row.key))];
+  const legacyFeatured=registered.some(row=>row.key==='articles-featured');
+  return [...BUILTIN_MODULE_TYPES.filter(row=>row.key!=='articles-featured'||!legacyFeatured), ...registered.filter((row) => !BUILTIN_MODULE_KEYS.includes(row.key)||row.key==='articles-featured')];
 }
 
 export function findModuleType(catalog, key) {
