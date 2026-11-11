@@ -12,6 +12,10 @@
 > local/em memória). 124 suítes aprovadas, 0 falhas.
 > [Evidência completa](docs/CICLO-ACEITE-DESTINO-VAZIO.md).
 
+> **Estado consolidado de fechamento (11/11/2026):** os seis blocos do
+> fechamento nativo e todo o backlog de 06/11/2026 estão concluídos.
+> [Entrada única de fila](docs/ESTADO-CONSOLIDADO-FECHAMENTO.md).
+
 > **Prioridade atual: finalizar o Joomla padrão.** Videoteca e Forum suspensos;
 > expansão externa não é pré-condição do fechamento nativo. Trabalho parcial
 > preservado sem instalar/publicar. [Fila de fechamento](docs/PLANO-CONTINUIDADE-MINIJOOMLA.md).

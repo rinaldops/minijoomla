@@ -3,12 +3,19 @@
  * Publica uma release imutável no SharePoint pela sessão autenticada do FioriAgent.
  * Uso: node scripts/deploy-sharepoint.mjs --version X.Y.Z --web /sites/site --session <id>
  *      [--rpc 47173] [--skip-provision] [--prepare-only] [--expected-origin https://tenant.sharepoint.com]
- *      [--public-page NomeReal.aspx]
+ *      [--public-page NomeReal.aspx] [--mse-layout FullBleed|Contained]
  * Recusa versão já existente. Grava em tmp/deploy/ o canvas anterior (rollback) e o
  * mapa de listas. Nenhum cookie/token é lido ou gravado: todo acesso roda no navegador.
  * --public-page informa o nome real do .aspx público já criado no site de
  * destino (default 'MiniJoomla.aspx'); o MINIJOOMLA não assume nenhum nome
  * específico de site/template.
+ * --mse-layout é opcional; omitido preserva o snippet legado sem wrapper
+ * (sem mudança de comportamento). Quando informado, publishPages() envolve
+ * a raiz do CMS no wrapper data-spmiddle-host/data-spmiddle-layout real do
+ * SPMIDDLE (ver docs/CICLO-MSE-FULLBLEED.md), e buildStage() copia
+ * host/spmiddle-layout/{layout.js,layout.css,spmiddle-mse-host.js} do
+ * SPMIDDLE byte-for-byte para a release — essa flag não reimplementa nem
+ * modifica o algoritmo de layout em nenhum lugar.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -40,7 +47,12 @@ const rpcPort = option('rpc', '47173');
 // confinamento de templates instalados fora do MINIJOOMLA.
 const publicPage = option('public-page', 'MiniJoomla.aspx');
 if (!publicPage.endsWith('.aspx')) throw new TypeError('--public-page requer um nome de arquivo .aspx.');
-const PAGES = { [publicPage]: 'data-minijoomla-site', 'Administrator.aspx': 'data-minijoomla-admin-root' };
+const PAGES = { [publicPage]: { attribute: 'data-minijoomla-site', instance: 'minijoomla-site' }, 'Administrator.aspx': { attribute: 'data-minijoomla-admin-root', instance: 'minijoomla-admin' } };
+// Publisher's explicit choice, same two values mse-layout.js accepts; default
+// preserves the legacy unwrapped snippet (no behavior change for existing
+// publications that never asked for this).
+const mseLayout = option('mse-layout', null);
+if (mseLayout !== null && !['FullBleed', 'Contained'].includes(mseLayout)) throw new TypeError('--mse-layout aceita somente FullBleed ou Contained.');
 const expectedOrigin = option('expected-origin');
 if (expectedOrigin && (new URL(expectedOrigin).origin !== expectedOrigin || new URL(expectedOrigin).protocol !== 'https:')) throw new TypeError('--expected-origin requer uma origem HTTPS exata.');
 if (!/^\d+\.\d+\.\d+$/.test(version ?? '') || !web?.startsWith('/') || !session || !/^\d+$/.test(rpcPort)) throw new TypeError('Informe --version X.Y.Z --web /sites/site --session <id> [--rpc <porta>].');
@@ -178,6 +190,16 @@ function buildStage(lists) {
   writeFileSync(join(root, 'host', 'mse-layout.js'), readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'mse-layout.js')));
   writeFileSync(join(root, 'host', 'loader.js'), `import(${JSON.stringify(`${release}/host/host.js`)}).catch((error) => console.error('MINIJOOMLA: falha ao importar o host.', error));\n`);
   writeFileSync(join(root, 'host', 'admin.scoped.css'), scopedAdminCss(readFileSync(join(PROJECT, 'src', 'media', 'templates', 'administrator', 'atum', 'css', 'template.css'), 'utf8')));
+  // FullBleed/Contained layout wrapper assets: the real SPMIDDLE host adapter,
+  // byte-for-byte, same three files scripts/stage-generic-installation.js
+  // already copies for the offline copyable package. Publishing a page's
+  // snippet with data-spmiddle-host/data-spmiddle-layout requires these to
+  // exist at this exact path; mse-layout.js (host above) only looks for the
+  // CSS/module here, it never fabricates the layout algorithm itself.
+  mkdirSync(join(root, 'host', 'spmiddle-layout'), { recursive: true });
+  for (const name of ['layout.js', 'layout.css', 'spmiddle-mse-host.js']) {
+    writeFileSync(join(root, 'host', 'spmiddle-layout', name), readFileSync(join(PROJECT, '..', 'SPMIDDLE', 'host-adapters', 'modern-script-editor', name)));
+  }
   return walk(root).map((path) => ({ path, name: relative(root, path).split(sep).join('/') }));
 }
 
@@ -232,8 +254,10 @@ async function upload(files) {
 }
 
 async function publishPages() {
-  for (const [page, attribute] of Object.entries(PAGES)) {
-    const script = `<div ${attribute}></div>\n<script src="${release}/host/loader.js"></script>\n`;
+  for (const [page, { attribute, instance }] of Object.entries(PAGES)) {
+    const script = mseLayout
+      ? `<link rel="stylesheet" data-minijoomla-mse-layout href="${release}/host/spmiddle-layout/layout.css">\n<div data-spmiddle-host data-spmiddle-instance="${instance}" data-spmiddle-layout="${mseLayout}">\n  <div ${attribute}></div>\n</div>\n<script src="${release}/host/loader.js"></script>\n`
+      : `<div ${attribute}></div>\n<script src="${release}/host/loader.js"></script>\n`;
     // getbytitle('Site Pages') responde 404 ("List '...' does not exist") de
     // forma consistente neste tenant, mesmo a lista existindo (confirmado
     // nesta iteração: GetList(url) e $filter=Title eq '...' funcionam contra

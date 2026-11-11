@@ -127,7 +127,7 @@ não mede paridade integral Joomla nem constitui promessa de data.
 | Perfil XML de templates, estilos/posições/parâmetros/recuperação | 3–5 dias — **concluído 11/11** |
 | Migração assistida: executor/UI/diário/falhas parciais/recuperação | 4–7 dias — executor concluído 11/11; UI de painel ainda pendente |
 | Aceites reais: destino vazio, Sample Data, editor/upload/CRUD e acessibilidade aplicável | 4–7 dias — **concluído 11/11**, ver [CICLO-ACEITE-DESTINO-VAZIO.md](CICLO-ACEITE-DESTINO-VAZIO.md) |
-| Integração final, documentação e margem para correções | 4–7 dias |
+| Integração final, documentação e margem para correções | 4–7 dias — **concluído 11/11**, ver [ESTADO-CONSOLIDADO-FECHAMENTO.md](ESTADO-CONSOLIDADO-FECHAMENTO.md) |
 
 O total é esforço agregado; não é um cronograma serial com datas fixas.
 Dependências externas podem alongar o calendário: destino SharePoint **vazio e

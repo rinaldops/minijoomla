@@ -45,6 +45,38 @@ Esse ensaio temporário na página **não é ativação persistida na webpart MS
 substituição das páginas aceitas ou aceite integral de UI/editor/zoom/acessibilidade.
 Limitações internas dos templates continuam escolhas separadas do publicador.
 
+## FullBleed real publicado via scripts/deploy-sharepoint.mjs (11/11/2026)
+
+`scripts/deploy-sharepoint.mjs` não copiava `host/spmiddle-layout/` (só
+`scripts/stage-generic-installation.js`, para o pacote offline copiável,
+fazia isso) — qualquer publicação real com este script ficava presa ao
+snippet legado sem wrapper, mesmo que o usuário solicitasse FullBleed. Dois
+ajustes mínimos:
+
+1. `buildStage()` agora também copia `layout.js`/`layout.css`/
+   `spmiddle-mse-host.js` do SPMIDDLE (`../SPMIDDLE/host-adapters/modern-script-editor/`)
+   para `host/spmiddle-layout/` na release, byte-for-byte — mesmos três
+   arquivos que o empacotador genérico já inventariava, sem duplicar o
+   algoritmo de layout em nenhum lugar novo.
+2. Nova flag `--mse-layout FullBleed|Contained` (opcional; omitida preserva
+   o snippet legado sem wrapper, sem mudança de comportamento para quem não
+   pedir). Quando usada, `publishPages()` grava o script publicado com
+   `<link data-minijoomla-mse-layout>` + `<div data-spmiddle-host data-spmiddle-instance="..." data-spmiddle-layout="...">`
+   envolvendo a raiz do CMS, igual aos snippets de referência
+   (`host-adapters/modern-script-editor/*-installation-snippet.html`).
+
+Publicado e validado contra o mesmo site de teste real
+(`Comunidades-de-interesse-192`): release imutável nova `0.17.1` (263
+arquivos, incluindo os três do SPMIDDLE), ambas as páginas (`Default.aspx`/
+`Administrator.aspx`) republicadas com `--mse-layout FullBleed`. Confirmado
+via inspeção programática real: `host.className === 'spmiddle-mse-host--full-bleed'`,
+`data-spmiddle-layout="FullBleed"`, margens calculadas dinamicamente
+(`--spmiddle-host-margin-left/-right`) em ambas as páginas; screenshot real
+confirma o site ocupando a largura útil do host em vez da coluna estreita
+anterior. As oito listas MiniJoomla* permaneceram com exatamente as mesmas
+contagens de antes (11/4/4/8/7/1/4/1) — nenhum dado foi tocado por essa
+publicação de layout.
+
 ## Validação e documentação
 
 Focais: bridge core/local cobre CSS/API, legado, wrapper separado, URL exata,
