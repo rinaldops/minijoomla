@@ -16,6 +16,10 @@
  * host/spmiddle-layout/{layout.js,layout.css,spmiddle-mse-host.js} do
  * SPMIDDLE byte-for-byte para a release — essa flag não reimplementa nem
  * modifica o algoritmo de layout em nenhum lugar.
+ * Convenção (desde 0.17.1): --version aqui deve ser o mesmo valor gravado em
+ * package.json "version" neste commit, mantendo uma única fonte de verdade
+ * para "qual é a versão do MINIJOOMLA". Atualize package.json manualmente
+ * antes de publicar; este script não lê nem escreve esse arquivo.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

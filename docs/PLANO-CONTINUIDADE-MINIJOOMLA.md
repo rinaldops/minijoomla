@@ -1,5 +1,12 @@
 # Plano de continuidade — MINIJOOMLA
 
+> **Convenção de versionamento (desde 0.17.1, 11/11/2026):** `package.json`
+> "version" deve ser sempre igual ao `--version` da última release imutável
+> publicada via `scripts/deploy-sharepoint.mjs`/`scripts/stage-release.js`.
+> Ao publicar uma nova release, atualizar `package.json` manualmente no mesmo
+> commit — nenhum script lê/escreve esse campo automaticamente. Fonte única
+> de verdade para "qual é a versão do MINIJOOMLA".
+
 ## Prioridade vigente — finalizar somente o Joomla padrão
 
 **Separação de produto explicitada posteriormente:** Videoteca/Forum e seus
