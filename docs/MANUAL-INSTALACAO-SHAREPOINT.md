@@ -48,18 +48,67 @@ SharePoint moderno com permissão de edição de páginas e upload de arquivos.
   anterior não é tratado como "vazio" — o instalador recusa adotar listas
   preexistentes, mesmo vazias e compatíveis (ver seção 8 para o
   procedimento de limpeza antes de reinstalar).
-- Os arquivos do pacote MINIJOOMLA (pasta `web-devs/MINIJOOMLA` neste
-  repositório) disponíveis localmente, já gerados como pacote de release
-  (ver seção 2).
+- Uma máquina local (seu computador ou de quem for publicar) com:
+  - [Node.js](https://nodejs.org/) instalado (qualquer versão atual com
+    suporte a ES modules; usado nesta documentação com Node 24). É só para
+    **gerar o pacote de arquivos localmente antes do envio** — o site
+    SharePoint de destino nunca executa Node; tudo que ele recebe é
+    HTML/CSS/JavaScript estático.
+  - O **código-fonte do MINIJOOMLA** baixado nessa máquina (ver seção 2 —
+    é o "pacote distribuível" referido ao longo deste manual: ele **não
+    existe pronto para baixar em lugar nenhum**, é gerado localmente a
+    partir do código-fonte).
 
-## 2. Gerar o pacote de release (uma vez, por quem publica)
+## 2. Obter o código-fonte e gerar o pacote de release
+
+> Esta é a resposta para "onde está o pacote distribuível?": **não há um
+> arquivo `.zip` pronto para baixar.** O "pacote distribuível" é gerado
+> localmente, pela própria máquina de quem for publicar, a partir do
+> código-fonte do MINIJOOMLA — um repositório Git. Depois de gerado, esse
+> pacote (uma pasta local) é o que se copia para o SharePoint na seção 3.
+
+### 2.1. Obter o código-fonte
+
+O código-fonte do MINIJOOMLA está no repositório Git
+`git@github.com:rinaldops/minijoomla.git` (também acessível por HTTPS em
+`https://github.com/rinaldops/minijoomla`, conforme a configuração de
+acesso de quem for publicar). Obtenha uma cópia local por um destes
+caminhos:
+
+- **Clonar com Git** (recomendado, permite atualizar depois):
+  ```powershell
+  git clone https://github.com/rinaldops/minijoomla.git
+  cd minijoomla
+  ```
+- **Baixar um ZIP do código-fonte** direto da página do repositório no
+  GitHub ("Code" → "Download ZIP") e extrair localmente, se não tiver Git
+  instalado ou acesso configurado ao repositório.
+
+Qualquer um dos dois caminhos resulta na mesma estrutura de pastas usada
+no restante deste manual (`src/`, `scripts/`, `host-adapters/` etc., na
+raiz do que foi baixado/clonado).
+
+> Este repositório depende de um segundo projeto irmão, **SPMIDDLE**
+> (`git@github.com:rinaldops/spmiddle.git` ou equivalente), que deve ser
+> clonado/baixado **ao lado** do MINIJOOMLA (não dentro dele) — ou seja,
+> as duas pastas devem ser irmãs no sistema de arquivos:
+> ```
+> algum-diretorio/
+>   minijoomla/
+>   SPMIDDLE/
+> ```
+> `scripts/stage-release.js`/`scripts/stage-generic-installation.js`
+> (próxima seção) leem arquivos de `../SPMIDDLE` relativos à pasta do
+> MINIJOOMLA; sem essa pasta irmã presente, a geração do pacote falha.
+
+### 2.2. Gerar o pacote de release (uma vez, por quem publica)
 
 O pacote correto para publicar manualmente em um site SharePoint é gerado
 por `scripts/stage-release.js`, que empacota o núcleo **mais** os adaptadores
 do host MSE em uma pasta local imutável:
 
 ```powershell
-cd web-devs/MINIJOOMLA
+cd minijoomla
 node scripts/stage-release.js --version 0.17.1 --output tmp/release-0.17.1 --target all
 ```
 
@@ -69,7 +118,7 @@ TinyMCE etc.), **mas sem** os arquivos do host MSE (`host/host.js`,
 `host/loader.js`, `host/installation-context.js`, `host/mse-layout.js`,
 `host/spmiddle-layout/*`) nem os snippets prontos — esses fazem parte do
 próprio repositório, em `host-adapters/modern-script-editor/`, e precisam
-ser copiados manualmente ao lado do restante do pacote (passo 3).
+ser copiados manualmente ao lado do restante do pacote (seção 3).
 
 > Alternativa equivalente: `scripts/stage-generic-installation.js` já
 > empacota o pacote `core`/`site`/`administrator` **junto com** os quatro
@@ -351,7 +400,7 @@ e arquivos), deixando o site pronto para seguir este manual desde o início.
 3. As duas páginas `.aspx` (pública e administrativa) **podem ser
    mantidas** — elas só contêm a webpart MSE com o snippet apontando para
    uma pasta de release que não existirá mais. Ao reabrir essas páginas
-   depois do passo 3 da seção 3 em diante (nova pasta de release publicada
+   depois da seção 3 em diante (nova pasta de release publicada
    com o mesmo ou outro número de versão, e o snippet atualizado para
    apontar para ela), o fluxo de instalação recomeça normalmente. Se
    preferir, você também pode excluir e recriar as páginas — ambos os
