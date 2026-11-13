@@ -8,6 +8,13 @@ export function createInstallationJournal({ storage, key } = {}) {
       if (typeof raw !== 'string' || raw.length > 256 * 1024) throw new TypeError('Diário inválido.');
       return JSON.parse(raw);
     },
+    clear(expected) {
+      const raw = storage.getItem(key);
+      if (raw === null || JSON.stringify(JSON.parse(raw)) !== JSON.stringify(expected)) throw new TypeError('Diário mudou; reinício cancelado.');
+      if (typeof storage.removeItem !== 'function') throw new TypeError('Diário não pode ser limpo.');
+      storage.removeItem(key);
+      if (storage.getItem(key) !== null) throw new TypeError('Limpeza do diário não confirmada.');
+    },
     write(value) {
       const raw = JSON.stringify(value);
       if (typeof raw !== 'string' || raw.length > 256 * 1024) throw new TypeError('Diário excede limite.');

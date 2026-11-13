@@ -26,6 +26,7 @@ export async function stageGenericInstallation({version,output}={}) {
   const files=new Map([
     ['host/host.js',hostBytes],
     ['host/installation-context.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/installation-context.js'))],
+    ['host/installation-preflight.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/installation-preflight.js'))],
     ['host/mse-layout.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/mse-layout.js'))],
     ['host/loader.js',await readFile(resolve(PROJECT,'host-adapters/modern-script-editor/loader.js'))],
     ...await Promise.all(['layout.js','layout.css','spmiddle-mse-host.js'].map(async name=>[`host/spmiddle-layout/${name}`,await readFile(resolve(PROJECT,'../SPMIDDLE/host-adapters/modern-script-editor',name))])),

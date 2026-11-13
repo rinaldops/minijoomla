@@ -305,7 +305,15 @@ Antes de salvar/publicar cada página, confirme:
    - uma caixa de confirmação: *"Confirmo a instalação da infraestrutura no
      site atual."*
 4. Marque a confirmação e clique em **"Instalar MINIJOOMLA"**.
-5. Acompanhe o progresso (a tela anuncia cada lista sendo criada, uma por
+5. Acompanhe a **barra de progresso**, exibida imediatamente após o clique.
+   Enquanto os pré-requisitos são conferidos, ela fica indeterminada. Depois,
+   são dez etapas confirmadas: dependências, oito listas e configuração final.
+   O texto identifica a lista atual, o percentual representa somente etapas
+   confirmadas, e um contador mostra o tempo decorrido. A faixa de atividade
+   continua animada durante as requisições (respeitando movimento reduzido).
+   Não feche nem saia da página; o navegador poderá avisar ao tentar recarregar.
+   A criação/verificação dos campos pode levar alguns minutos por lista.
+   A tela anuncia cada lista sendo criada, uma por
    vez — oito no total — seguida da gravação da configuração inicial). Não
    recarregue a página durante esse processo.
 6. Ao concluir, a tela de instalação é substituída automaticamente pelo
@@ -329,6 +337,16 @@ Antes de salvar/publicar cada página, confirme:
 
 ### Se algo for interrompido no meio
 
+- Antes de habilitar **Instalar MINIJOOMLA**, o painel verifica os módulos e
+  recursos obrigatórios da mesma release (incluindo SPMIDDLE), armazenamento
+  privado gravável, identidade do site, permissão de gerenciar listas e o
+  request digest. A verificação é repetida antes da primeira intenção/escrita.
+  O SPMIDDLE já vem em `libraries/vendor/spmiddle/` no ZIP; não é necessário
+  instalar uma cópia separada em `SiteAssets/spmiddle/`.
+- Dependências indisponíveis são listadas na tela. Corrija o pacote/permissões
+  e clique em **Verificar novamente**. Uma importação que falhou pode exigir
+  recarregar a página após corrigir os arquivos. Nunca sobrescreva uma release
+  já usada; publique o pacote corrigido numa nova versão.
 - O instalador grava um "diário" local (no `localStorage` do navegador, por
   site/biblioteca) a cada lista criada com sucesso. Se a conexão cair ou a
   aba for fechada no meio da instalação, reabrir a mesma página no mesmo
@@ -339,6 +357,25 @@ Antes de salvar/publicar cada página, confirme:
   instalador bloqueia com uma mensagem explícita em vez de adivinhar — nesse
   caso, siga o procedimento de limpeza completa (seção 8) e reinstale do
   zero.
+
+### Reiniciar uma tentativa pendente (desde 0.17.6)
+
+Se a tentativa deixou uma intenção sem recibo e o destino continua vazio,
+o painel oferece **Reiniciar instalação**, com confirmação explícita. Isso
+limpa somente o diário deste site neste navegador — sem F12 e sem limpar
+cookies/dados de outros sites. O pacote, as páginas e o SPMIDDLE são preservados.
+
+Se houver listas vazias com recibos duráveis, o reinício mostra sua quantidade
+e pode removê-las após verificar IDs, schema/fingerprints e ausência de conteúdo
+e configuração. O diário só é limpo depois de confirmar que as oito listas e a
+configuração estão ausentes. Uma falha na limpeza conserva o diário.
+
+Listas sem recibo, alterações de schema, conteúdo editorial ou configuração
+instalada **bloqueiam** esse reinício conservador. Nesse caso, não apague o
+diário nem tente adotar listas automaticamente; use a limpeza autorizada da
+seção 8. O reinício não é um botão de apagar um CMS instalado ou dados alheios.
+Feche outras abas de instalação antes de reiniciar. Após a limpeza, verifique
+novamente e confirme uma nova instalação — nunca há repetição automática.
 
 ## 7. Verificação pós-instalação
 

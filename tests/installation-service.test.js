@@ -10,6 +10,7 @@ function fixture() {
   const state = { lists: new Map(), configuration: null, etag: null, writes: [], events: [], journal: null, journalWrites: 0 };
   const hooks = {};
   const journalStore = {
+    async clear(expected) { assert.deepEqual(state.journal, expected); state.journal = null; },
     async read() { if (hooks.get) await hooks.get(); return clone(state.journal); },
     async write(value) {
       assert.ok(JSON.stringify(value).length <= 10000, 'journal limitado a 10k');
@@ -83,8 +84,10 @@ export async function runInstallationServiceTests() {
     assert.deepEqual(f.state.writes, []); assert.equal(f.state.journalWrites, 0, 'inspect somente leitura');
     assert.equal((await f.service.install({ settings: selected, plan: a.plan })).reason, 'confirmation-required');
     const progress = [];
-    const result = await install(f, { onProgress: value => progress.push(value) });
+    const stages = [];
+    const result = await install(f, { onProgress: value => progress.push(value), onStage:value=>stages.push(value) });
     assert.equal(result.status, 'installed'); assert.equal(progress.length, 8);
+    assert.equal(stages[0].phase,'preflight');assert.equal(stages.filter(s=>s.phase==='lists').length,8);assert.equal(stages.at(-2).phase,'configuration');assert.equal(stages.at(-1).phase,'complete');
     assert.deepEqual(f.state.writes, [...INSTALLATION_DOMAINS.map(domain => `list:${domain}`), 'configuration']);
     assert.ok([...f.state.lists.values()].every(list => list.empty && list.itemCount === 0), 'zero conteúdo/editorial/config rows');
     assert.deepEqual(result.configuration.initialSite, { siteName: 'Meu site', siteDescription: '', timezone: 'UTC', language: 'pt-BR', pageSize: 10, templateKey: 'cassiopeia', homeView: 'featured', homeCategory: '', offline: false, offlineMessage: '' });
@@ -313,4 +316,33 @@ export async function runInstallationServiceTests() {
     assert.equal((await install(synchronous)).status, 'installed', 'journal real read/write síncrono e contexto web raiz');
   }
   console.log('ok - installation: dois engines no mesmo journal retornam busy; lock externo opcional cobre a operação inteira sem promessa global');
+  {
+    const f = fixture(); let available = false;
+    const preflight = async () => ({ ok: available, message: 'SPMIDDLE indisponível', checks: [{ name: 'SPMIDDLE', ok: available, message: 'Contrato verificado' }] });
+    f.service = createInstallationService({ port: f.port, journalStore: f.journalStore, preflight });
+    assert.equal((await f.service.inspect()).reason, 'prerequisites-unavailable');
+    available = true; const plan = (await f.service.inspect()).plan; available = false;
+    assert.equal((await f.service.install({ confirm: true, plan, settings: selected })).reason, 'prerequisites-unavailable');
+    assert.equal(f.state.journal, null); assert.equal(f.state.writes.length, 0);
+    const installed=fixture();await install(installed);
+    const reader=createInstallationService({port:installed.port,journalStore:installed.journalStore,preflight:async()=>{throw Error('Readers must not run installation preflight');}});
+    assert.equal((await reader.inspect()).status,'installed');
+    const empty = fixture(); empty.port.provisionList = async () => { throw Error('dependency'); };
+    await install(empty); const e = await empty.service.inspect(); assert.equal(e.canReset, true);
+    assert.equal((await empty.service.reset({planToken:e.plan.token})).reason,'confirmation-required');
+    assert.equal((await empty.service.reset({confirm:true,planToken:e.plan.token})).reason,'reset-complete');
+    assert.equal(empty.state.journal,null);assert.equal((await empty.service.inspect()).status,'ready');
+    const partial = await resumable(); partial.port.removeVerifiedEmptyList = async receipt => { partial.state.lists.delete(receipt.domain); };
+    const p = await partial.service.inspect();assert.equal(p.canReset,true);
+    assert.equal((await partial.service.reset({confirm:true,planToken:p.plan.token})).reason,'reset-complete');assert.equal(partial.state.lists.size,0);
+    const foreign = fixture();foreign.hooks.create=()=>{throw Error('lost response');};await install(foreign);
+    const b=await foreign.service.inspect();assert.equal(b.canReset,false);assert.equal((await foreign.service.reset({confirm:true,planToken:b.plan.token})).reason,'reset-blocked');assert.ok(foreign.state.journal.pending);
+    const changed = await resumable();changed.port.removeVerifiedEmptyList=async()=>{throw Error('denied');};
+    const changedPlan=await changed.service.inspect();const saved=clone(changed.state.journal);
+    assert.equal((await changed.service.reset({confirm:true,planToken:changedPlan.plan.token})).status,'unavailable');assert.deepEqual(changed.state.journal,saved);
+    changed.state.lists.get('categories').itemCount=1;changed.state.lists.get('categories').empty=false;
+    assert.equal((await changed.service.reset({confirm:true,planToken:changedPlan.plan.token})).reason,'stale-plan');assert.deepEqual(changed.state.journal,saved);
+    const corrupt=fixture();corrupt.state.journal={invalid:true};assert.equal((await corrupt.service.inspect()).status,'blocked');
+    assert.equal((await corrupt.service.reset({confirm:true,planToken:'x'})).status,'blocked');assert.deepEqual(corrupt.state.journal,{invalid:true});
+  }
 }

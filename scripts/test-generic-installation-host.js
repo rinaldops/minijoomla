@@ -84,7 +84,7 @@ async function loadHost(rootPath, inventory, server, storage, kind, wrapped = fa
   }
   const context = vm.createContext({ URL, URLSearchParams, TextEncoder, TextDecoder, crypto: webcrypto, AbortController, AbortSignal, setTimeout, clearTimeout,
     document, localStorage: storage, location: { origin: 'https://tenant.example', href: document.baseURI, pathname: new URL(document.baseURI).pathname, hash: '#/', search: '' },
-    _spPageContextInfo: { webServerRelativeUrl: server.webUrl },
+    _spPageContextInfo: undefined,
     addEventListener: (name, handler) => name==='pagehide'?pagehideListeners.add(handler):events.set(name, handler), removeEventListener(name, handler) { if(name==='pagehide')pagehideListeners.delete(handler);else if (events.get(name) === handler) events.delete(name); },
     console: Object.fromEntries(['warn', 'error', 'log'].map(level => [level, (...args) => diagnostics.push([level, ...args])]))
   });
@@ -92,18 +92,23 @@ async function loadHost(rootPath, inventory, server, storage, kind, wrapped = fa
   const response = result => {
     const text = result.status === 204 ? '' : JSON.stringify(result.data);
     return { ok: result.status >= 200 && result.status < 300, status: result.status,
-      headers: { get: name => name.toLowerCase() === 'etag' ? result.etag ?? null : null },
+      headers: { get: name => name.toLowerCase() === 'etag' ? result.etag ?? null : name.toLowerCase() === 'content-type' ? result.mime ?? 'application/json' : null },
       text: async () => text, json: async () => parse(text), arrayBuffer: async () => new TextEncoder().encode(text).buffer };
   };
   context.fetch = async (url, init = {}) => {
     try {
       assert.equal(typeof url, 'string');
+      if (url.startsWith(release)) {
+        const name = url.slice(release.length); assert.ok(inventory.has(name));
+        return response({status:200,data:{asset:'fixture'},mime:name.endsWith('.css')?'text/css':'application/javascript'});
+      }
       assert.ok(url.startsWith(`${web}/_api/`) && !url.includes('//'), 'Fetch confined to simulated current web, no double slash');
       requests.push({ url, method: init.headers?.['X-HTTP-Method'] ?? init.method ?? 'GET' });
       if (url === `${web}/_api/contextinfo`) {
         assert.equal(init.method, 'POST');
-        return response({ status: 200, data: { FormDigestValue: 'offline-fixture-only', FormDigestTimeoutSeconds: 1800 } });
+        return response({ status: 200, data: { FormDigestValue: 'offline-fixture-only', FormDigestTimeoutSeconds: 1800, WebFullUrl:`https://tenant.example${web}` } });
       }
+      if (url === `${web}/_api/web?$select=Id,Url,ServerRelativeUrl,EffectiveBasePermissions`) return response({status:200,data:{Id:'11111111-1111-4111-8111-111111111111',Url:`https://tenant.example${web}`,ServerRelativeUrl:server.webUrl,EffectiveBasePermissions:{Low:'2048',High:'0'}}});
       if (url === `${web}/_api/web/currentuser?$select=Title`) return response({ status: 200, data: {} });
       const method = init.headers?.['X-HTTP-Method'] ?? init.method ?? 'GET';
       if (method !== 'GET') {
@@ -207,7 +212,7 @@ export async function verifyGenericInstallationHost(rootPath) {
   function unchanged() { for (const file of manifest.files) { const bytes = readFileSync(join(rootPath, file.path)); assert.equal(bytes.length, file.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'), file.sha256, file.path); } }
   unchanged();
   assert.match(readFileSync(join(rootPath, 'host/host.js'), 'utf8'), /const PRECONFIGURED = \/\* MINIJOOMLA_CONFIG \*\/ null;/);
-  const values = new Map(), storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)) };
+  const values = new Map(), storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)),removeItem:key=>values.delete(key) };
   const server = serverFixture();
   const admin = await loadHost(rootPath, inventory, server, storage, 'admin');
   const form = admin.document.root.querySelector('[data-install-form]'); assert.ok(form);
@@ -250,7 +255,7 @@ export async function verifyGenericInstallationHost(rootPath) {
   console.log('ok - generic host: readonly admin reload/media and public empty Cassiopeia use actual staged repositories, no sample data/hero');
   for (const mode of ['missing', 'corrupt']) {
     const blocked = serverFixture(); blocked.seedAll(); if (mode === 'corrupt') blocked.config = { broken: true };
-    for (const kind of ['admin', 'site']) { const host = await loadHost(rootPath, inventory, blocked, { getItem: () => null, setItem() { assert.fail('Blocked installation never journals'); } }, kind); assert.equal(host.document.root.querySelector('[data-install-form]'), null); assert.match(host.document.root.innerHTML, /Instalação do MINIJOOMLA/); }
+    for (const kind of ['admin', 'site']) { const host = await loadHost(rootPath, inventory, blocked, { getItem: () => null, setItem() {},removeItem() {} }, kind); assert.equal(host.document.root.querySelector('[data-install-form]'), null); assert.match(host.document.root.innerHTML, /Instalação do MINIJOOMLA/); }
     assert.equal(writes(blocked).length, 0);
   }
   for (const specifier of ['https://outside.invalid/module.js', '../../../../SPMIDDLE/module.js', './missing.js']) assert.throws(() => site.moduleUrl(specifier, `${RELEASE}host/host.js`), /forbidden|outside staged|not inventoried/i);
@@ -286,7 +291,7 @@ export async function verifyGenericInstallationHost(rootPath) {
   assert.equal(writes(server).length,count+1);assert.deepEqual(plain([...server.lists]),preservedRows);assert.deepEqual(values,stored);
   server.extensionsOverlay = null;
   const rootServer = serverFixture('/'), rootValues = new Map();
-  const rootStorage = { getItem: key => rootValues.get(key) ?? null, setItem: (key, value) => rootValues.set(key, String(value)) };
+  const rootStorage = { getItem: key => rootValues.get(key) ?? null, setItem: (key, value) => rootValues.set(key, String(value)),removeItem:key=>rootValues.delete(key) };
   const rootAdmin = await loadHost(rootPath, inventory, rootServer, rootStorage, 'admin');
   const rootForm = rootAdmin.document.root.querySelector('[data-install-form]'); assert.ok(rootForm); assert.equal(writes(rootServer).length, 0);
   rootForm.controls.get('siteName').value = 'Portal raiz'; rootForm.controls.get('confirmed').checked = true;

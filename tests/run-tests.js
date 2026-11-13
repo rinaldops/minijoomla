@@ -8,6 +8,7 @@ export const TEST_SUITES = Object.freeze([
   ['runner.test.js', 'runRunnerTests'],
   ['generic-installation-scope.test.js', 'runGenericInstallationScopeTests'],
   ['installation-view.test.js', 'runInstallationViewTests'],
+  ['installation-preflight.test.js', 'runInstallationPreflightTests'],
   ['installation-context.test.js', 'runInstallationContextTests'],
   ['installation-service.test.js', 'runInstallationServiceTests'],
   ['sharepoint-installation.test.js', 'runSharePointInstallationTests', true],

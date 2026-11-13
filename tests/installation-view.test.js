@@ -2,18 +2,37 @@ import assert from 'node:assert/strict';
 import { renderInstallationPage, mountInstallationPage } from '../src/installation/template.js';
 import { createInstallationJournal } from '../src/libraries/minijoomla/infrastructure/installation-journal.js';
 import { createConfig } from '../src/libraries/minijoomla/core/config.js';
+import { startInstallationProgress } from '../src/installation/progress.js';
 
 export async function runInstallationViewTests() {
   const ready = renderInstallationPage({ status: 'ready', message: '<safe>', plan: { lists: [{ title: 'Articles <&', exists: false }] } });
   assert.ok(ready.includes('data-install-form') && ready.includes('name="confirmed" required'));
   assert.ok(ready.includes('&lt;safe&gt;') && ready.includes('Articles &lt;&amp;'));
+  assert.ok(ready.includes('data-install-progress-panel hidden') && ready.includes('<progress'));
+  {
+    let tick, cleared=false, seconds=0;const panel={hidden:true,setAttribute(){}},bar={removeAttribute(){delete this.value;}},label={},count={},elapsed={};
+    const nodes={'[data-install-progress-panel]':panel,'[data-install-progress]':bar,'[data-install-progress-label]':label,'[data-install-progress-count]':count,'[data-install-progress-elapsed]':elapsed};
+    let current=true;const controller=startInstallationProgress({isConnected:true,querySelector:s=>nodes[s]},{isCurrent:()=>current,clock:{now:()=>seconds*1000,setInterval:f=>{tick=f;return 1;},clearInterval:()=>{cleared=true;}}});
+    assert.equal(panel.hidden,false);assert.equal(bar.value,undefined,'Preflight is indeterminate, never fake percent');
+    seconds=65;tick();assert.ok(elapsed.textContent.includes('1 min 5 s'));
+    controller.update({phase:'lists',completed:0,message:'Creating first list'});assert.equal(bar.value,1);
+    controller.update({phase:'lists',completed:4});assert.equal(bar.value,5);assert.ok(count.textContent.includes('50%'));
+    controller.update({phase:'configuration'});assert.equal(bar.value,9);
+    controller.update({phase:'complete'});assert.equal(bar.value,10);
+    current=false;controller.update({phase:'lists',completed:0});assert.equal(bar.value,10);tick();assert.equal(cleared,true);
+    controller.stop();
+  }
   for (const status of ['blocked','unavailable','installed']) assert.ok(!renderInstallationPage({status}).includes('data-install-form'));
   assert.ok(!renderInstallationPage({status:'partial',canResume:false}).includes('data-install-form'));
   assert.ok(renderInstallationPage({status:'partial',canResume:true}).includes('Retomar'));
   assert.ok(!renderInstallationPage({status:'ready'},{publicView:true}).includes('<form'));
-  const records = new Map(), storage = { getItem:key=>records.get(key)??null, setItem:(key,value)=>records.set(key,value) };
+  assert.ok(renderInstallationPage({status:'partial',canReset:true}).includes('data-install-reset-form'));
+  assert.ok(!renderInstallationPage({status:'partial',canReset:true},{publicView:true}).includes('data-install-reset-form'));
+  assert.ok(renderInstallationPage({status:'unavailable',checks:[{name:'SPMIDDLE',ok:false,message:'<ausente>'}]}).includes('&lt;ausente&gt;'));
+  const records = new Map(), storage = { getItem:key=>records.get(key)??null, setItem:(key,value)=>records.set(key,value), removeItem:key=>records.delete(key) };
   const journal = createInstallationJournal({storage,key:'minijoomla:installation:/sites/example'});
   assert.equal(journal.read(),null); journal.write({version:1,pending:null}); assert.deepEqual(journal.read(),{version:1,pending:null});
+  records.set('unrelated','preserve');assert.throws(()=>journal.clear({version:2}));journal.clear({version:1,pending:null});assert.equal(journal.read(),null);assert.equal(records.get('unrelated'),'preserve');
   storage.setItem('minijoomla:installation:/sites/example','corrupt');assert.throws(()=>journal.read());
   const featured = createConfig({homeView:'featured',homeCategory:''});assert.equal(featured.homeCategory,'');
   assert.throws(()=>createConfig({homeView:'category',homeCategory:''}));
@@ -34,5 +53,11 @@ export async function runInstallationViewTests() {
   await mountInstallationPage({root:failedRoot,documentRef:{body:{},documentElement:{}},service:{inspect:async()=>({status:'installed',configuration:{}}),install:async()=>{throw Error('Must not install');}},onInstalled:async()=>{throw Error('Missing application resource');}});
   assert.ok(failedRoot.innerHTML.includes('role="alert"')&&failedRoot.innerHTML.includes('Não reinstale'));
   assert.ok(!failedRoot.innerHTML.includes('data-install-form'));
+  let resetSubmit, resetCalls=0;
+  const resetButton={disabled:false};
+  const resetForm={elements:{namedItem:()=>({checked:true})},querySelector:()=>resetButton,addEventListener:(_,handler)=>{resetSubmit=handler;}};
+  const resetRoot={innerHTML:'',isConnected:true,querySelector:selector=>selector==='[data-install-reset-form]'?resetForm:null};
+  const resetController=await mountInstallationPage({root:resetRoot,documentRef:{body:{},documentElement:{}},service:{inspect:async()=>({status:'partial',canReset:true,plan:inspectedPlan}),install:async()=>{},reset:async input=>{resetCalls++;assert.equal(input.planToken,inspectedPlan.token);assert.equal(input.confirm,true);return {message:'Reinício confirmado'};}}});
+  await resetSubmit({preventDefault(){}});assert.equal(resetCalls,1);assert.ok(resetRoot.innerHTML.includes('Reinício confirmado'));resetController.stop();
   console.log('ok - installation view: generic confirmation/escaping, public read-only gate, private journal and empty featured home');
 }

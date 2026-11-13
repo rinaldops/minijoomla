@@ -67,13 +67,14 @@ export function createInstallationMemoryServer({ webUrl = WEB, libraryPath = `${
         const notFound = () => { const error = new Error('RAW server text includes private credentials'); error.status = 404; throw error; };
         const conflict = () => { const error = new Error('RAW conflict with private credentials'); error.status = 412; throw error; };
         if (root === `${api}/lists` && options.method === 'POST') {
+          assert.equal(options.headers?.['Content-Type'], 'application/json;odata=verbose', '__metadata requires verbose write content type');
           const domain = DOMAINS.find(domain => MINIJOOMLA_SCHEMAS[domain].displayName === options.body.Title);
           assert.ok(domain);
           if (server.lists.has(domain)) conflict();
           const list = server.seed(domain);
           // A newly-created SharePoint list already owns native Title and Author.
           list.fields = [
-            { InternalName: 'Title', Title: 'Title', TypeAsString: 'Text', Required: false, Indexed: false, EnforceUniqueValues: false, DefaultValue: null, revision: 1 },
+            { InternalName: 'Title', Title: 'Title', TypeAsString: 'Text', Required: true, Indexed: false, EnforceUniqueValues: false, DefaultValue: null, revision: 1 },
             { InternalName: 'Author', Title: 'Created By', TypeAsString: 'User', Required: false, Indexed: false, EnforceUniqueValues: false, DefaultValue: null, revision: 1 }
           ];
           return output({ Id: list.Id, Title: list.Title }, '"list-1"', 201);
@@ -83,7 +84,8 @@ export function createInstallationMemoryServer({ webUrl = WEB, libraryPath = `${
           const [, title, listId, suffix] = listMatch;
           const list = [...server.lists.values()].find(list => title ? list.Title === title : list.Id === listId);
           if (!list) notFound();
-          if (suffix === '' && options.method === 'GET') return output({ Id: list.Id, Title: list.Title, BaseTemplate: list.BaseTemplate, ItemCount: list.ItemCount });
+          if (suffix === '' && options.method === 'GET') return output({ Id: list.Id, Title: list.Title, BaseTemplate: list.BaseTemplate, ItemCount: list.ItemCount }, '"list-1"');
+          if (suffix === '' && options.method === 'DELETE') { assert.equal(options.etag,'"list-1"');assert.equal(list.ItemCount,0);server.lists.delete(DOMAINS.find(domain=>server.lists.get(domain)===list));return output(null,null,204); }
           if (suffix === '/fields' && options.method === 'GET') {
             assert.match(params.get('$select'), /TypeAsString/);
             assert.match(params.get('$select'), /Required,Indexed,EnforceUniqueValues,Choices,DefaultValue/);
@@ -102,7 +104,7 @@ export function createInstallationMemoryServer({ webUrl = WEB, libraryPath = `${
             if (list.fields.some(field => field.InternalName === body.InternalName)) conflict();
             if (body.FieldTypeKind === 6) assert.equal(body.__metadata.type, 'SP.FieldChoice');
             const types = { 2: 'Text', 3: 'Note', 4: 'DateTime', 6: 'Choice', 8: 'Boolean', 9: 'Number' };
-            list.fields.push({ InternalName: body.InternalName, Title: body.Title, TypeAsString: types[body.FieldTypeKind], Required: body.Required, Indexed: false, EnforceUniqueValues: false, ...(body.Choices ? { Choices: clone(body.Choices) } : {}), DefaultValue: body.DefaultValue ?? null, revision: 1 });
+            list.fields.push({ InternalName: body.InternalName, Title: body.Title, TypeAsString: types[body.FieldTypeKind], Required: body.Required, Indexed: body.Indexed === true, EnforceUniqueValues: body.EnforceUniqueValues === true, ...(body.Choices ? { Choices: clone(body.Choices) } : {}), DefaultValue: body.DefaultValue ?? null, revision: 1 });
             return output({}, null, 201);
           }
           const fieldMatch = suffix.match(/^\/fields\/getbyinternalnameortitle\('([^']+)'\)$/);
@@ -114,8 +116,9 @@ export function createInstallationMemoryServer({ webUrl = WEB, libraryPath = `${
               const { revision, ...data } = field;
               return output(data, server.fieldETag === 'missing' ? null : server.fieldETag === 'weak' ? `W/${expected}` : server.fieldETag === 'wildcard' ? '*' : expected);
             }
-            if (options.method === 'MERGE') {
-              if (options.etag !== expected || options.headers?.['If-Match'] !== expected) conflict();
+            if (options.method === 'MERGE' || options.method === 'POST' && options.headers?.['X-HTTP-Method'] === 'MERGE') {
+              if (options.method === 'POST') assert.equal(server.fieldETag,'missing');
+              if (options.method === 'MERGE' && (options.etag !== expected || options.headers?.['If-Match'] !== expected)) conflict();
               const { __metadata, ...patch } = options.body;
               assert.ok(Object.keys(patch).every(key => ['Required', 'DefaultValue', 'Indexed', 'EnforceUniqueValues'].includes(key)));
               Object.assign(field, clone(patch)); field.revision++;
@@ -193,6 +196,14 @@ const listRead = call => /\/lists\/getbytitle\('[^']+'\)\?/.test(call.url);
 const fileRead = call => /GetFileByServerRelativePath/.test(call.url) && !call.url.includes('/$value');
 
 export async function runSharePointInstallationTests() {
+  {
+    const server=memoryServer();const port=portFor(server);const created=await port.provisionList('categories',{expectedAbsent:true});
+    await assert.rejects(port.removeVerifiedEmptyList({domain:'categories',id:created.id,fingerprint:created.fingerprint},{confirm:false}));
+    await port.removeVerifiedEmptyList({domain:'categories',id:created.id,fingerprint:created.fingerprint},{confirm:true});
+    assert.equal(server.lists.size,0);
+    const other=await port.provisionList('tags',{expectedAbsent:true});server.lists.get('tags').ItemCount=1;
+    await assert.rejects(port.removeVerifiedEmptyList({domain:'tags',id:other.id,fingerprint:other.fingerprint},{confirm:true}));assert.equal(server.lists.size,1);
+  }
   const cases = [];
   const test = async (name, run) => { await run(); cases.push(name); };
 
@@ -348,7 +359,7 @@ export async function runSharePointInstallationTests() {
   await test('11. narrow native Title/field patches always use fresh exact ETags', async () => {
     const server = memoryServer(); await portFor(server).provisionList('siteConfig', { expectedAbsent: true });
     const patch = server.calls.find(call => call.method === 'MERGE' && call.url.includes("('Title')"));
-    assert.deepEqual(patch.body, { __metadata: { type: 'SP.Field' }, Required: true, DefaultValue: 'MiniJoomlaSiteConfig' });
+    assert.deepEqual(patch.body, { __metadata: { type: 'SP.Field' }, DefaultValue: 'MiniJoomlaSiteConfig' });
     assert.equal(patch.etag, '"field-1"'); assert.equal(patch.headers['If-Match'], '"field-1"');
     const position = server.calls.indexOf(patch);
     assert.equal(server.calls[position - 2].url, `${patch.url}?$select=InternalName,Title,TypeAsString,Required,Indexed,EnforceUniqueValues,Choices,DefaultValue`);
@@ -357,16 +368,17 @@ export async function runSharePointInstallationTests() {
   });
 
   await test('12. missing/weak/wildcard field ETags fail before any patch', async () => {
-    for (const fieldETag of ['missing', 'weak', 'wildcard']) {
+    for (const fieldETag of ['weak', 'wildcard']) {
       const server = memoryServer(); server.fieldETag = fieldETag;
-      await assert.rejects(portFor(server).provisionList('articles', { expectedAbsent: true }), error => error.code === 'etag-required');
-      assert.equal(writes(server).length, 1); assert.equal(server.lists.get('articles').ItemCount, 0);
+      await assert.rejects(portFor(server).provisionList('siteConfig', { expectedAbsent: true }), error => error.code === 'etag-required');
+      assert.equal(writes(server).length, 1); assert.equal(server.lists.get('siteConfig').ItemCount, 0);
     }
+    const missing=memoryServer();missing.fieldETag='missing';await portFor(missing).provisionList('siteConfig',{expectedAbsent:true});assert.equal(missing.lists.get('siteConfig').fields.find(field=>field.InternalName==='Title').DefaultValue,'MiniJoomlaSiteConfig');
   });
 
   await test('13. ETag conflict and concurrent data stop owned-list field changes without cleanup', async () => {
     const server = memoryServer();
-    server.hook = call => { if (call.method === 'MERGE') server.lists.get('articles').fields.find(field => field.InternalName === 'Title').revision++; };
+    server.hook = call => { if (call.method === 'POST' && call.url.endsWith('/lists')) { const list=server.seed('articles');list.fields=[{InternalName:'Title',Title:'Title',TypeAsString:'Text',Required:false,Indexed:false,EnforceUniqueValues:false,DefaultValue:null,revision:1}];return {status:201,data:{Id:list.Id,Title:list.Title}}; } if (call.method === 'MERGE') server.lists.get('articles').fields.find(field => field.InternalName === 'Title').revision++; };
     await assert.rejects(portFor(server).provisionList('articles', { expectedAbsent: true }), error => error.status === 412 && !error.message.includes('credentials'));
     assert.equal(server.lists.get('articles').fields.find(field => field.InternalName === 'Title').Required, false);
     assert.ok(server.lists.has('articles')); assert.equal(writes(server).length, 2);
@@ -376,8 +388,8 @@ export async function runSharePointInstallationTests() {
     assert.equal(writes(data).length, 1); assert.equal(data.lists.get('articles').rows[0].Title, 'Concurrent');
     const ignored = memoryServer();
     ignored.hook = call => call.method === 'MERGE' ? { data: null, status: 204, etag: '\"field-2\"' } : undefined;
-    await assert.rejects(portFor(ignored).provisionList('articles', { expectedAbsent: true }), error => error.code === 'unverified-created-field');
-    assert.equal(writes(ignored).length, 2); assert.ok(ignored.lists.has('articles'));
+    await assert.rejects(portFor(ignored).provisionList('siteConfig', { expectedAbsent: true }), error => error.code === 'unverified-created-field');
+    assert.equal(writes(ignored).length, 2); assert.ok(ignored.lists.has('siteConfig'));
   });
 
   await test('14. validated config reconstruction rejects getters, unknown keys/version/context and implicit roots/styles', async () => {
@@ -479,20 +491,20 @@ export async function runSharePointInstallationTests() {
       server.hook = call => { if (listRead(call) && ++reads === cancelAt) active = false; };
       await assert.rejects(portFor(server).provisionList('articles', { expectedAbsent: true, isCurrent: () => active }));
       assert.equal(writes(server).length, cancelAt === 5 ? 2 : 1);
-      assert.equal(server.lists.get('articles').fields.some(field => field.InternalName === 'Alias'), false);
+      assert.equal(server.lists.get('articles').fields.some(field => field.InternalName === 'Alias'), cancelAt === 5);
     }
     const server = memoryServer(); let active = true;
     server.hook = call => { if (call.method === 'GET' && call.url.includes("getbyinternalnameortitle('Title')")) active = false; };
     await assert.rejects(portFor(server).provisionList('articles', { expectedAbsent: true, isCurrent: () => active }));
     assert.equal(writes(server).length, 1);
-    assert.equal(server.lists.get('articles').fields[0].Required, false);
+    assert.equal(server.lists.get('articles').fields[0].Required, true);
     const accepted = memoryServer(); let current = true;
     accepted.hook = call => { if (call.method === 'MERGE') current = false; };
-    await assert.rejects(portFor(accepted).provisionList('articles', { expectedAbsent: true, isCurrent: () => current }));
+    await assert.rejects(portFor(accepted).provisionList('siteConfig', { expectedAbsent: true, isCurrent: () => current }));
     assert.equal(writes(accepted).length, 2);
     assert.equal(accepted.calls.at(-1).method, 'MERGE');
     assert.equal(accepted.calls.at(-1).signal.aborted, true);
-    assert.equal(accepted.lists.get('articles').fields[0].Required, true, 'Already-dispatched mutation is uncertain, not automatically rolled back');
+    assert.equal(accepted.lists.get('siteConfig').fields[0].Required, true, 'Already-dispatched mutation is uncertain, not automatically rolled back');
   });
 
   await test('21. configuration cancellation after metadata/folder/verification reads prevents upload', async () => {
@@ -516,12 +528,12 @@ export async function runSharePointInstallationTests() {
       const { port, signals } = digestPort(server, async count => { await Promise.resolve(); if (count === cancelDigest) active = false; });
       await assert.rejects(target === 'configuration'
         ? port.writeConfiguration(configuration(server), { expectedAbsent: true, isCurrent: () => active })
-        : port.provisionList('articles', { expectedAbsent: true, isCurrent: () => active }));
+        : port.provisionList('siteConfig', { expectedAbsent: true, isCurrent: () => active }));
       assert.equal(writes(server).length, cancelDigest - 1);
       assert.equal(signals.at(-1).aborted, true, 'Dispatch guard aborts the per-mutation signal after digest resolves');
       if (target === 'list') assert.equal(server.lists.size, 0);
-      if (target === 'merge') assert.equal(server.lists.get('articles').fields[0].Required, false);
-      if (target === 'field') assert.equal(server.lists.get('articles').fields.some(field => field.InternalName === 'Alias'), false);
+      if (target === 'merge') assert.equal(server.lists.get('siteConfig').fields[0].DefaultValue, null);
+      if (target === 'field') assert.equal(server.lists.get('siteConfig').fields.some(field => field.InternalName === 'SiteName'), false);
       if (target === 'configuration') assert.equal(server.config, null);
     }
   });

@@ -270,13 +270,38 @@ Schema:
 
 Intenção sem recibo é **incerta e nunca retomável automaticamente**, mesmo se
 a lista parecer correta ou todas as listas/configuração estiverem presentes.
-É necessária reconciliação humana/host autorizada fora deste engine. Não
+O reinício explícito descrito abaixo trata o destino vazio ou listas com recibos
+comprovados. Nos demais casos é necessária reconciliação humana/host autorizada.
+Não
 repetir, adotar ou sobrescrever a primitive incerta. Recibos cuja identidade,
 schema, ajustes ou configuração/ETag divergem bloqueiam. Um arquivo instalado
 completo e válido pode ser inspecionado sem journal local; se houver journal,
 ele precisa corresponder integralmente ao estado comprovado.
 
 ## Concorrência e navegação
+
+### Reinício explícito e pré-requisitos (0.17.6)
+
+`createInstallationService({port,journalStore,locks,preflight})` aceita uma
+checagem confiável de dependências. `inspect()` verifica os pré-requisitos
+antes de oferecer instalar; `install()` os repete antes de persistir o diário.
+Instalação já comprovada não executa checagens de escrita ou ManageLists para
+leituras normais do CMS. O host genérico verifica o SPMIDDLE vendorizado no ZIP.
+
+`reset({confirm:true,planToken:inspection.plan.token,isCurrent})` não repete
+uma criação incerta. Relê o destino e o diário, recusa configuração existente,
+conteúdo, schema alterado ou listas sem recibo, e remove apenas listas vazias
+cujo ID/fingerprint corresponde ao recibo. Usa o port específico
+`removeVerifiedEmptyList(receipt,{confirm:true,isCurrent})` e ETag exata da lista.
+Se nada foi criado, limpa apenas o diário local desse destino. `journalStore.clear`
+compara o registro esperado antes de limpar e confirma a remoção. Falhas ou
+conflitos preservam o diário. A operação é protegida pelo mesmo lock de instalar.
+
+`onStage` é um callback de acompanhamento opcional, separado dos recibos de
+`onProgress`: anuncia pré-requisitos, lista atual, configuração final e conclusão.
+Não certifica escrita antes do recibo nem altera o plano. A UI usa uma barra de
+dez etapas comprovadas, indeterminada durante a checagem inicial, com tempo
+decorrido e limpeza dos timers/listeners em todas as saídas.
 
 Há exclusão local `busy` para engines que compartilham **o mesmo objeto**
 `journalStore` no mesmo realm JavaScript. Não cobre stores distintos, abas,

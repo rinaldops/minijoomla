@@ -1,5 +1,6 @@
-/* Creation-only SharePoint installation port. Importing this module does no I/O.
- * Existing lists/fields/files are never adopted, updated, deleted or retried.
+/* SharePoint installation port. Importing this module does no I/O.
+ * Existing lists/fields/files are never adopted or retried. Explicit reset only
+ * removes empty receipt-verified lists; it never empties items or deletes config.
  * SPMIDDLE schemas stay in infrastructure; Folder is a reserved navigation member,
  * not a custom field in a new Extensions list (groups live in ManifestJson).
  */
@@ -343,13 +344,13 @@ export function createSharePointInstallationPort({ transport, webUrl, libraryPat
   async function configureField(domain, listId, expected, operation) {
     const root = `${api}/lists(guid'${listId}')/fields`, url = `${root}/getbyinternalnameortitle('${expected.name}')`;
     if (expected.name !== 'Title') {
-      const body = { __metadata: { type: expected.type === 'Choice' ? 'SP.FieldChoice' : 'SP.Field' }, Title: expected.title, InternalName: expected.name, FieldTypeKind: expected.kind, Required: expected.required };
+      const body = { __metadata: { type: expected.type === 'Choice' ? 'SP.FieldChoice' : 'SP.Field' }, Title: expected.title, InternalName: expected.name, FieldTypeKind: expected.kind, Required: expected.required, Indexed: expected.indexed, EnforceUniqueValues: expected.unique };
       if (expected.defaultValue !== '') body.DefaultValue = expected.defaultValue;
       if (expected.choices) body.Choices = { results: expected.choices };
       await ownedEmpty(domain, listId, operation);
-      await request(root, { method: 'POST', body }, false, operation);
+      await request(root, { method: 'POST', body, headers: { 'Content-Type': 'application/json;odata=verbose' } }, false, operation);
     }
-    const response = await request(`${url}?$select=${FIELD_SELECT}`, { method: 'GET' }, false, operation), currentETag = etag(response), field = entity(response);
+    const response = await request(`${url}?$select=${FIELD_SELECT}`, { method: 'GET' }, false, operation), field = entity(response);
     if (!field || field.InternalName !== expected.name) fail('incomplete-field');
     const checked = fieldPolicy(field, expected);
     if (checked.issues.some(issue => issue.endsWith(':type') || issue.endsWith(':choices'))) fail('incompatible-created-field');
@@ -357,10 +358,24 @@ export function createSharePointInstallationPort({ transport, webUrl, libraryPat
     for (const [property, restProperty] of [['required', 'Required'], ['defaultValue', 'DefaultValue'], ['indexed', 'Indexed'], ['unique', 'EnforceUniqueValues']]) if (canonical(checked.actual[property]) !== canonical(expected[property])) changes[restProperty] = expected[property];
     if (Object.keys(changes).length) {
       await ownedEmpty(domain, listId, operation);
-      await request(url, { method: 'MERGE', etag: currentETag, headers: { 'If-Match': currentETag }, body: { __metadata: { type: expected.type === 'Choice' ? 'SP.FieldChoice' : 'SP.Field' }, ...changes } }, false, operation);
+      const body = { __metadata: { type: expected.type === 'Choice' ? 'SP.FieldChoice' : 'SP.Field' }, ...changes };
+      const offered = response.etag ?? field['odata.etag'] ?? field.__metadata?.etag;
+      if (offered !== undefined && offered !== null) {
+        const currentETag = etag(response);
+        await request(url, { method: 'MERGE', etag: currentETag, headers: { 'If-Match': currentETag, 'Content-Type': 'application/json;odata=verbose' }, body }, false, operation);
+      } else {
+        // SP.Field does not expose an ETag in some tenants. This exception is
+        // confined to lists created by THIS port in THIS operation, still empty.
+        // Native Title cannot be recreated; recheck its exact policy before the
+        // narrow initialization. No wildcard/fake ETag or retry is used. This
+        // read-before-write boundary is not distributed optimistic concurrency.
+        const adjacent = await request(`${url}?$select=${FIELD_SELECT}`, { method: 'GET' }, false, operation);
+        if (canonical(entity(adjacent)) !== canonical(field)) fail('field-changed-during-read');
+        await ownedEmpty(domain, listId, operation);
+        await request(url, { method: 'POST', headers: { 'X-HTTP-Method': 'MERGE', 'Content-Type': 'application/json;odata=verbose' }, body }, false, operation);
+      }
     }
     const fresh = await request(`${url}?$select=${FIELD_SELECT}`, { method: 'GET' }, false, operation);
-    etag(fresh);
     if (entity(fresh)?.InternalName !== expected.name || fieldPolicy(entity(fresh), expected).issues.length) fail('unverified-created-field');
   }
 
@@ -372,7 +387,7 @@ export function createSharePointInstallationPort({ transport, webUrl, libraryPat
     // The second absence check is immediately adjacent to POST. Server-side name
     // uniqueness is still required; this is not a cross-session transaction.
     if (await listInfo(domain, true, operation)) fail('list-already-exists');
-    const response = await request(`${api}/lists`, { method: 'POST', body: { __metadata: { type: 'SP.List' }, Title: MINIJOOMLA_SCHEMAS[domain].displayName, BaseTemplate: MINIJOOMLA_SCHEMAS[domain].template } }, false, operation);
+    const response = await request(`${api}/lists`, { method: 'POST', headers: { 'Content-Type': 'application/json;odata=verbose' }, body: { __metadata: { type: 'SP.List' }, Title: MINIJOOMLA_SCHEMAS[domain].displayName, BaseTemplate: MINIJOOMLA_SCHEMAS[domain].template } }, false, operation);
     const created = entity(response), listId = id(created?.Id);
     if (created.Title !== MINIJOOMLA_SCHEMAS[domain].displayName || owned.has(listId)) fail('invalid-list-identity');
     owned.add(listId);
@@ -407,5 +422,20 @@ export function createSharePointInstallationPort({ transport, webUrl, libraryPat
     return { configuration: written.configuration, etag: written.configurationETag };
   }
 
-  return Object.freeze({ ...ctx, inspect, provisionList, verifyList, writeConfiguration });
+  async function removeVerifiedEmptyList(receipt, { confirm, isCurrent, signal } = {}) {
+    if (confirm !== true) fail('reset-confirmation-required');
+    const operation = writeOperation(isCurrent, signal);
+    const expectedId = id(receipt.id);
+    const checked = await inspectList(receipt.domain, expectedId, operation);
+    if (!checked.compatible || !checked.empty || checked.fingerprint !== receipt.fingerprint) fail('reset-list-conflict');
+    if ((await readConfiguration(operation)).configurationExists) fail('reset-configuration-exists');
+    const target = `${api}/lists(guid'${expectedId}')`;
+    const metadata = await request(`${target}?$select=${LIST_SELECT}`, { method: 'GET' }, false, operation);
+    const value = entity(metadata);
+    if (value?.Id?.toLowerCase() !== expectedId || value.ItemCount !== 0 || value.Title !== checked.title) fail('reset-list-conflict');
+    const currentETag = etag(metadata);
+    await request(target, { method: 'DELETE', etag: currentETag }, false, operation);
+    if (await listInfo(receipt.domain, true, operation)) fail('reset-list-not-removed');
+  }
+  return Object.freeze({ ...ctx, inspect, provisionList, verifyList, writeConfiguration, removeVerifiedEmptyList });
 }

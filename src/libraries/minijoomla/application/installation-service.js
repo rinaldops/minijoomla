@@ -156,8 +156,24 @@ function assessment(view, record) {
  * Optional locks.withLock(operation) must exclude the entire operation for this
  * destination; only the lock provider may claim cross-session exclusion.
  */
-export function createInstallationService({ port, journalStore, locks } = {}) {
+export function createInstallationService({ port, journalStore, locks, preflight } = {}) {
   let lastPlan = null;
+  async function prerequisites(isCurrent) {
+    if (preflight === undefined) return { ok: true, checks: [] };
+    if (typeof preflight !== 'function') fail('preflight-unavailable');
+    current(isCurrent);
+    const result = data(await preflight(), 20000); current(isCurrent);
+    if (typeof result.ok !== 'boolean' || !Array.isArray(result.checks) || result.checks.length > 100 || result.checks.some(check => typeof check.name !== 'string' || typeof check.ok !== 'boolean' || typeof check.message !== 'string')) fail('preflight-unavailable');
+    return result;
+  }
+  function resettable(loaded) {
+    if (!loaded.record || loaded.view.configurationExists || loaded.record.configurationReceipt) return false;
+    return loaded.view.lists.every(list => {
+      if (!list.exists) return true;
+      const receipt = loaded.record.receipts.find(entry => entry.domain === list.domain);
+      return receipt && receipt.id === list.id && receipt.fingerprint === list.fingerprint && list.compatible && list.empty && !list.issues.length;
+    });
+  }
   const current = callback => { if (callback && callback() !== true) fail('stale', 'Operação cancelada após mudança de contexto.', 'unavailable'); };
   function available(writing = false) {
     if (!port || typeof port.inspect !== 'function' || writing && (['provisionList', 'verifyList', 'writeConfiguration'].some(key => typeof port[key] !== 'function') || !journalStore || typeof journalStore.read !== 'function' || typeof journalStore.write !== 'function' || locks && typeof locks.withLock !== 'function')) fail('port-unavailable', 'Ports de instalação ou journal indisponíveis.', 'unavailable');
@@ -181,9 +197,10 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
     const token = canonical({ format: FORMAT, ...ctx, view: loaded.view, journal: loaded.record });
     const plan = { token, lists: data(loaded.view.lists, 30000), domains: [...INSTALLATION_DOMAINS], remainingDomains: INSTALLATION_DOMAINS.slice(loaded.record?.receipts.length ?? 0) };
     const selected = loaded.record?.settings ?? (result.configuration ? settings(Object.fromEntries(['siteName', 'siteDescription', 'timezone', 'language', 'pageSize'].map(key => [key, result.configuration.initialSite[key]]))) : null);
-    return { ...result, receiptPending: Boolean(loaded.record?.pending), ...(selected ? { settings: data(selected) } : {}), summary: { listCount: 8, existingLists: loaded.view.lists.filter(list => list.exists).length, recordedLists: loaded.record?.receipts.length ?? 0 }, plan };
+    const canReset = resettable(loaded) && typeof journalStore?.clear === 'function' && (!loaded.view.lists.some(list => list.exists) || typeof port.removeVerifiedEmptyList === 'function');
+    return { ...result, canReset, resetListCount: canReset ? loaded.view.lists.filter(list => list.exists).length : 0, receiptPending: Boolean(loaded.record?.pending), ...(selected ? { settings: data(selected) } : {}), summary: { listCount: 8, existingLists: loaded.view.lists.filter(list => list.exists).length, recordedLists: loaded.record?.receipts.length ?? 0 }, plan };
   }
-  const errorResult = error => ({ status: error instanceof InstallationError ? error.status : 'unavailable', reason: error instanceof InstallationError ? error.reason : 'port-failure', message: error instanceof InstallationError ? error.message : 'Não foi possível verificar ou persistir a instalação.', canResume: false, receiptPending: error instanceof InstallationError && error.receiptPending === true, ...(error instanceof InstallationError && error.settings ? { settings: data(error.settings) } : {}) });
+  const errorResult = error => ({ status: error instanceof InstallationError ? error.status : 'unavailable', reason: error instanceof InstallationError ? error.reason : 'port-failure', message: error instanceof InstallationError ? error.message : Number.isInteger(error?.status) ? `O SharePoint recusou a operação (HTTP ${error.status}). Verifique permissões, conexão e os arquivos do pacote; nenhuma tentativa será repetida automaticamente.` : 'Não foi possível verificar ou persistir a instalação.', canResume: false, receiptPending: error instanceof InstallationError && error.receiptPending === true, ...(error instanceof InstallationError && error.settings ? { settings: data(error.settings) } : {}) });
   async function persist(record, isCurrent, ctx) {
     const safe = journal(record, ctx);
     current(isCurrent); await journalStore.write(data(safe)); current(isCurrent);
@@ -208,18 +225,23 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
       const result = report(loaded, ctx);
       if ((result.status === 'ready' || result.canResume) && (!journalStore || typeof journalStore.write !== 'function')) return { ...result, status: 'unavailable', reason: 'journal-unavailable', message: 'Journal durável indisponível; instalação e retomada não estão habilitadas.', canResume: false };
       if (result.canResume) await verifyPrefix(loaded, isCurrent);
-      current(isCurrent); if (result.status !== 'installed') lastPlan = result.plan.token; return result;
+      current(isCurrent); if (result.status !== 'installed') lastPlan = result.plan.token;
+      if (result.status === 'installed') return result; // Readers of an installed CMS need no ManageLists or write probe.
+      const dependency = await prerequisites(isCurrent);
+      if (!dependency.ok) return { ...result, status: 'unavailable', canResume: false, reason: 'prerequisites-unavailable', message: dependency.message ?? 'Dependências indisponíveis. Corrija os itens abaixo e verifique novamente.', checks: dependency.checks };
+      return { ...result, checks: dependency.checks };
     } catch (error) { return errorResult(error); }
   }
   async function install(options = {}) {
     // Callbacks are explicit cancellation/progress hooks, never action mappings.
-    let input; let isCurrent; let onProgress; let record = null; let ctx; let writeUncertain = false;
+    let input; let isCurrent; let onProgress; let onStage; let record = null; let ctx; let writeUncertain = false;
+    const stage = async value => { if (onStage) { current(isCurrent); await onStage(value); current(isCurrent); } };
     try {
       const descriptors = Object.getOwnPropertyDescriptors(options);
-      if (Reflect.ownKeys(descriptors).some(key => typeof key !== 'string' || !['confirm', 'settings', 'plan', 'planToken', 'isCurrent', 'onProgress'].includes(key) || !own(descriptors[key], 'value'))) fail('invalid-options');
-      isCurrent = descriptors.isCurrent?.value; onProgress = descriptors.onProgress?.value;
-      if (isCurrent !== undefined && typeof isCurrent !== 'function' || onProgress !== undefined && typeof onProgress !== 'function') fail('invalid-callback');
-      input = data(Object.fromEntries(Object.entries(descriptors).filter(([key]) => !['isCurrent', 'onProgress'].includes(key)).map(([key, descriptor]) => [key, descriptor.value])), 80000);
+      if (Reflect.ownKeys(descriptors).some(key => typeof key !== 'string' || !['confirm', 'settings', 'plan', 'planToken', 'isCurrent', 'onProgress', 'onStage'].includes(key) || !own(descriptors[key], 'value'))) fail('invalid-options');
+      isCurrent = descriptors.isCurrent?.value; onProgress = descriptors.onProgress?.value; onStage = descriptors.onStage?.value;
+      if (isCurrent !== undefined && typeof isCurrent !== 'function' || onProgress !== undefined && typeof onProgress !== 'function' || onStage !== undefined && typeof onStage !== 'function') fail('invalid-callback');
+      input = data(Object.fromEntries(Object.entries(descriptors).filter(([key]) => !['isCurrent', 'onProgress', 'onStage'].includes(key)).map(([key, descriptor]) => [key, descriptor.value])), 80000);
       if (input.confirm !== true) fail('confirmation-required', 'Confirme explicitamente a instalação.');
       input.settings = settings(input.settings); ctx = available(true);
       const portIsCurrent = isCurrent ?? (() => true);
@@ -229,9 +251,12 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
       STORE_LOCKS.add(journalStore);
       try {
         const operation = async () => {
+          await stage({phase:'preflight',message:'Verificando o destino, as dependências e as permissões…'});
           let loaded = await load(isCurrent, ctx); let state = report(loaded, ctx);
           if (state.plan.token !== requestedToken) fail('stale-plan', 'O destino mudou desde a inspeção.');
           if (state.status !== 'ready' && !state.canResume) return state;
+          const dependency = await prerequisites(isCurrent);
+          if (!dependency.ok) return { ...state, status: 'unavailable', canResume: false, reason: 'prerequisites-unavailable', message: dependency.message ?? 'Dependências indisponíveis; nenhuma instalação foi iniciada.', checks: dependency.checks };
           record = loaded.record;
           if (record && canonical(record.settings) !== canonical(input.settings)) fail('settings-conflict', 'Retomada exige os mesmos ajustes iniciais.');
           await verifyPrefix(loaded, isCurrent);
@@ -245,6 +270,7 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
             if (canonical(loaded.record) !== canonical(record) || !assessment(loaded.view, loaded.record).canResume) fail('boundary-conflict');
             await verifyPrefix(loaded, isCurrent);
             const domain = INSTALLATION_DOMAINS[index];
+            await stage({phase:'lists',completed:index,total:8,message:`Criando e verificando ${TITLES[index]} (${index + 1} de 8). Aguarde…`});
             record.pending = { kind: 'list', domain }; await persist(record, isCurrent, ctx);
             loaded = await load(isCurrent, ctx);
             if (canonical(loaded.record) !== canonical(record) || loaded.view.configurationExists || loaded.view.lists.some((list, offset) => offset < index ? !list.exists || !list.empty || !list.compatible || list.id !== record.receipts[offset].id || list.fingerprint !== record.receipts[offset].fingerprint : list.exists)) fail('boundary-conflict');
@@ -259,6 +285,7 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
           if (canonical(loaded.record) !== canonical(record) || !assessment(loaded.view, loaded.record).canResume) fail('boundary-conflict');
           await verifyPrefix(loaded, isCurrent);
           const configuration = { format: FORMAT, ...ctx, lists: Object.fromEntries(record.receipts.map(receipt => [receipt.domain, { listId: receipt.id }])), initialSite: initialSite(record.settings), joomlaDiscoveryRoots: [], moduleStyles: {}, moduleStyleRevisions: {}, state: 'installed' };
+          await stage({phase:'configuration',message:'Oito listas verificadas. Gravando e conferindo a configuração final…'});
           record.pending = { kind: 'configuration' }; await persist(record, isCurrent, ctx);
           loaded = await load(isCurrent, ctx);
           if (canonical(loaded.record) !== canonical(record) || loaded.view.configurationExists || loaded.view.lists.some((list, index) => !list.exists || !list.empty || !list.compatible || list.id !== record.receipts[index].id || list.fingerprint !== record.receipts[index].fingerprint)) fail('boundary-conflict');
@@ -270,7 +297,9 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
           current(isCurrent); const verified = snapshot(await port.inspect(), ctx); current(isCurrent);
           if (!verified.configurationExists || verified.configurationETag !== written.etag || canonical(verified.configuration) !== canonical(configuration) || verified.lists.some(list => !list.exists || !list.compatible || !list.empty || list.issues.length || list.fingerprint !== record.receipts.find(receipt => receipt.domain === list.domain).fingerprint)) fail('configuration-unverified');
           record.configurationReceipt = written; record.pending = null; await persist(record, isCurrent, ctx); writeUncertain = false;
-          lastPlan = null; return report({ view: verified, record }, ctx);
+          lastPlan = null;
+          await stage({phase:'complete',message:'Instalação concluída e verificada. Abrindo o painel…'});
+          return report({ view: verified, record }, ctx);
         };
         return await (locks ? locks.withLock(operation) : operation());
       } finally { STORE_LOCKS.delete(journalStore); }
@@ -278,15 +307,51 @@ export function createInstallationService({ port, journalStore, locks } = {}) {
       lastPlan = null;
       // No clearing intents, rollback or guessed adoption after any exception.
       const result = errorResult(error);
-      if (record && (record.pending || writeUncertain)) Object.assign(result, { status: 'partial', receiptPending: true, reason: 'uncertain-write', settings: data(record.settings), message: 'Escrita incerta; não repetir nem inferir sucesso sem recibo durável.' });
+      if (record && (record.pending || writeUncertain)) Object.assign(result, { status: 'partial', receiptPending: true, reason: 'uncertain-write', settings: data(record.settings), message: `${result.message} Escrita incerta; verifique o destino antes de reiniciar.` });
       if (record) {
         try {
           const saved = journal(await journalStore.read(), ctx);
-          if (saved) return { ...result, status: 'partial', canResume: false, receiptPending: Boolean(saved.pending), settings: data(saved.settings), reason: saved.pending ? 'uncertain-write' : result.reason, message: saved.pending ? 'Escrita incerta; intenção preservada sem repetição automática.' : result.message };
+          if (saved) return { ...result, status: 'partial', canResume: false, receiptPending: Boolean(saved.pending), settings: data(saved.settings), reason: saved.pending ? 'uncertain-write' : result.reason };
         } catch { /* Retain the original failure; never repair an unreadable journal. */ }
       }
       return result;
     }
   }
-  return Object.freeze({ inspect, install });
+  async function reset(options = {}) {
+    lastPlan = null;
+    try {
+      const descriptors = Object.getOwnPropertyDescriptors(options);
+      if (Reflect.ownKeys(descriptors).some(key => !['confirm', 'planToken', 'isCurrent'].includes(key) || !own(descriptors[key], 'value'))) fail('invalid-options');
+      const { confirm, planToken, isCurrent } = options;
+      if (confirm !== true) fail('confirmation-required', 'Confirme explicitamente o reinício da tentativa.');
+      if (isCurrent !== undefined && typeof isCurrent !== 'function') fail('invalid-current');
+      const ctx = available();
+      if (typeof journalStore?.clear !== 'function') fail('journal-unavailable');
+      if (STORE_LOCKS.has(journalStore)) fail('busy');
+      STORE_LOCKS.add(journalStore);
+      try {
+        const operation = async () => {
+          const initial = await load(isCurrent, ctx);
+          if (report(initial, ctx).plan.token !== planToken) fail('stale-plan', 'O destino mudou; verifique novamente antes de reiniciar.');
+          if (!resettable(initial)) fail('reset-blocked', 'Reinício bloqueado: há configuração, conteúdo ou lista sem recibo comprovado. Nenhum dado será apagado.');
+          for (const receipt of [...initial.record.receipts].reverse()) {
+            const fresh = await load(isCurrent, ctx);
+            if (canonical(fresh.record) !== canonical(initial.record) || !resettable(fresh)) fail('reset-conflict');
+            if (!fresh.view.lists.find(list => list.domain === receipt.domain).exists) continue;
+            if (typeof port.removeVerifiedEmptyList !== 'function') fail('reset-unavailable');
+            current(isCurrent);
+            await port.removeVerifiedEmptyList(data(receipt), { confirm: true, isCurrent: isCurrent ?? (() => true) });
+            current(isCurrent);
+          }
+          const final = await load(isCurrent, ctx);
+          if (canonical(final.record) !== canonical(initial.record) || final.view.configurationExists || final.view.lists.some(list => list.exists)) fail('reset-conflict');
+          current(isCurrent); await journalStore.clear(data(initial.record)); current(isCurrent);
+          if (await journalStore.read() !== null) fail('journal-not-durable');
+          return { status: 'ready', reason: 'reset-complete', message: 'Tentativa reiniciada. Pacote e páginas preservados. Verifique as dependências e confirme uma nova instalação.', canResume: false };
+        };
+        return await (locks ? locks.withLock(operation) : operation());
+      } finally { STORE_LOCKS.delete(journalStore); }
+    } catch (error) { return errorResult(error); }
+  }
+  return Object.freeze({ inspect, install, reset });
 }
