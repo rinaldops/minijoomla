@@ -51,10 +51,12 @@ export async function runInstallationZipTests() {
   // SiteAssets/minijoomla/releases/<version>/ hierarchy plus the two
   // ready-to-paste snippet instructions at the archive root.
   await mkdir(resolve(PROJECT, 'tmp'), { recursive: true });
+  await mkdir(resolve(PROJECT, 'dist'), { recursive: true });
   const container = await mkdtemp(resolve(PROJECT, 'tmp/installation-zip-test-'));
+  const distContainer = await mkdtemp(resolve(PROJECT, 'dist/installation-zip-test-'));
   try {
-    const zipOutput = 'tmp/' + container.split(/[\\/]/).at(-1) + '/pacote.zip';
-    await assert.rejects(stageInstallationZip({ version: '1.0.0', output: 'tmp/../outside.zip' }));
+    const zipOutput = 'dist/' + distContainer.split(/[\\/]/).at(-1) + '/pacote.zip';
+    await assert.rejects(stageInstallationZip({ version: '1.0.0', output: 'dist/../outside.zip' }));
     await assert.rejects(stageInstallationZip({ version: '1.0.0', output: zipOutput.replace('.zip', '.tar') }));
     const built = await stageInstallationZip({ version: '1.0.0', output: zipOutput });
     assert.ok(built.bytes > 0);
@@ -85,5 +87,5 @@ export async function runInstallationZipTests() {
     assert.ok(readmeText.includes('Extrair'));
     await assert.rejects(stageInstallationZip({ version: '1.0.0', output: zipOutput }), /existe/);
     console.log('ok - installation zip: single archive extracts the definitive SiteAssets hierarchy with exact bytes and both ready-to-paste MSE snippets');
-  } finally { await rm(container, { recursive: true, force: true }); }
+  } finally { await rm(container, { recursive: true, force: true }); await rm(distContainer, { recursive: true, force: true }); }
 }

@@ -4,7 +4,7 @@
  * cobrindo o fluxo completo de instalacao inicial sem exigir que o usuario
  * execute scripts, crie pastas manualmente ou identifique qual arquivo vai
  * em qual lugar: node scripts/stage-installation-zip.js --version X.Y.Z
- *   [--output tmp/<novo>.zip]
+ *   [--output dist/<novo>.zip]
  *
  * Reaproveita stageGenericInstallation() (mesmo pacote testado por
  * tests/generic-installation-package.test.js: nucleo + painel + MSE host +
@@ -112,9 +112,9 @@ confirmacao. Nenhum outro passo manual e necessario.
 }
 
 async function stageInstallationZip({ version, output } = {}) {
-  if (typeof output !== 'string' || !output.startsWith('tmp/') || !output.endsWith('.zip')) throw new Error('--output deve ser um caminho novo em tmp/ terminando em .zip');
+  if (typeof output !== 'string' || !output.startsWith('dist/') || !output.endsWith('.zip')) throw new Error('--output deve ser um caminho novo em dist/ terminando em .zip');
   const zipPath = resolve(PROJECT, output);
-  if (!zipPath.startsWith(resolve(PROJECT, 'tmp') + '/') && !zipPath.startsWith(resolve(PROJECT, 'tmp') + '\\')) throw new Error('--output deve ficar dentro de tmp/');
+  if (!zipPath.startsWith(resolve(PROJECT, 'dist') + '/') && !zipPath.startsWith(resolve(PROJECT, 'dist') + '\\')) throw new Error('--output deve ficar dentro de dist/');
   if (existsSync(zipPath)) throw new Error('Arquivo de saida ja existe; escolha um novo caminho.');
   await mkdir(resolve(PROJECT, 'tmp'), { recursive: true });
   const stageRoot = await mkdtemp(resolve(PROJECT, 'tmp', 'installation-zip-'));
@@ -148,8 +148,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const option = (name, fallback) => (argv.includes(`--${name}`) ? argv[argv.indexOf(`--${name}`) + 1] : fallback);
   try {
     const version = option('version');
-    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Uso: node scripts/stage-installation-zip.js --version X.Y.Z [--output tmp/<novo>.zip]');
-    const output = option('output', `tmp/minijoomla-${version}.zip`);
+    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Uso: node scripts/stage-installation-zip.js --version X.Y.Z [--output dist/<novo>.zip]');
+    const output = option('output', `dist/minijoomla-${version}.zip`);
     const result = await stageInstallationZip({ version, output });
     console.log(`Pacote de instalacao pronto: ${result.output} (${result.entries} entradas, ${result.bytes} bytes, sha256 ${result.sha256}).`);
     console.log('Envie esse .zip para SiteAssets e extraia; o .txt na raiz traz os dois codigos do Modern Script Editor.');

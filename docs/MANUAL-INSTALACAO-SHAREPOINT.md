@@ -103,7 +103,7 @@ ser copiado/distribuído livremente para quem for instalar.
    cd minijoomla
    node scripts/stage-installation-zip.js --version 0.17.1
    ```
-   Isso cria `tmp/minijoomla-0.17.1.zip` — um único arquivo, com:
+   Isso cria `dist/minijoomla-0.17.1.zip` — um único arquivo, com:
    - todo o pacote (núcleo, administração, templates, módulos/plugins
      nativos, adaptador oficial do SPMIDDLE, TinyMCE etc.), já organizado
      dentro de `minijoomla/releases/0.17.1/` — a mesma estrutura que o
@@ -114,8 +114,8 @@ ser copiado/distribuído livremente para quem for instalar.
      caminho do site, que o próprio arquivo explica como fazer).
 
    Esse é o **único arquivo** que precisa ser enviado para o SharePoint.
-   `--output tmp/<nome>.zip` permite escolher outro caminho/nome local se
-   preferir; por padrão, usa `tmp/minijoomla-<versão>.zip`.
+   `--output dist/<nome>.zip` permite escolher outro caminho/nome local se
+   preferir; por padrão, usa `dist/minijoomla-<versão>.zip`.
 
 > Prefere montar o pacote manualmente, arquivo por arquivo, para entender
 > exatamente o que cada peça faz (ou integrar num pipeline de publicação
