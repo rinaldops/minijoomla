@@ -2,32 +2,37 @@
 
 > Público-alvo: administrador/publicador que vai instalar o MINIJOOMLA em um
 > site SharePoint **novo, sem listas e sem arquivos do MINIJOOMLA** (ou um
-> site existente do qual essas listas/arquivos foram removidos). Este manual
-> cobre o fluxo completo: copiar o pacote, criar as duas páginas `.aspx` com
-> a webpart **Modern Script Editor (MSE)**, configurar o código correto em
-> cada página, e concluir a instalação inicial pelo próprio painel.
+> site existente do qual essas listas/arquivos foram removidos). **Não é
+> necessário saber programar nem instalar nenhuma ferramenta de
+> desenvolvimento para seguir este manual** — o único passo técnico (gerar
+> o pacote `.zip`) é feito uma única vez por quem publica a versão, e pode
+> já estar pronto antes mesmo de você começar (seção 2).
 >
 > Versão de referência deste manual: release MINIJOOMLA **0.17.1**
 > (SPMIDDLE 0.2.0). Ajuste os caminhos se publicar uma versão diferente.
 
-## 0. Visão geral do fluxo
+## 0. Visão geral do fluxo (caminho recomendado: pacote `.zip`)
 
-1. Copiar o pacote distribuível do MINIJOOMLA para a biblioteca de
-   documentos **SiteAssets** do site de destino, em uma pasta de release
-   imutável (`SiteAssets/minijoomla/releases/<versão>/`).
-2. Criar (ou reaproveitar) duas páginas modernas `.aspx` no site:
+1. Obter o pacote `.zip` da versão do MINIJOOMLA que será instalada (seção
+   2) — um único arquivo, já com toda a estrutura de pastas definitiva.
+2. Enviar esse `.zip` para a biblioteca **SiteAssets** do site de destino e
+   extraí-lo pela própria interface do SharePoint (seção 3) — sem criar
+   pastas manualmente, sem copiar arquivo por arquivo.
+3. Criar (ou reaproveitar) duas páginas modernas `.aspx` no site:
    - uma página **pública** (ex.: `Default.aspx` ou `MiniJoomla.aspx`);
    - uma página **administrativa** (`Administrator.aspx`).
-3. Em cada página, adicionar a webpart **Modern Script Editor** e colar o
-   snippet correto (há um snippet para o site e outro, diferente, para o
-   painel — **nunca o mesmo código nas duas páginas**).
-4. Publicar as duas páginas.
-5. Abrir a página administrativa: o próprio MINIJOOMLA detecta que não há
+4. Em cada página, adicionar a webpart **Modern Script Editor** e colar o
+   código correto — **já pronto, dentro de um arquivo `.txt` que vem junto
+   no `.zip`**; basta copiar e colar, trocando só o caminho do site (há um
+   código para o site e outro, diferente, para o painel — **nunca o mesmo
+   código nas duas páginas**).
+5. Publicar as duas páginas.
+6. Abrir a página administrativa: o próprio MINIJOOMLA detecta que não há
    infraestrutura (oito listas) e exibe o **instalador inicial**. Preencher
    nome/descrição do site e confirmar.
-6. Após a instalação, abrir a página pública para confirmar que o site
+7. Após a instalação, abrir a página pública para confirmar que o site
    responde (vazio, sem conteúdo — isso é esperado).
-7. Opcionalmente, instalar o **Sample Data** (conteúdo de exemplo Joomla)
+8. Opcionalmente, instalar o **Sample Data** (conteúdo de exemplo Joomla)
    pelo próprio painel, em uma etapa separada e explícita.
 
 Nenhum desses passos assume um nome de site, biblioteca alternativa ou
@@ -39,7 +44,7 @@ SharePoint moderno com permissão de edição de páginas e upload de arquivos.
 - Permissão de **Proprietário/Membro com edição de página** no site de
   destino (para adicionar/editar webparts e publicar páginas).
 - Permissão de **gravação na biblioteca SiteAssets** (ou biblioteca
-  equivalente) do site, para enviar os arquivos do pacote.
+  equivalente) do site, para enviar e extrair o pacote.
 - O site de destino deve estar **vazio de MINIJOOMLA**: sem as oito listas
   (`MiniJoomlaArticles`, `MiniJoomlaCategories`, `MiniJoomlaTags`,
   `MiniJoomlaMenu`, `MiniJoomlaExtensions`, `MiniJoomlaTemplates`,
@@ -48,130 +53,98 @@ SharePoint moderno com permissão de edição de páginas e upload de arquivos.
   anterior não é tratado como "vazio" — o instalador recusa adotar listas
   preexistentes, mesmo vazias e compatíveis (ver seção 8 para o
   procedimento de limpeza antes de reinstalar).
-- Uma máquina local (seu computador ou de quem for publicar) com:
-  - [Node.js](https://nodejs.org/) instalado (qualquer versão atual com
-    suporte a ES modules; usado nesta documentação com Node 24). É só para
-    **gerar o pacote de arquivos localmente antes do envio** — o site
-    SharePoint de destino nunca executa Node; tudo que ele recebe é
-    HTML/CSS/JavaScript estático.
-  - O **código-fonte do MINIJOOMLA** baixado nessa máquina (ver seção 2 —
-    é o "pacote distribuível" referido ao longo deste manual: ele **não
-    existe pronto para baixar em lugar nenhum**, é gerado localmente a
-    partir do código-fonte).
+- O pacote `.zip` da versão a instalar (próxima seção). **Nenhum outro
+  software é necessário** para quem só vai extrair o zip e colar o código
+  — nem Node.js, nem Git, nem linha de comando. Essas ferramentas só
+  entram em cena para quem *gera* o pacote (seção 2.2, opcional).
 
-## 2. Obter o código-fonte e gerar o pacote de release
+## 2. Obter o pacote `.zip`
 
-> Esta é a resposta para "onde está o pacote distribuível?": **não há um
-> arquivo `.zip` pronto para baixar.** O "pacote distribuível" é gerado
-> localmente, pela própria máquina de quem for publicar, a partir do
-> código-fonte do MINIJOOMLA — um repositório Git. Depois de gerado, esse
-> pacote (uma pasta local) é o que se copia para o SharePoint na seção 3.
+### 2.1. Se alguém já gerou o pacote para você (caminho normal)
 
-### 2.1. Obter o código-fonte
+Peça à pessoa responsável pelo MINIJOOMLA na sua organização o arquivo
+`minijoomla-<versão>.zip` (por exemplo, `minijoomla-0.17.1.zip`) — ele
+costuma ser compartilhado por e-mail, Teams, ou já deixado em uma pasta
+compartilhada. Esse arquivo contém **tudo** que este manual pede: o pacote
+inteiro, já na estrutura de pastas correta, mais um `.txt` com os dois
+códigos prontos para colar nas páginas. Pulando para a seção 3 com esse
+arquivo em mãos é suficiente — **o restante desta seção 2 é só para quem
+for gerar o pacote pela primeira vez.**
 
-O código-fonte do MINIJOOMLA está no repositório Git
-`git@github.com:rinaldops/minijoomla.git` (também acessível por HTTPS em
-`https://github.com/rinaldops/minijoomla`, conforme a configuração de
-acesso de quem for publicar). Obtenha uma cópia local por um destes
-caminhos:
+### 2.2. Gerar o pacote você mesmo (avançado, uma vez por versão)
 
-- **Clonar com Git** (recomendado, permite atualizar depois):
-  ```powershell
-  git clone https://github.com/rinaldops/minijoomla.git
-  cd minijoomla
-  ```
-- **Baixar um ZIP do código-fonte** direto da página do repositório no
-  GitHub ("Code" → "Download ZIP") e extrair localmente, se não tiver Git
-  instalado ou acesso configurado ao repositório.
+Esta parte é técnica e só precisa ser feita **uma vez por versão**, por
+alguém com Node.js instalado — tipicamente um desenvolvedor, não o usuário
+final que vai instalar no site. Depois de gerado, o `.zip` resultante pode
+ser copiado/distribuído livremente para quem for instalar.
 
-Qualquer um dos dois caminhos resulta na mesma estrutura de pastas usada
-no restante deste manual (`src/`, `scripts/`, `host-adapters/` etc., na
-raiz do que foi baixado/clonado).
+1. **Obter o código-fonte do MINIJOOMLA**, disponível no repositório Git
+   `git@github.com:rinaldops/minijoomla.git` (também acessível por HTTPS em
+   `https://github.com/rinaldops/minijoomla`):
+   ```powershell
+   git clone https://github.com/rinaldops/minijoomla.git
+   cd minijoomla
+   ```
+   Sem Git, baixe o ZIP do código-fonte na própria página do repositório no
+   GitHub ("Code" → "Download ZIP") e extraia localmente — **esse ZIP do
+   código-fonte não é o mesmo arquivo que será enviado ao SharePoint**; é
+   só o material bruto a partir do qual o pacote de instalação é gerado.
+2. Este repositório depende de um segundo projeto irmão, **SPMIDDLE**
+   (`git@github.com:rinaldops/spmiddle.git`), que deve ser clonado/baixado
+   **ao lado** do MINIJOOMLA (não dentro dele):
+   ```
+   algum-diretorio/
+     minijoomla/
+     SPMIDDLE/
+   ```
+3. Com [Node.js](https://nodejs.org/) instalado, gere o pacote `.zip` com
+   um único comando:
+   ```powershell
+   cd minijoomla
+   node scripts/stage-installation-zip.js --version 0.17.1
+   ```
+   Isso cria `tmp/minijoomla-0.17.1.zip` — um único arquivo, com:
+   - todo o pacote (núcleo, administração, templates, módulos/plugins
+     nativos, adaptador oficial do SPMIDDLE, TinyMCE etc.), já organizado
+     dentro de `minijoomla/releases/0.17.1/` — a mesma estrutura que o
+     SharePoint deve reproduzir em `SiteAssets/`;
+   - `LEIA-ME.txt`, com o resumo do que fazer com o arquivo;
+   - `CODIGO-PARA-COLAR-NAS-PAGINAS.txt`, com os dois códigos do Modern
+     Script Editor já preenchidos com a versão `0.17.1` (só falta trocar o
+     caminho do site, que o próprio arquivo explica como fazer).
 
-> Este repositório depende de um segundo projeto irmão, **SPMIDDLE**
-> (`git@github.com:rinaldops/spmiddle.git` ou equivalente), que deve ser
-> clonado/baixado **ao lado** do MINIJOOMLA (não dentro dele) — ou seja,
-> as duas pastas devem ser irmãs no sistema de arquivos:
-> ```
-> algum-diretorio/
->   minijoomla/
->   SPMIDDLE/
-> ```
-> `scripts/stage-release.js`/`scripts/stage-generic-installation.js`
-> (próxima seção) leem arquivos de `../SPMIDDLE` relativos à pasta do
-> MINIJOOMLA; sem essa pasta irmã presente, a geração do pacote falha.
+   Esse é o **único arquivo** que precisa ser enviado para o SharePoint.
+   `--output tmp/<nome>.zip` permite escolher outro caminho/nome local se
+   preferir; por padrão, usa `tmp/minijoomla-<versão>.zip`.
 
-### 2.2. Gerar o pacote de release (uma vez, por quem publica)
+> Prefere montar o pacote manualmente, arquivo por arquivo, para entender
+> exatamente o que cada peça faz (ou integrar num pipeline de publicação
+> próprio)? Isso é possível e documentado na seção 9 (avançado) — mas não é
+> necessário para uma instalação normal.
 
-O pacote correto para publicar manualmente em um site SharePoint é gerado
-por `scripts/stage-release.js`, que empacota o núcleo **mais** os adaptadores
-do host MSE em uma pasta local imutável:
+## 3. Enviar e extrair o pacote no SharePoint
 
-```powershell
-cd minijoomla
-node scripts/stage-release.js --version 0.17.1 --output tmp/release-0.17.1 --target all
-```
+1. No site de destino, abra a biblioteca **SiteAssets** (ou "Documentos do
+   Site").
+2. Envie o arquivo `minijoomla-<versão>.zip` pela interface web (botão
+   **Enviar** / **Carregar**, ou arrastar o arquivo para a janela do
+   navegador).
+3. Clique com o botão direito no arquivo `.zip` enviado (ou abra o menu
+   "..." ao lado dele) e escolha **Extrair**.
+4. O SharePoint cria automaticamente a pasta `minijoomla/` com toda a
+   estrutura já organizada — `SiteAssets/minijoomla/releases/<versão>/...`
+   — exatamente como o restante deste manual espera. Não é necessário
+   criar nenhuma pasta manualmente nem copiar arquivos individualmente.
+5. Apague o `.zip` da biblioteca depois de extrair, se preferir — ele não
+   é mais necessário (opcional, só para organização).
+6. Abra o arquivo `CODIGO-PARA-COLAR-NAS-PAGINAS.txt`, extraído junto na
+   raiz de `SiteAssets/` — ele será usado na seção 5.
 
-Isso gera em `tmp/release-0.17.1/` todos os arquivos do pacote (núcleo,
-administração, templates, módulos/plugins nativos, vendor do SPMIDDLE,
-TinyMCE etc.), **mas sem** os arquivos do host MSE (`host/host.js`,
-`host/loader.js`, `host/installation-context.js`, `host/mse-layout.js`,
-`host/spmiddle-layout/*`) nem os snippets prontos — esses fazem parte do
-próprio repositório, em `host-adapters/modern-script-editor/`, e precisam
-ser copiados manualmente ao lado do restante do pacote (seção 3).
-
-> Alternativa equivalente: `scripts/stage-generic-installation.js` já
-> empacota o pacote `core`/`site`/`administrator` **junto com** os quatro
-> arquivos genéricos do host e os dois snippets, produzindo um pacote único
-> pronto para copiar (sem `host.js` pré-configurado — o host detecta a
-> ausência de configuração e abre o instalador por si mesmo):
->
-> ```powershell
-> node scripts/stage-generic-installation.js --version 0.17.1 --output tmp/instalacao-generica-0.17.1
-> ```
->
-> Esse caminho é o recomendado para uma instalação **nova** porque não
-> requer rodar nenhum script contra o tenant antes da primeira tela: o
-> próprio `host.js` genérico, sem configuração embutida, reconhece que não
-> há `CONFIG.lists` e monta o instalador automaticamente (ver seção 5).
-
-## 3. Copiar o pacote para o SharePoint
-
-No site de destino, dentro da biblioteca **SiteAssets** (ou outra
-biblioteca de documentos de sua escolha, desde que o caminho seja
-consistente em todos os passos seguintes), crie a estrutura:
-
-```
-SiteAssets/
-  minijoomla/
-    releases/
-      0.17.1/
-        host/
-          host.js
-          loader.js
-          installation-context.js
-          mse-layout.js
-          spmiddle-layout/
-            layout.js
-            layout.css
-            spmiddle-mse-host.js
-          public-snippet.html
-          administrator-snippet.html
-          admin.scoped.css
-        ... (todo o conteúdo gerado em tmp/instalacao-generica-0.17.1/ ou
-             tmp/release-0.17.1/ + host-adapters/modern-script-editor/)
-```
-
-- Envie **todo** o conteúdo do pacote gerado na seção 2 para essa pasta,
-  preservando a estrutura de subpastas exatamente como está localmente.
-- **Esta pasta de release nunca é editada depois de publicada.** Se precisar
-  corrigir algo no código, publique uma pasta nova com uma versão diferente
-  (ex. `0.17.2`) e só então atualize o snippet das páginas para apontar para
-  ela — nunca sobrescreva arquivos dentro de `releases/0.17.1/` já em uso.
-- Pode fazer isso manualmente pela interface web do SharePoint (arrastar e
-  soltar a árvore de pastas) ou via sincronização OneDrive/Explorer. Não há
-  dependência de nenhuma ferramenta de automação para este passo — é cópia
-  de arquivos comum.
+> **Esta pasta de release nunca é editada depois de extraída.** Se
+> precisar corrigir algo, peça/gere um novo `.zip` com um número de versão
+> diferente (ex. `0.17.2`), extraia-o ao lado do anterior, e só então
+> atualize o código das páginas (seção 5) para apontar para a nova versão
+> — nunca edite arquivos dentro de uma pasta `releases/<versão>/` já em uso.
 
 ## 4. Criar as duas páginas `.aspx`
 
@@ -207,9 +180,15 @@ SiteAssets/
 ## 5. Adicionar e configurar a webpart Modern Script Editor (MSE)
 
 Esta é a etapa mais sensível: **cada página precisa do código correto e
-diferente da outra.** Usar o código errado (por exemplo, colar o snippet do
+diferente da outra.** Usar o código errado (por exemplo, colar o código do
 site na página administrativa, ou vice-versa) resulta em uma tela em branco
 ou em uma mensagem de erro "Não foi possível iniciar o MINIJOOMLA.".
+
+**O código abaixo já vem pronto** no arquivo
+`CODIGO-PARA-COLAR-NAS-PAGINAS.txt` extraído na seção 3 — você só precisa
+copiar de lá e trocar o caminho do site (`/sites/example` por exemplo), o
+que o próprio arquivo explica. Os blocos abaixo mostram o mesmo conteúdo,
+para referência e para quem quiser entender cada parte.
 
 ### 5.1. Adicionar a webpart
 
@@ -222,8 +201,9 @@ ou em uma mensagem de erro "Não foi possível iniciar o MINIJOOMLA.".
 
 ### 5.2. Código para a página PÚBLICA
 
-Cole exatamente este bloco, substituindo `__RELEASE_BASE__` pelo caminho
-real da release copiada na seção 3 (sem barra final):
+Cole exatamente este bloco (ou copie direto do `.txt`), substituindo
+`__RELEASE_BASE__` pelo caminho real da release extraída na seção 3 (sem
+barra final):
 
 ```html
 <link rel="stylesheet" data-minijoomla-mse-layout href="__RELEASE_BASE__/host/spmiddle-layout/layout.css">
@@ -393,25 +373,83 @@ e arquivos), deixando o site pronto para seguir este manual desde o início.
    lista `MiniJoomla*` → Excluir, ou via `_api/web/lists(guid'<id>')` com
    `X-HTTP-Method: DELETE`). Isso remove todo o conteúdo editorial
    (artigos, categorias, tags, menus, módulos, extensões registradas,
-   templates registrados e a configuração do site).
+   templates registrados e a configuração do site). **Importante:** se o
+   site estiver sob política de retenção/preservação legal, o SharePoint
+   recusa excluir uma lista que ainda tenha itens — exclua primeiro todos
+   os itens de cada lista (um a um, ou via REST) e só depois a lista em si.
 2. **Excluir a pasta `SiteAssets/minijoomla/`** inteira (todas as releases
    publicadas, uploads de mídia, extensões/templates copiados). Isso remove
    o próprio pacote do MINIJOOMLA do site.
 3. As duas páginas `.aspx` (pública e administrativa) **podem ser
-   mantidas** — elas só contêm a webpart MSE com o snippet apontando para
+   mantidas** — elas só contêm a webpart MSE com o código apontando para
    uma pasta de release que não existirá mais. Ao reabrir essas páginas
-   depois da seção 3 em diante (nova pasta de release publicada
-   com o mesmo ou outro número de versão, e o snippet atualizado para
-   apontar para ela), o fluxo de instalação recomeça normalmente. Se
-   preferir, você também pode excluir e recriar as páginas — ambos os
-   caminhos funcionam, mas não é necessário.
+   depois da seção 3 em diante (nova pasta de release extraída, com o
+   mesmo ou outro número de versão, e o código atualizado para apontar
+   para ela), o fluxo de instalação recomeça normalmente. Se preferir,
+   você também pode excluir e recriar as páginas — ambos os caminhos
+   funcionam, mas não é necessário.
 4. Depois de excluir, a página administrativa (se reaberta antes de
    publicar uma nova release) mostrará "Não foi possível carregar o host do
-   MINIJOOMLA." (porque o `host.js`/`loader.js` apontados pelo snippet não
+   MINIJOOMLA." (porque o `host.js`/`loader.js` apontados pelo código não
    existem mais) — isso é esperado até você republicar o pacote e, se
-   necessário, atualizar o `__RELEASE_BASE__` do snippet para a nova pasta.
+   necessário, atualizar o `__RELEASE_BASE__` do código para a nova pasta.
 
 Não há "lixeira lógica" própria do MINIJOOMLA para listas/arquivos — a
 exclusão usa a lixeira nativa do SharePoint (recuperável por um tempo
 padrão da plataforma, como qualquer exclusão do SharePoint), mas o
 MINIJOOMLA em si não oferece desfazer essa operação.
+
+## 9. Avançado: montar o pacote manualmente, sem o `.zip`
+
+Esta seção é só para quem quer entender exatamente o que o `.zip` da seção
+2 contém internamente, integrar a geração do pacote a um pipeline de
+publicação próprio, ou depurar um problema — **não é necessária para uma
+instalação normal**, que termina na seção 3.
+
+`scripts/stage-installation-zip.js` (usado na seção 2.2) é apenas uma casca
+fina sobre `scripts/stage-generic-installation.js`, que monta o pacote
+completo em uma pasta local (em vez de um `.zip`):
+
+```powershell
+cd minijoomla
+node scripts/stage-generic-installation.js --version 0.17.1 --output tmp/instalacao-generica-0.17.1
+```
+
+Isso gera `tmp/instalacao-generica-0.17.1/` com a seguinte estrutura —
+exatamente o que acabaria dentro de `minijoomla/releases/0.17.1/` no `.zip`
+da seção 2:
+
+```
+instalacao-generica-0.17.1/
+  host/
+    host.js
+    loader.js
+    installation-context.js
+    mse-layout.js
+    spmiddle-layout/
+      layout.js
+      layout.css
+      spmiddle-mse-host.js
+    public-snippet.html
+    administrator-snippet.html
+    admin.scoped.css
+  installation-entrypoints.json
+  ... (núcleo, administração, templates, módulos/plugins nativos, vendor
+       do SPMIDDLE, TinyMCE etc. -- o mesmo pacote gerado por
+       scripts/stage-release.js --target all, mais os quatro arquivos do
+       host genérico e os dois snippets)
+```
+
+Para publicar manualmente, envie **todo** esse conteúdo para
+`SiteAssets/minijoomla/releases/0.17.1/` no site de destino (pela interface
+web do SharePoint, arrastando a árvore de pastas, ou por sincronização
+OneDrive/Explorer) e siga as seções 4-8 normalmente — os códigos do MSE
+(seção 5) são os mesmos, só que sem o `.txt` pronto; use os blocos
+mostrados na própria seção 5, substituindo `__RELEASE_BASE__` manualmente.
+
+`scripts/stage-release.js --target all|site|core` (sem o `stage-generic-installation.js`)
+monta só o núcleo, sem os quatro arquivos do host MSE nem os snippets —
+útil para quem for compor um pacote de publicação diferente (por exemplo,
+via `scripts/deploy-sharepoint.mjs`, que publica direto no tenant por uma
+sessão de navegador autenticada, em vez de gerar arquivos para envio
+manual; documentado nos comentários do próprio script, não neste manual).

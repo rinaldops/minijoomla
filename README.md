@@ -1,9 +1,12 @@
 # MINIJOOMLA
 
-> **Manual de instalação em um site SharePoint novo (11/11/2026):** passo a
-> passo completo — copiar o pacote, criar as duas páginas `.aspx` com a
-> webpart Modern Script Editor, o código exato para cada página (site vs.
-> painel) e a instalação inicial pelo próprio painel.
+> **Manual de instalação em um site SharePoint novo (12/11/2026):** caminho
+> recomendado por pacote `.zip` pronto (gerado por
+> `node scripts/stage-installation-zip.js --version X.Y.Z`): enviar o
+> arquivo para SiteAssets, extrair, colar o código já pronto incluído no
+> `.txt` do próprio pacote nas duas páginas `.aspx` (site e painel) e
+> concluir a instalação inicial pelo próprio painel — sem exigir Node.js,
+> Git ou linha de comando de quem for instalar.
 > [Manual completo](docs/MANUAL-INSTALACAO-SHAREPOINT.md).
 
 > **Produto genérico Joomla-like:** distribuir o núcleo e bootstrap MSE para

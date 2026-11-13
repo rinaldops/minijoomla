@@ -10,6 +10,7 @@
     "check": "node scripts/check-syntax.js",
     "release:check": "node scripts/release-check.js",
     "release:stage": "node scripts/stage-release.js",
+    "release:zip": "node scripts/stage-installation-zip.js",
     "test:release-stage": "node tests/release-stage.test.js",
     "test:standalone-examples": "node scripts/test-standalone-examples.js",
     "test:admin-layout": "node scripts/test-admin-layout.js"

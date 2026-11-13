@@ -12,6 +12,7 @@ export const TEST_SUITES = Object.freeze([
   ['installation-service.test.js', 'runInstallationServiceTests'],
   ['sharepoint-installation.test.js', 'runSharePointInstallationTests', true],
   ['generic-installation-package.test.js', 'runGenericInstallationPackageTests', true],
+  ['installation-zip.test.js', 'runInstallationZipTests', true],
   ['generic-installation-host.test.js', 'runGenericInstallationHostTests', true],
   ['installation-config-continuity.test.js', 'runInstallationConfigContinuityTests'],
   ['sharepoint-media-folder.test.js', 'runSharePointMediaFolderTests'],

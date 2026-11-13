@@ -14,7 +14,7 @@ const OPTIONAL_FILES = [
   'site-runtime.test.js', 'component-options-runtime.test.js',
   'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js',
   'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js',
-  'sharepoint-installation.test.js', 'generic-installation-package.test.js', 'generic-installation-host.test.js', 'installed-template-params-spmiddle.test.js', 'operational-upgrade-stage.test.js'
+  'sharepoint-installation.test.js', 'generic-installation-package.test.js', 'generic-installation-host.test.js', 'installation-zip.test.js', 'installed-template-params-spmiddle.test.js', 'operational-upgrade-stage.test.js'
 ];
 
 function put(path, content) {
