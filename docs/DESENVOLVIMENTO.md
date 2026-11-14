@@ -50,6 +50,14 @@ A suite completa permanece pendente de uma execucao sem timeout; nao tratar
 esse resultado como aprovacao integral nem alterar o runtime para mascara-lo.
 Esses gates locais nao comprovam publicacao ou aceite em SharePoint.
 
+Na execução posterior da **0.17.8**, `npm test` terminou com **125 suítes
+aprovadas, zero skips e zero falhas**, incluindo `runner.test.js`, sem alterar
+o runner ou seu timeout. Essa execução encerra a pendência de repetição acima,
+sem apagar o resultado histórico da consolidação documental. A correção do
+carregamento está descrita em [instalação](INSTALACAO.md#carregamento-de-um-site-já-instalado-0178),
+e a compatibilidade dos títulos em [extensões](EXTENSOES.md). Permanecem os
+limites de aceite visual, assistivo e de primeira instalação real.
+
 ---
 
 <a id="local-demo"></a>

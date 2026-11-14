@@ -107,6 +107,43 @@ mount deve produzir alerta, não uma reinstalação automática. Erro em
 idempotente e remover somente listeners, timers e recursos pertencentes à
 instância; navegação ou cleanup não autorizam novas escritas.
 
+### Carregamento de um site já instalado (0.17.8)
+
+O bootstrap genérico continua verificando a configuração e as listas no servidor
+a cada recarga. Antes de conhecer o resultado, mostra apenas **Carregando o site…**
+ou **Carregando o painel…**, conforme o contêiner da página; não apresenta título,
+formulários ou instruções de instalação durante essa espera. O mesmo estado
+neutro permanece enquanto as dependências e a aplicação são montadas depois de
+`installed`. A tela de instalação só aparece após uma inspeção que realmente
+indique destino ausente, parcial, bloqueado ou indisponível.
+
+Não há marcador local de “já instalado” nem bypass de `inspect()`, diário,
+configuração ou verificação de extensões. Falha resolvida continua explícita,
+sem reinstalação ou escrita automática. A mudança é de apresentação: o título
+de instalação era renderizado incondicionalmente antes de cada inspeção e
+permanecia durante a abertura do aplicativo.
+
+Regressões: `tests/installation-view.test.js` mantém a inspeção e o mount
+pendentes para conferir o estado intermediário em ambas as páginas;
+`scripts/test-generic-installation-host.js` verifica o histórico inteiro de
+renders, inclusive web raiz e navegador sem diário, além de preservar a
+instalação real por confirmação no fixture vazio. Os oito grupos do host
+staged, a view, os módulos e a administração de extensões passaram. A sintaxe
+passou para 364 arquivos; `npm test` da 0.17.8 terminou com **125 suítes
+aprovadas, zero skips e zero falhas**. A revisão independente não encontrou
+problemas bloqueantes. `npm run release:check` passou no escopo estrutural
+local, sem conceder aprovação pública ou visual.
+
+No site autorizado, 262 arquivos da release 0.17.8 foram publicados em pasta
+nova e conferidos por SHA-256; ambas as páginas foram atualizadas com comparação
+do conteúdo anterior e ETag exata. Uma nova execução transitória do host
+publicado, via FIORI-AUTO, registrou os estados intermediários de site e painel:
+carregamento neutro presente, tela de instalação ausente e aplicativo montado.
+O título salvo do módulo `articles` continuou correto. Listas e conteúdo não
+foram alterados; capturas ficaram em `tmp/`, mas não puderam ser revisadas por
+este modelo. Esta conferência funcional não equivale a aceite visual integral
+nem a novo aceite de instalação inicial.
+
 ## Engine e plano de instalação
 
 A engine pura é

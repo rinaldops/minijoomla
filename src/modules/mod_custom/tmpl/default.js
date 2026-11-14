@@ -9,7 +9,7 @@ export const customHtmlModule = {
     const status = stateMessage(state, message); if (status) return status;
     const html = sanitizeHtml(settings?.html ?? '');
     if (!html.trim()) return '<p class="module-empty" role="status">Nenhum conteúdo configurado.</p>';
-    const displayedTitle = settings?.title || chrome.moduleTitle;
+    const displayedTitle = settings?.title === '' ? '' : settings?.title || chrome.moduleTitle;
     const title = displayedTitle ? heading(displayedTitle, { ...chrome, moduleTitle: displayedTitle }) : '';
     return `<section class="module module-custom-html">${title}<div class="custom-html">${html}</div></section>`;
   }

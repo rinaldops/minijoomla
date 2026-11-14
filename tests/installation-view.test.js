@@ -1,10 +1,37 @@
 import assert from 'node:assert/strict';
-import { renderInstallationPage, mountInstallationPage } from '../src/installation/template.js';
+import { renderApplicationLoading, renderInstallationPage, mountInstallationPage } from '../src/installation/template.js';
 import { createInstallationJournal } from '../src/libraries/minijoomla/infrastructure/installation-journal.js';
 import { createConfig } from '../src/libraries/minijoomla/core/config.js';
 import { startInstallationProgress } from '../src/installation/progress.js';
 
 export async function runInstallationViewTests() {
+  const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+  for (const publicView of [true, false]) {
+    const inspection = deferred(), startup = deferred(), started = deferred();
+    const history = [];
+    const loadingRoot = { html: '', isConnected: true, querySelector: () => null, get innerHTML() { return this.html; }, set innerHTML(value) { this.html = value; history.push(value); } };
+    const configuration = { webUrl: '/sites/example' };
+    let installCalls = 0;
+    const mounting = mountInstallationPage({ root: loadingRoot, publicView, documentRef: { body: {}, documentElement: {} },
+      service: { inspect: () => inspection.promise, install: async () => { installCalls++; } },
+      onInstalled: async value => { assert.equal(value, configuration); started.resolve(); await startup.promise; loadingRoot.innerHTML = '<p>CMS loaded</p>'; }
+    });
+    assert.equal(loadingRoot.innerHTML, renderApplicationLoading({ publicView }));
+    inspection.resolve({ status: 'installed', configuration });
+    await started.promise;
+    assert.equal(loadingRoot.innerHTML, renderApplicationLoading({ publicView }), 'application imports must not leave the installer visible');
+    assert.ok(history.every(html => !/Instalação do MINIJOOMLA|Verificando a instalação|data-install-form|data-install-progress-panel|O administrador deve/.test(html)));
+    startup.resolve(); (await mounting).stop();
+    assert.equal(installCalls, 0, 'normal loading never starts installation');
+
+    const absent = deferred();
+    const absentRoot = { innerHTML: '', isConnected: true, querySelector: () => null };
+    const awaitingAbsent = mountInstallationPage({ root: absentRoot, publicView, documentRef: { body: {}, documentElement: {} }, service: { inspect: () => absent.promise, install: async () => {} } });
+    assert.equal(absentRoot.innerHTML, renderApplicationLoading({ publicView }));
+    absent.resolve({ status: 'ready' }); (await awaitingAbsent).stop();
+    assert.ok(absentRoot.innerHTML.includes('Instalação do MINIJOOMLA'));
+    assert.equal(absentRoot.innerHTML.includes('data-install-form'), !publicView, 'installer appears only after server assessment, with admin-only confirmation');
+  }
   const ready = renderInstallationPage({ status: 'ready', message: '<safe>', plan: { lists: [{ title: 'Articles <&', exists: false }] } });
   assert.ok(ready.includes('data-install-form') && ready.includes('name="confirmed" required'));
   assert.ok(ready.includes('&lt;safe&gt;') && ready.includes('Articles &lt;&amp;'));
@@ -53,6 +80,15 @@ export async function runInstallationViewTests() {
   await mountInstallationPage({root:failedRoot,documentRef:{body:{},documentElement:{}},service:{inspect:async()=>({status:'installed',configuration:{}}),install:async()=>{throw Error('Must not install');}},onInstalled:async()=>{throw Error('Missing application resource');}});
   assert.ok(failedRoot.innerHTML.includes('role="alert"')&&failedRoot.innerHTML.includes('Não reinstale'));
   assert.ok(!failedRoot.innerHTML.includes('data-install-form'));
+  {
+    const startup = deferred(), started = deferred(); let installSubmit;
+    const installForm = { elements: { namedItem: name => ({ confirmed: { checked: true }, siteName: { value: 'Example' }, siteDescription: { value: '' } })[name] }, querySelector: () => ({ disabled: false }), addEventListener: (_, handler) => { installSubmit = handler; } };
+    const freshRoot = { innerHTML: '', isConnected: true, querySelector: selector => selector === '[data-install-form]' ? installForm : null };
+    const freshController = await mountInstallationPage({ root: freshRoot, documentRef: { body: {}, documentElement: {} }, service: { inspect: async () => ({ status: 'ready' }), install: async () => ({ status: 'installed', configuration: {} }) }, onInstalled: async () => { started.resolve(); await startup.promise; } });
+    const completing = installSubmit({ preventDefault() {} }); await started.promise;
+    assert.equal(freshRoot.innerHTML, renderApplicationLoading(), 'confirmed installation switches to CMS loading before awaiting app mount');
+    startup.resolve(); await completing; freshController.stop();
+  }
   let resetSubmit, resetCalls=0;
   const resetButton={disabled:false};
   const resetForm={elements:{namedItem:()=>({checked:true})},querySelector:()=>resetButton,addEventListener:(_,handler)=>{resetSubmit=handler;}};

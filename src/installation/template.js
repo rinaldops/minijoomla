@@ -1,6 +1,10 @@
 import { escapeHtml } from '../libraries/minijoomla/security/sanitize.js';
 import { renderInstallationProgress, startInstallationProgress } from './progress.js';
 
+export function renderApplicationLoading({ publicView = false } = {}) {
+  return `<section class="minijoomla-loading" aria-label="MINIJOOMLA" aria-busy="true"><p role="status" aria-live="polite">${publicView ? 'Carregando o site…' : 'Carregando o painel…'}</p></section>`;
+}
+
 export function renderInstallationPage(state = {}, { publicView = false } = {}) {
   const status = typeof state.status === 'string' ? state.status : 'unavailable';
   const canInstall = !publicView && (status === 'ready' || status === 'partial' && state.canResume === true);
@@ -37,6 +41,7 @@ export async function mountInstallationPage({ root, service, documentRef = globa
     progressController?.stop();
     active = false;
     globalThis.removeEventListener?.('pagehide', unload);
+    root.innerHTML = renderApplicationLoading({ publicView });
     try { await onInstalled(configuration); }
     catch {
       if (root.isConnected === false) return;
@@ -46,7 +51,7 @@ export async function mountInstallationPage({ root, service, documentRef = globa
   async function refresh(previousMessage) {
     if (!active || busy) return;
     const revision = ++generation;
-    root.innerHTML = renderInstallationPage({ status: 'unavailable', message: 'Verificando a instalação…' }, { publicView });
+    root.innerHTML = renderApplicationLoading({ publicView });
     const state = await service.inspect({ isCurrent: () => isCurrent(revision) });
     if (!isCurrent(revision)) return;
     if (state.status === 'installed' && typeof onInstalled === 'function') { await transition(state.configuration); return; }
@@ -96,6 +101,7 @@ export async function mountInstallationPage({ root, service, documentRef = globa
     if (!active) return;
     const status = root.querySelector?.('[data-install-status]');
     if (status) status.textContent = 'Instalação interrompida. Verifique o diário e o destino; não há repetição automática.';
+    else root.innerHTML = '<section class="minijoomla-loading" role="alert"><p>Não foi possível carregar o MINIJOOMLA. Recarregue a página para verificar novamente. Nenhuma instalação foi iniciada automaticamente.</p></section>';
     const form = root.querySelector?.('[data-install-form]');
     if (form) form.querySelector('button[type="submit"]').disabled = true;
   }

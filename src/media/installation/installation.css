@@ -1,4 +1,4 @@
-.minijoomla-installation{box-sizing:border-box;max-width:48rem;padding:1.5rem;margin:1rem auto;background:#fff;color:#222;border:1px solid #dfe3e7;overflow-wrap:anywhere;font-family:Arial,sans-serif}
+.minijoomla-installation,.minijoomla-loading{box-sizing:border-box;max-width:48rem;padding:1.5rem;margin:1rem auto;background:#fff;color:#222;border:1px solid #dfe3e7;overflow-wrap:anywhere;font-family:Arial,sans-serif}
 .minijoomla-installation [data-install-progress-panel]{padding:1rem;margin:1rem 0;border:2px solid #006db3;background:#f3f7fb}
 .minijoomla-installation [data-install-progress-panel][hidden]{display:none}
 .minijoomla-installation progress{display:block;width:100%;height:1.5rem;accent-color:#006db3}

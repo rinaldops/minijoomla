@@ -175,8 +175,9 @@ com espaços conserva o cabeçalho padrão para chamadas legadas. Duas instânci
 do mesmo tipo mantêm títulos independentes; nenhuma leitura regrava dados.
 
 O HTML personalizado conserva seu parâmetro explícito `settings.title`; quando
-ausente, usa o título da instância. Módulos sem cabeçalho e renderers externos
-não recebem cabeçalhos extras automaticamente.
+ausente, usa o título da instância. Desde 0.17.8, título explicitamente vazio
+continua ocultando esse cabeçalho, preservando o contrato anterior. Módulos sem
+cabeçalho e renderers externos não recebem cabeçalhos extras automaticamente.
 
 A causa da falha era a perda do título em `resolveModuleEntries()` e no registry,
 levando `mod_articles` a renderizar sempre o literal `Artigos`. A regressão cobre
@@ -192,9 +193,12 @@ SHA-256 após publicação. Validação funcional via FIORI-AUTO/DOM, sem altera
 listas ou conteúdo. Capturas foram geradas, mas não puderam ser revisadas por
 este modelo; não há aceite visual/assistivo integral por essa conferência.
 Os testes focados de módulos, runtime público, carregamento dinâmico e módulos
-Joomla passaram; a sintaxe passou para 364 arquivos. A execução completa de
-`npm test` ainda estava em andamento no fechamento deste incremento; seu
-resultado não é substituído pelos testes focados.
+Joomla passaram; a sintaxe passou para 364 arquivos. A execução completa posterior
+da 0.17.7 registrou 124 suítes aprovadas e uma falha: o título vazio explícito
+do HTML personalizado não podia virar fallback. Essa compatibilidade foi
+restabelecida na 0.17.8 sem afrouxar a asserção existente, com regressão adicional.
+A nova execução completa da 0.17.8 passou: **125 suítes aprovadas, zero skips
+e zero falhas**, incluindo a administração de extensões e o runtime dos módulos.
 
 ### Parsing estrito (correcao P0) e tolerancia publica
 

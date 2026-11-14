@@ -22,12 +22,12 @@ const valueOf = attributes => decode(attributes.match(/\bvalue="([^"]*)"/)?.[1] 
 function documentContract(kind, release) {
   const styles = [], listeners = new Map();
   const root = {
-    textContent: '', attributes: {}, isConnected: true, html: '', forms: new Map(),
+    textContent: '', attributes: {}, isConnected: true, html: '', history: [], forms: new Map(),
     matches: selector => selector === `[data-minijoomla-${kind === 'admin' ? 'admin-root' : 'site'}]`,
     setAttribute(name, value) { this.attributes[name] = value; },
     get innerHTML() { return this.html; },
     set innerHTML(html) {
-      this.html = html; this.forms.clear();
+      this.html = html; this.history.push(html); this.forms.clear();
       for (const match of html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/g)) {
         const key = /\bdata-install-form\b/.test(match[1]) ? '[data-install-form]' : /\bdata-admin-form\b/.test(match[1]) ? '[data-admin-form]' : null;
         if (!key) continue;
@@ -209,6 +209,11 @@ export async function verifyGenericInstallationHost(rootPath) {
   const manifest = JSON.parse(readFileSync(join(rootPath, 'manifest.json'), 'utf8'));
   assert.equal(manifest.target, 'all');
   const inventory = new Set(manifest.files.map(file => file.path));
+  function normalLoading(host, kind) {
+    const history = host.document.root.history;
+    assert.ok(history.some(html => html.includes(kind === 'site' ? 'Carregando o site…' : 'Carregando o painel…')), 'CMS loading is explicit');
+    assert.ok(history.every(html => !/Instalação do MINIJOOMLA|Verificando a instalação|data-install-form|data-install-progress-panel|O administrador deve/.test(html)), 'installed reload never briefly renders an installer');
+  }
   function unchanged() { for (const file of manifest.files) { const bytes = readFileSync(join(rootPath, file.path)); assert.equal(bytes.length, file.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'), file.sha256, file.path); } }
   unchanged();
   assert.match(readFileSync(join(rootPath, 'host/host.js'), 'utf8'), /const PRECONFIGURED = \/\* MINIJOOMLA_CONFIG \*\/ null;/);
@@ -216,10 +221,12 @@ export async function verifyGenericInstallationHost(rootPath) {
   const server = serverFixture();
   const admin = await loadHost(rootPath, inventory, server, storage, 'admin');
   const form = admin.document.root.querySelector('[data-install-form]'); assert.ok(form);
+  assert.match(admin.document.root.history[0], /Carregando o painel/);
   assert.match(admin.document.root.innerHTML, /Confirmação explícita necessária/);
   assert.equal(writes(server).length, 0); assert.equal(values.size, 0);
   const publicMissing = await loadHost(rootPath, inventory, server, storage, 'site');
   assert.match(publicMissing.document.root.innerHTML, /administrador deve concluir/);
+  assert.match(publicMissing.document.root.history[0], /Carregando o site/);
   assert.equal(publicMissing.document.root.querySelector('[data-install-form]'), null);
   assert.equal(writes(server).length, 0); assert.equal(values.size, 0);
   console.log('ok - generic host: administrator/public missing bootstrap is readonly; public has no install action');
@@ -240,18 +247,28 @@ export async function verifyGenericInstallationHost(rootPath) {
   console.log('ok - generic host: actual installation form requires confirmation, creates eight empty lists/configuration and durable strong-ETag receipts');
   const saved = plain([...server.lists]), stored = new Map(values), count = mutations.length;
   const reloaded = await loadHost(rootPath, inventory, server, storage, 'admin');
+  normalLoading(reloaded, 'admin');
   assert.match(reloaded.document.root.innerHTML, /Painel de controle/); assert.equal(writes(server).length, count);
   await reloaded.navigate('#/media');
   assert.match(reloaded.document.root.innerHTML, /data-ext-upload/); assert.match(reloaded.document.root.innerHTML, /Nenhum arquivo/);
   assert.ok(server.calls.some(call => decodeURIComponent(call.url).includes(`${LIBRARY}/uploads`) && call.method === 'GET'));
   assert.equal(writes(server).length, count, 'Reading missing media folder never provisions it');
   const site = await loadHost(rootPath, inventory, server, storage, 'site');
+  normalLoading(site, 'site');
   assert.match(site.document.root.innerHTML, /data-template="cassiopeia"/);
   assert.match(site.document.root.innerHTML, /Portal genérico instalado|Nenhum artigo/);
   assert.doesNotMatch(site.document.root.innerHTML, /Bem-vindo ao MINIJOOMLA|Artigos recentes|camap-hero|Destaque CAMAP|Organize o seu portal/);
   assert.equal(site.document.root.lang, 'pt-BR');
   for (const suffix of ['infrastructure/spmiddle-schemas.js', 'application/installation-service.js', 'infrastructure/sharepoint-installation.js', 'composition/createMiniJoomlaAdminApp.js', 'application/admin-service.js', 'composition/mountMiniJoomlaSite.js', 'vendor/spmiddle/sharepoint-rest-browser/src/index.js', 'vendor/spmiddle/data-core/src/index.js']) assert.ok([...admin.loaded.keys(), ...site.loaded.keys()].some(url => url.endsWith(suffix)), `Actual staged module evaluated: ${suffix}`);
   assert.deepEqual(plain([...server.lists]), saved); assert.deepEqual(values, stored); assert.equal(writes(server).length, count);
+  for (const kind of ['admin', 'site']) {
+    const freshValues = new Map();
+    const freshStorage = { getItem: key => freshValues.get(key) ?? null, setItem: (key, value) => freshValues.set(key, String(value)), removeItem: key => freshValues.delete(key) };
+    const fresh = await loadHost(rootPath, inventory, server, freshStorage, kind);
+    normalLoading(fresh, kind);
+    assert.equal(freshValues.size, 0, 'installed startup needs no cached installation marker');
+    assert.equal(writes(server).length, count, 'fresh-browser installed startup remains read-only');
+  }
   console.log('ok - generic host: readonly admin reload/media and public empty Cassiopeia use actual staged repositories, no sample data/hero');
   for (const mode of ['missing', 'corrupt']) {
     const blocked = serverFixture(); blocked.seedAll(); if (mode === 'corrupt') blocked.config = { broken: true };
@@ -299,8 +316,10 @@ export async function verifyGenericInstallationHost(rootPath) {
   assert.equal(rootServer.lists.size, 8); assert.equal(rootServer.config.webUrl, '/'); assert.equal(rootServer.config.libraryPath, '/SiteAssets/minijoomla');
   const rootCount = writes(rootServer).length, rootSaved = new Map(rootValues);
   const rootReload = await loadHost(rootPath, inventory, rootServer, rootStorage, 'admin');
+  normalLoading(rootReload, 'admin');
   await rootReload.navigate('#/media'); assert.match(rootReload.document.root.innerHTML, /data-ext-upload/); assert.match(rootReload.document.root.innerHTML, /Nenhum arquivo/);
   const rootSite = await loadHost(rootPath, inventory, rootServer, rootStorage, 'site');
+  normalLoading(rootSite, 'site');
   assert.match(rootSite.document.root.innerHTML, /data-template="cassiopeia"/); assert.match(rootSite.document.root.innerHTML, /Portal raiz/);
   assert.ok(rootServer.calls.every(call => call.url.startsWith('/_api/') && !call.url.includes('//')));
   assert.equal(writes(rootServer).length, rootCount); assert.deepEqual(rootValues, rootSaved);

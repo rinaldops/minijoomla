@@ -130,6 +130,7 @@ export async function runModuleRuntimeTests() {
   const customInstance = { name: 'custom-html', title: 'Instance title', position: 'sidebar', settings: { html: '<p>Body</p>' } };
   assert.ok(titledRegistry.renderPosition('sidebar', [customInstance]).includes('<h2>Instance title</h2>'));
   assert.ok(titledRegistry.renderPosition('sidebar', [{ ...customInstance, settings: { ...customInstance.settings, title: 'Explicit HTML title' } }]).includes('<h2>Explicit HTML title</h2>'), 'custom HTML retains its explicit displayed-title parameter');
+  assert.ok(!titledRegistry.renderPosition('sidebar', [{ ...customInstance, settings: { ...customInstance.settings, title: '' } }]).includes('Instance title'), 'an explicitly empty custom HTML title retains its historical suppression behavior');
   assert.ok(!titledRegistry.renderPosition('sidebar', [{ ...customInstance, showTitle: false }]).includes('Instance title'));
   console.log('ok - module titles: persisted instance title, separate instances, hidden headings, escaping, legacy fallback and custom HTML precedence');
 

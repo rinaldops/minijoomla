@@ -6,7 +6,7 @@ Não é distribuição oficial nem equivalência integral ao Joomla/PHP. O objet
 uma distribuição independente, não uma aplicação corporativa; temas corporativos
 são extensões opcionais, nunca requisitos do núcleo.
 
-A versão da fonte em `package.json` é **0.17.6**. Isso não certifica qual release
+A versão da fonte em `package.json` é **0.17.8**. Isso não certifica qual release
 está ativa em um site remoto. O [estado e limites](docs/ESTADO.md)
 distingue implementação, validações históricas e trabalho ainda pendente.
 

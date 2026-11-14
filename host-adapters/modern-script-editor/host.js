@@ -125,7 +125,7 @@ async function mountGenericInstallation(root) {
     const preflight=createInstallationPreflight({context,releaseUrl});
     // Show a disabled installer when a copied vendor module is missing. Native
     // imports cannot be aborted: bound waiting and offer an explicit retry.
-    root.innerHTML='<section class="minijoomla-installation"><h1>Instalação do MINIJOOMLA</h1><p role="status" aria-live="polite">Verificando os módulos obrigatórios da release…</p></section>';
+    root.innerHTML=`<section class="minijoomla-loading" aria-label="MINIJOOMLA" aria-busy="true"><p role="status" aria-live="polite">${root.matches(SITE_ROOT)?'Carregando o site…':'Carregando o painel…'}</p></section>`;
     let dependencies, importTimer;
     try {
     dependencies=await Promise.race([Promise.all([
