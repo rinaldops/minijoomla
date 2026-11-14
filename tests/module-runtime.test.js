@@ -4,6 +4,15 @@ import { createModuleRegistry } from '../src/libraries/minijoomla/modules/regist
 import { createPluginManager } from '../src/libraries/minijoomla/plugins/manager.js';
 import { resolveActiveMenuItemId } from '../src/libraries/minijoomla/application/module-assignment.js';
 import { articlesLatestModule } from '../src/modules/mod_articles_latest/mod_articles_latest.js';
+import { articlesModule } from '../src/modules/mod_articles/mod_articles.js';
+import { articlesNewsModule } from '../src/modules/mod_articles_news/mod_articles_news.js';
+import { articlesFeaturedModule } from '../src/modules/mod_articles_featured/mod_articles_featured.js';
+import { articlesArchiveModule } from '../src/modules/mod_articles_archive/mod_articles_archive.js';
+import { articlesCategoriesModule } from '../src/modules/mod_articles_categories/mod_articles_categories.js';
+import { relatedItemsModule } from '../src/modules/mod_related_items/mod_related_items.js';
+import { tagsPopularModule } from '../src/modules/mod_tags_popular/mod_tags_popular.js';
+import { tagsSimilarModule } from '../src/modules/mod_tags_similar/mod_tags_similar.js';
+import { loginModule } from '../src/modules/mod_login/mod_login.js';
 import { customHtmlModule } from '../src/modules/mod_custom/mod_custom.js';
 import { MODULE_ADVANCED_PARAMS } from '../src/libraries/minijoomla/application/module-catalog.js';
 import { createApplication } from '../src/index.js';
@@ -81,6 +90,48 @@ export async function runModuleRuntimeTests() {
   assert.ok(customWithTitle.includes('<h4 class="bar">Aviso</h4>'));
   const customNoTitleShown = customHtmlModule.render({ settings: { title: 'Aviso', html: '<p>Oi</p>' }, showTitle: false });
   assert.ok(!customNoTitleShown.includes('Aviso'));
+
+  // Persisted instance titles reach native headings without becoming type settings.
+  const articles = [{ alias: 'example', title: 'Article body' }];
+  const instances = [
+    { extensionKey: 'articles', title: 'Older Posts', position: 'bottom-b', showTitle: true, ordering: 1, settingsJson: '{"limit":6,"headerTag":"h3","headerClass":"instance-heading"}' },
+    { extensionKey: 'articles', title: 'Notícias <&>', position: 'bottom-b', showTitle: true, ordering: 2 },
+    { extensionKey: 'articles', title: 'Hidden instance', position: 'bottom-b', showTitle: false, ordering: 3 }
+  ];
+  const snapshot = JSON.stringify(instances);
+  const titledEntries = resolveModuleEntries(instances)['bottom-b'];
+  assert.equal(titledEntries[0].title, 'Older Posts');
+  assert.deepEqual(titledEntries[0].settings, { limit: 6 });
+  const titledRegistry = createModuleRegistry().register('articles', articlesModule).register('custom-html', customHtmlModule);
+  const titledHtml = titledRegistry.renderPosition('bottom-b', titledEntries, { articles });
+  assert.ok(titledHtml.includes('<h3 class="instance-heading">Older Posts</h3>'));
+  assert.ok(titledHtml.includes('<h2>Notícias &lt;&amp;&gt;</h2>'));
+  assert.ok(!titledHtml.includes('Hidden instance') && !titledHtml.includes('<h2>Artigos</h2>'));
+  assert.equal(JSON.stringify(instances), snapshot, 'rendering must not change saved titles or settings');
+  for (const title of [undefined, null, '', '   ', 42]) {
+    const fallback = titledRegistry.renderPosition('sidebar', [{ name: 'articles', position: 'sidebar', title }], { articles, moduleTitle: 'Unrelated context' });
+    assert.ok(fallback.includes('<h2>Artigos</h2>'), 'missing/invalid titles preserve the historical type heading, never another instance title');
+  }
+  const article = { alias: 'example', title: 'Article body', tags: ['tag'], state: 'Published', publishUp: '2026-01-01' };
+  for (const [module, context] of [
+    [articlesLatestModule, { articles: [article] }],
+    [articlesNewsModule, { featuredArticles: [article] }],
+    [articlesFeaturedModule, { featuredArticles: [article] }],
+    [articlesArchiveModule, { months: [{ year: 2026, month: 1, count: 1 }] }],
+    [articlesCategoriesModule, { categories: [{ id: 1, title: 'Category', alias: 'category' }] }],
+    [relatedItemsModule, { article: { alias: 'other', tags: ['tag'] }, articles: [article] }],
+    [tagsPopularModule, { tags: [{ name: 'tag', count: 1 }] }],
+    [tagsSimilarModule, { similarArticles: [article] }],
+    [loginModule, { session: { name: 'Test' } }]
+  ]) {
+    assert.ok(module.render({ ...context, moduleTitle: 'Instance <&>' }).includes('<h2>Instance &lt;&amp;&gt;</h2>'), `${module.name} shares the escaped instance-title contract`);
+    assert.ok(!module.render({ ...context, moduleTitle: 'Instance <&>', showTitle: false }).includes('Instance'), `${module.name} hides the instance title`);
+  }
+  const customInstance = { name: 'custom-html', title: 'Instance title', position: 'sidebar', settings: { html: '<p>Body</p>' } };
+  assert.ok(titledRegistry.renderPosition('sidebar', [customInstance]).includes('<h2>Instance title</h2>'));
+  assert.ok(titledRegistry.renderPosition('sidebar', [{ ...customInstance, settings: { ...customInstance.settings, title: 'Explicit HTML title' } }]).includes('<h2>Explicit HTML title</h2>'), 'custom HTML retains its explicit displayed-title parameter');
+  assert.ok(!titledRegistry.renderPosition('sidebar', [{ ...customInstance, showTitle: false }]).includes('Instance title'));
+  console.log('ok - module titles: persisted instance title, separate instances, hidden headings, escaping, legacy fallback and custom HTML precedence');
 
   // 10. ensurePluginsRegistered: ordem de execução real respeita `ordering` persistido, independente da ordem de conclusão dos imports concorrentes.
   const callOrder = [];
@@ -322,5 +373,5 @@ export async function runModuleRuntimeTests() {
   assert.deepEqual(headerTagField.options.map((option) => option.value), ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'p']);
 
   console.log('ok - MODULE_ADVANCED_PARAMS.headerTag options match exactly the 9 tags accepted by admin-service validation and the public runtime allowlist (h1/p were missing from the UI)');
-  console.log('module runtime: 12 testes aprovados');
+  console.log('module runtime: 13 grupos de testes aprovados');
 }

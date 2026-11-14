@@ -279,7 +279,7 @@ export function resolveModuleEntries(moduleInstances, scope = {}, now = new Date
     const { showTitle } = row;
     const { moduleClass, headerTag, headerClass, settings } = chromeAndSettings(row.settingsJson);
     byPosition[position].push({
-      name: row.extensionKey, position, order: Number(row.ordering) || 0, settings,
+      name: row.extensionKey, title: row.title, position, order: Number(row.ordering) || 0, settings,
       showTitle: showTitle === false ? false : true, moduleClass, headerTag, headerClass
     });
   }

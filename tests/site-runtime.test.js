@@ -314,9 +314,9 @@ export async function runSiteRuntimeTests() {
   assert.match(beforeModuleEdit, /Artigos recentes/);
   assert.doesNotMatch(beforeModuleEdit, /Artigos recentes — editado/);
   const moduleToEdit = await e2eAdmin.moduleInstances.get(1);
-  await e2eAdmin.moduleInstances.update(1, { settings: { ...JSON.parse(moduleToEdit.settingsJson ?? '{}'), headerTag: 'h3' } }, { etag: moduleToEdit.etag });
+  await e2eAdmin.moduleInstances.update(1, { title: 'Artigos recentes — editado', settings: { ...JSON.parse(moduleToEdit.settingsJson ?? '{}'), headerTag: 'h3' } }, { etag: moduleToEdit.etag });
   const afterModuleEdit = await renderE2EHome();
-  assert.match(afterModuleEdit, /<h3[^>]*>Artigos recentes<\/h3>/, 'headerTag persisted via admin ETag must be visible on the public re-render, not just stored');
+  assert.match(afterModuleEdit, /<h3[^>]*>Artigos recentes — editado<\/h3>/, 'instance title and headerTag persisted via admin ETag must be visible on the public re-render, not just stored');
   // A stale ETag (captured before the edit above) must now be rejected, never silently overwrite.
   await assert.rejects(() => e2eAdmin.moduleInstances.update(1, { title: 'Conflito' }, { etag: moduleToEdit.etag }), { code: 'concurrency-conflict' });
 
@@ -328,7 +328,7 @@ export async function runSiteRuntimeTests() {
   const afterStyleEdit = await renderE2EHome();
   assert.match(afterStyleEdit, /Portal Editado/, 'template style param saved with ETag must be visible on the public re-render HTML');
 
-  console.log('ok - admin edit with real ETag (module headerTag, template style siteTitle) is visible end-to-end on a fresh public render, and a stale ETag on the same record is rejected');
+  console.log('ok - admin edit with real ETag (module title/headerTag, template style siteTitle) is visible end-to-end on a fresh public render, and a stale ETag on the same record is rejected');
 
    // Create a NEW module instance via the real admin service, confirm it
   // renders on the public home, then delete it through the real two-step

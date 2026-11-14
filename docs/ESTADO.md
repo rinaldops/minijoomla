@@ -83,7 +83,7 @@ separada do produto genérico; suas decisões e pendências são:
 
 ## Estado de implementação por área
 
-> `package.json` declara **0.17.6** na fonte local; isso não certifica qual
+> `package.json` declara **0.17.7** na fonte local; isso não certifica qual
 > release está ativa em um destino remoto — contagens de versão evoluem a
 > cada publicação e não devem ser propagadas como atuais sem reverificação.
 > Desde a convenção adotada em 11/11/2026, a versão do `package.json` deve

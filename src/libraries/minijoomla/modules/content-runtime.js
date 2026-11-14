@@ -19,13 +19,16 @@ const HEADER_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 
  * "Avançado" real do com_modules — ver module-catalog.js
  * MODULE_ADVANCED_PARAMS e dynamic-modules.js resolveModuleEntries, que
  * extrai esses três campos de settingsJson e os entrega aqui como
- * propriedades irmãs de `settings` no context). `headerTag` só aceita
+ * propriedades irmãs de `settings` no context). `moduleTitle` vem do título
+ * da instância, separado dos parâmetros do tipo; sem título válido, conserva
+ * o texto padrão fornecido pelo renderer. `headerTag` só aceita
  * uma allowlist fixa — nunca interpola uma tag arbitrária vinda de dados
  * persistidos sem essa validação, mesmo que já validada no painel.
  */
-export function heading(text, { showTitle = true, headerTag = 'h2', headerClass = '' } = {}) {
+export function heading(text, { moduleTitle, showTitle = true, headerTag = 'h2', headerClass = '' } = {}) {
   if (showTitle === false) return '';
   const tag = HEADER_TAGS.has(headerTag) ? headerTag : 'h2';
   const classAttr = headerClass ? ` class="${escapeHtml(headerClass)}"` : '';
-  return `<${tag}${classAttr}>${escapeHtml(text)}</${tag}>`;
+  const title = typeof moduleTitle === 'string' && moduleTitle.trim() ? moduleTitle : text;
+  return `<${tag}${classAttr}>${escapeHtml(title)}</${tag}>`;
 }

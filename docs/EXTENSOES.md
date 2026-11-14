@@ -164,6 +164,38 @@ permanece pendente**. Nao extrapolar contratos locais para aceite remoto.
   head/SEO do host. Defaults de instalacao (`siteName`, idioma, timezone) sao
   outro contrato, nao SEO.
 
+### Título da instância de módulo (0.17.7)
+
+Quando **Mostrar título** está habilitado, os módulos nativos que renderizam
+cabeçalho usam o campo **Título da instância**, não o nome do tipo. O resolver
+preserva `row.title` na entrada e o registry entrega `context.moduleTitle`,
+separado de `settings`; o helper `heading()` escapa o texto e continua respeitando
+`showTitle`, `headerTag` e `headerClass`. Título ausente, inválido, vazio ou só
+com espaços conserva o cabeçalho padrão para chamadas legadas. Duas instâncias
+do mesmo tipo mantêm títulos independentes; nenhuma leitura regrava dados.
+
+O HTML personalizado conserva seu parâmetro explícito `settings.title`; quando
+ausente, usa o título da instância. Módulos sem cabeçalho e renderers externos
+não recebem cabeçalhos extras automaticamente.
+
+A causa da falha era a perda do título em `resolveModuleEntries()` e no registry,
+levando `mod_articles` a renderizar sempre o literal `Artigos`. A regressão cobre
+resolver → registry → renderer, ocultação, escape, fallback e precedência do HTML
+personalizado em `tests/module-runtime.test.js`. `tests/site-runtime.test.js`
+agora grava realmente o título pelo serviço administrativo com ETag e comprova
+sua leitura por uma nova renderização pública, além de recusar ETag obsoleta.
+
+No site autorizado, a release 0.17.7 passou a exibir o título já salvo da
+instância `articles`, mantendo oculta a outra instância com `showTitle:false`.
+As duas páginas apontam para a mesma release; 262 arquivos foram conferidos por
+SHA-256 após publicação. Validação funcional via FIORI-AUTO/DOM, sem alterar
+listas ou conteúdo. Capturas foram geradas, mas não puderam ser revisadas por
+este modelo; não há aceite visual/assistivo integral por essa conferência.
+Os testes focados de módulos, runtime público, carregamento dinâmico e módulos
+Joomla passaram; a sintaxe passou para 364 arquivos. A execução completa de
+`npm test` ainda estava em andamento no fechamento deste incremento; seu
+resultado não é substituído pelos testes focados.
+
 ### Parsing estrito (correcao P0) e tolerancia publica
 
 Leituras/escritas administrativas de `componentParamsJson` e `templateStylesJson`

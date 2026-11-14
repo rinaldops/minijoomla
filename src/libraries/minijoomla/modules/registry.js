@@ -15,7 +15,7 @@ export function createModuleRegistry() {
         .map((entry) => {
           const html = this.render(entry.name, {
             ...context, settings: { ...this.settings(entry.name), ...(entry.settings ?? {}) },
-            showTitle: entry.showTitle, headerTag: entry.headerTag, headerClass: entry.headerClass
+            moduleTitle: entry.title, showTitle: entry.showTitle, headerTag: entry.headerTag, headerClass: entry.headerClass
           });
           return entry.moduleClass ? `<div class="module ${escapeHtml(entry.moduleClass)}">${html}</div>` : html;
         }).join('');
