@@ -1,6 +1,6 @@
 /*
  * PRIVATE, read-only migration preview. Reports contain exact persisted values:
- * do not log/publish them. See docs/CONTRATOS-EVOLUCAO-XML.md, section 4.
+ * do not log/publish them. See docs/CONTRATOS.md#evolução-xml--contratos-e-gates-aprovados, section 4.
  * `ready` means locally convertible, NOT approved to write or activate.
  * Only own JSON data is accepted (no accessors, toJSON, callbacks or proxies as
  * a supported input contract). XML is supplied as text, never a verified UI

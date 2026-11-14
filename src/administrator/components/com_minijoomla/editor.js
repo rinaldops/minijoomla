@@ -31,7 +31,7 @@
  *
  * Nunca carrega a biblioteca de um CDN externo em tempo de execução:
  * o tenant real tem Content-Security-Policy restrita por allowlist de
- * domínios (`script-src`) — ver docs/INTEGRATION-SPMIDDLE.md §10.1 —
+ * domínios (`script-src`) — ver docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto —
  * então a mesma origem de SiteAssets que já serve o resto do pacote
  * MINIJOOMLA também precisa servir estes arquivos. `vendorBaseUrl` é
  * sempre informado por quem monta a tela (nunca hardcoded aqui),

@@ -146,7 +146,7 @@ export const MiniJoomlaTemplates = defineListSchema({
     { internalName: 'Styles', displayName: 'Styles', type: 'MultilineText' },
     { internalName: 'PositionsJson', displayName: 'PositionsJson', type: 'MultilineText' },
     // Gap B (paramDefinitions declarados por um template instalado,
-    // ver TEMPLATE-INSTALL-CONTRACT.md §3): campo ausente até esta
+    // ver docs/TEMPLATES.md, parâmetros de estilo declarados): campo ausente até esta
     // iteração — admin-service.js's normalizeTemplateInput() já produzia
     // paramDefinitionsJson, mas o schema nunca o persistia, causando
     // falha silenciosa ao registrar qualquer template instalado com

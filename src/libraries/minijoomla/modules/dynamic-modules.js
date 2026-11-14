@@ -179,7 +179,7 @@ export function createExtensionLoader({ importModule = DEFAULT_IMPORT, onError =
 // TODOS os templates embutidos (ver tests/site-runtime.test.js, que itera
 // esta lista exigindo que `cassiopeia` renderize cada uma). Um
 // template INSTALADO (manifesto `<key>.manifest.json`, ver
-// docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar posições adicionais fora
+// docs/TEMPLATES.md#contrato-de-template-instalado-mecanismo-genérico) pode declarar posições adicionais fora
 // desta lista; `resolveModuleEntries()` abaixo aceita um parâmetro opcional
 // com as posições do template ATIVO (quando ele é um template instalado,
 // lidas de `positionsJson` da linha do catálogo) e passa a rotear módulos

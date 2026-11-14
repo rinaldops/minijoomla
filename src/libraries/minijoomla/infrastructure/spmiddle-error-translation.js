@@ -1,13 +1,13 @@
 /*
  * Tradução de erro de transporte -> erro de domínio (pendência registrada
- * em docs/INTEGRATION-SPMIDDLE.md §4 e docs/CHECKLIST-CONCLUSAO-MINIJOOMLA.md
+ * em docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto e docs/ESTADO.md#gates-atuais-de-publicação-e-distribuição
  * §4/§5). Qualquer falha do transporte REST ou do repositório (inclusive
  * `SharePointRestError`) se torna, para quem lê conteúdo, um único
  * `DataError` ("Falha ao consultar conteúdo"), com o erro original só em
  * `.cause` — nunca exibido.
  *
  * Um único tipo (DataError), não NotFoundError: "não encontrado" (regra 2
- * de docs/CONTRACTS-MINIJOOMLA.md) já é `null` depois de uma leitura
+ * de docs/CONTRATOS.md#minijoomla--contrato-v1-congelado-dos-adapters-de-conteúdo) já é `null` depois de uma leitura
  * bem-sucedida filtrada por alias/tag em memória. Um erro de transporte
  * (ex.: lista renomeada, HTTP 404 na própria lista) é falha de
  * configuração/ambiente, não "este alias não existe" — tratá-lo como
@@ -24,7 +24,7 @@
  * (src/libraries/minijoomla/composition/createMiniJoomlaSharePointApp.js).
  *
  * Por que `app.repositories.*` cru continua existindo separadamente: a
- * evidência de escrita (Marco D, docs/CHECKLIST-CONCLUSAO-MINIJOOMLA.md
+ * evidência de escrita (Marco D, docs/ESTADO.md#gates-atuais-de-publicação-e-distribuição
  * §8.1) depende do erro original exato (`error.status === 412`,
  * `error.code === 'concurrency-conflict'`) para detectar conflito de ETag.
  * Por isso só findMany/findById (leitura) são traduzidos, nunca

@@ -46,7 +46,7 @@ O QUE FAZER COM ESTE ARQUIVO
    confirme.
 
 Guia completo com capturas de tela e cada passo detalhado:
-docs/MANUAL-INSTALACAO-SHAREPOINT.md (dentro do codigo-fonte do projeto,
+docs/INSTALACAO.md#pré-condições-e-pacote (dentro do codigo-fonte do projeto,
 https://github.com/rinaldops/minijoomla).
 
 O QUE NAO FAZER

@@ -1,5 +1,5 @@
 /*
- * Assisted migration executor: the gates from docs/CONTRATOS-EVOLUCAO-XML.md
+ * Assisted migration executor: the gates from docs/CONTRATOS.md#evolução-xml--contratos-e-gates-aprovados
  * section 4 ("Futuro executor: gates antes de qualquer gravação"), built on
  * top of the pure preview in extension-migration-plan.js. Never fabricates
  * data of its own: every value written here is the exact `after` object the

@@ -425,7 +425,7 @@ export async function runSiteRuntimeTests() {
    }
    console.log('ok - trash/delete of ALL demo module rows persists zero rows and suppresses defaults on a recomposed public app, while component/template navigation and absent-repository fallback remain intact');
 
-  // Breadcrumb root/ancestor link policy end-to-end (docs/JOOMLA-EQUIVALENCE.md
+  // Breadcrumb root/ancestor link policy end-to-end (docs/ESTADO.md#inventário-de-equivalência-joomla
   // §3.1): on a category route, "Início" and every ancestor category must be
   // real navigable links; only the current (last) item stays plain text with
   // aria-current. Hierarchical category: "root" -> "child".

@@ -91,7 +91,7 @@ serviço externo e não substitui testes de implantação autorizados.
 
 Antes de uma release, revise dependências e procedência dos ativos, saneie os
 arquivos selecionados para distribuição e registre limites e rollback.
-Consulte [CONTRIBUTING.md](CONTRIBUTING.md),
-[OPEN-SOURCE-READINESS.md](OPEN-SOURCE-READINESS.md) e
+Consulte [contribution and local checks](DESENVOLVIMENTO.md#testes-locais),
+[distribution readiness and limits](DESENVOLVIMENTO.md#limites) e
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Não publique configurações,
 evidências nem histórico de ambientes como parte de uma distribuição genérica.

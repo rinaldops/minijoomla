@@ -211,7 +211,7 @@ export async function runContributorStageTests({ commands = false } = {}) {
     // The in-memory bytes and both earlier stages remain unchanged. Unlisted
     // source additions never affect the selection.
     const source = snapshotRoot;
-    for (const name of ['src/unlisted.js', 'src/private.json', '.git/config', 'tmp/evidence.js', 'host-adapters/deployment.html', 'docs/PLANO-MINIJOOMLA.md']) put(join(source, name), 'synthetic excluded content');
+    for (const name of ['src/unlisted.js', 'src/private.json', '.git/config', 'tmp/evidence.js', 'host-adapters/deployment.html', 'docs/UNLISTED-PLAN.md']) put(join(source, name), 'synthetic excluded content');
     const fixture = stageContributor({ output: join(base, 'fixture-stage'), sourceRoot: source });
     assert.deepEqual(fixture.manifest, first.manifest, 'Unlisted source additions cannot enter selection');
     rmSync(join(source, 'README.md'));

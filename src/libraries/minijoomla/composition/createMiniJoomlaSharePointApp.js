@@ -23,7 +23,7 @@
  * substituição.
  *
  * `repositories` no retorno permanece cru (sem tradução de erro): o Marco D
- * (escrita sintética, docs/CHECKLIST-CONCLUSAO-MINIJOOMLA.md §8.1) depende
+ * (escrita sintética, docs/ESTADO.md#gates-atuais-de-publicação-e-distribuição) depende
  * do erro original exato (`error.status`/`error.code`) para detectar
  * conflito de ETag. Só a cópia injetada no adapter (leitura) é traduzida.
  */

@@ -12,7 +12,7 @@
  * --mse-layout é opcional; omitido preserva o snippet legado sem wrapper
  * (sem mudança de comportamento). Quando informado, publishPages() envolve
  * a raiz do CMS no wrapper data-spmiddle-host/data-spmiddle-layout real do
- * SPMIDDLE (ver docs/CICLO-MSE-FULLBLEED.md), e buildStage() copia
+ * SPMIDDLE (ver docs/INSTALACAO.md#host-config-e-layout), e buildStage() copia
  * host/spmiddle-layout/{layout.js,layout.css,spmiddle-mse-host.js} do
  * SPMIDDLE byte-for-byte para a release — essa flag não reimplementa nem
  * modifica o algoritmo de layout em nenhum lugar.

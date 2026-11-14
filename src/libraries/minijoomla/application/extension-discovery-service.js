@@ -2,13 +2,13 @@
  * Descoberta de extensões (equivalente à tela "Discover" do
  * com_installer do Joomla real — nunca ao upload/instalação de
  * com_installer, que exige extrair e executar código no servidor; ver
- * docs/INTEGRATION-SPMIDDLE.md §11 e a decisão registrada na conversa
+ * docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto e a decisão registrada na conversa
  * desta frente para a justificativa completa).
  *
  * Fluxo: o desenvolvedor copia manualmente os arquivos JS de um
  * módulo/plugin novo, mais um manifesto, para a pasta convencional
  * EXTENSIONS_FOLDER (dentro do mesmo RELEASE_BASE onde o resto do pacote
- * MINIJOOMLA já está publicado — ver docs/RELEASE-MSE-0.1.0.md). Esta
+ * MINIJOOMLA já está publicado — ver docs/INSTALACAO.md#rollback-e-limites-de-aceite). Esta
  * função só LÊ essa pasta via createSharePointFileClient real do SPMIDDLE
  * (nunca grava nela, nunca executa o entrypoint) e devolve os manifestos
  * válidos encontrados; o registro em si (gravar em MiniJoomlaExtensions)

@@ -38,7 +38,7 @@ function initialData() {
       // web-devs/CAMAP-V3/minijoomla-template/, publicado neste preview
       // local sob o prefixo `/pkg/camap-v3/` por
       // `scripts/serve-local.js --extra-root pkg/camap-v3=../CAMAP-V3/minijoomla-template`
-      // (ver docs/TEMPLATE-INSTALL-CONTRACT.md). `entryPointUrl`/`styles`
+      // (ver docs/TEMPLATES.md#contrato-de-template-instalado-mecanismo-genérico). `entryPointUrl`/`styles`
       // same-site relativos à origem do preview, resolvidos via `import()`
       // dinâmico pelo caminho de catálogo de `template-runtime.js` — nunca
       // via `BUILTINS`. `positions`/`paramDefinitionsJson` espelham

@@ -124,7 +124,7 @@ async function runEntityCrudContracts() {
     const raw = state.items.get(created.id);
     for (const { field, value, name } of expected) {
       if (domain === 'extensions' && field === 'folder') assert.equal(Object.hasOwn(raw, 'Folder'), false, 'grupo lógico não grava navegação REST Folder');
-      // Gap B (ver TEMPLATE-INSTALL-CONTRACT.md §3): ParamDefinitionsJson é coluna aditiva no schema para
+      // Gap B (ver docs/TEMPLATES.md, parâmetros de estilo declarados): ParamDefinitionsJson é coluna aditiva no schema para
       // compatibilidade de inventário/provisionamento, mas admin-service.js nunca grava nela diretamente —
       // declarações sempre são empacotadas dentro do envelope minijoomla-template-metadata-v1 no campo Styles.
       else if (domain === 'templates' && field === 'paramDefinitionsJson') assert.equal(Object.hasOwn(raw, 'ParamDefinitionsJson'), false, 'declarações de template nunca gravam coluna física própria');

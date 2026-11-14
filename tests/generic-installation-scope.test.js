@@ -19,7 +19,7 @@ export function runGenericInstallationScopeTests() {
   assert.ok(!TEST_SUITES.some(suite => /(?:videoteca|forum)/i.test(suite.file)));
   assert.ok(!CONTRIBUTOR_FILES.some(path => /(?:videoteca|forum)/i.test(path)));
   assert.ok(['default', 'cassiopeia'].includes(defaultConfig.templateKey), 'Generic default cannot be a corporate template');
-  const contract = readFileSync(resolve(PROJECT, 'docs/INSTALACAO-GENERICA-MINIJOOMLA.md'), 'utf8');
+  const contract = readFileSync(resolve(PROJECT, 'docs/INSTALACAO.md'), 'utf8');
   assert.ok(contract.includes('aceite real no SharePoint pendente'), 'Local implementation cannot be announced as an accepted SharePoint installation');
   console.log('ok - generic product scope: no TD implementation/catalogue fixtures, native default and explicit initial-installation gate; bootstrap/site acceptance separate');
 }

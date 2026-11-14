@@ -6,13 +6,13 @@
  * Opera diretamente sobre `app.repositories.*` (o mesmo objeto retornado
  * por createMiniJoomlaSharePointApp, src/libraries/minijoomla/composition/), nunca sobre o
  * `adapter` de leitura (que é somente leitura e aplica política de
- * visibilidade — ver docs/CONTRACTS-MINIJOOMLA.md regra 2). Cada operação
+ * visibilidade — ver docs/CONTRATOS.md#minijoomla--contrato-v1-congelado-dos-adapters-de-conteúdo regra 2). Cada operação
  * de escrita usa o mesmo padrão já validado no Marco D
- * (docs/CHECKLIST-CONCLUSAO-MINIJOOMLA.md §8.1): create/update(id, input,
+ * (docs/ESTADO.md#gates-atuais-de-publicação-e-distribuição): create/update(id, input,
  * {etag})/delete(id, {etag}), nunca um atalho REST manual.
  *
  * Nenhuma função aqui decide ACL, autenticação ou sessão — isso permanece
- * fora de escopo do MINIJOOMLA (PROMPT-DESENVOLVIMENTO-MINIJOOMLA.md,
+ * fora de escopo do MINIJOOMLA (docs/ESTADO.md#escopo-do-produto,
  * "Proibições explícitas"). A única fronteira de segurança própria desta
  * camada é: toda entrada textual passa por validação de forma (tipo,
  * presença, enumeração), nunca por sanitização de exibição (isso é

@@ -132,7 +132,7 @@ export function createJoomlaExtensionInstaller({ discovery, admin, repositories,
  * Templates register through admin.templates, not admin.extensions, and
  * have no module-like instances to validate. This is register-only: no
  * upgrade/rollback contract exists yet for templates (see
- * docs/CONTRATOS-EVOLUCAO-XML.md §3) — a template already registered with
+ * docs/CONTRATOS.md#evolução-xml--contratos-e-gates-aprovados) — a template already registered with
  * the same key is reported as already installed, same as the manual JSON
  * discovery path in com_templates/src/Controller/discover.js.
  */

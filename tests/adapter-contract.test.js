@@ -5,7 +5,7 @@ import { createFakeAdapter } from '../src/libraries/minijoomla/infrastructure/fa
 /*
  * Reusable conformance suite for any content adapter (fake or future
  * SPMiddleAdapter). Mirrors the contract documented in
- * docs/CONTRACTS-MINIJOOMLA.md: `ref` is always a string alias/tag, single
+ * docs/CONTRATOS.md#minijoomla--contrato-v1-congelado-dos-adapters-de-conteúdo: `ref` is always a string alias/tag, single
  * reads resolve `null` instead of throwing for "not found", paginated reads
  * always return the fixed Page shape, and non-paginated list reads always
  * resolve an array. Any adapter that passes this suite can replace the fake
@@ -123,7 +123,7 @@ export async function runContentAdapterContract({ adapter, fixture, report = () 
 
 /*
  * Runs the conformance suite against the default FakeAdapter fixture
- * (docs/HANDOFF-DESENVOLVIMENTO.md's seed articles/category), proving the
+ * (docs/ESTADO.md#gaps-e-pendências-ativas's seed articles/category), proving the
  * reference implementation satisfies the frozen contract end to end.
  */
 export async function runAdapterContractTests() {

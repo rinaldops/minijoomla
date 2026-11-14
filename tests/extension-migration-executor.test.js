@@ -4,7 +4,7 @@ import { planExtensionMigration } from '../src/libraries/minijoomla/application/
 import { createExtensionMigrationExecutor } from '../src/libraries/minijoomla/application/extension-migration-executor.js';
 
 /*
- * Executor coverage for the seven gates in docs/CONTRATOS-EVOLUCAO-XML.md
+ * Executor coverage for the seven gates in docs/CONTRATOS.md#evolução-xml--contratos-e-gates-aprovados
  * section 4: explicit confirmation, revalidation against fresh reads, a
  * durable journal with strong-ETag writes, sequential apply with resume,
  * and manual-only rollback that never erases concurrent edits.

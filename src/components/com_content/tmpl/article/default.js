@@ -1,5 +1,5 @@
 /*
- * Achado real desta frente (ver docs/INTEGRATION-SPMIDDLE.md §18): no
+ * Achado real desta frente (ver docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto): no
  * Joomla real (ArticleModel.php:417, Table/Content.php:148-161) o editor
  * do admin tem UM ÚNICO campo de texto (`articletext`), dividido em
  * `introtext`/`fulltext` só quando o autor insere manualmente a quebra
@@ -63,7 +63,7 @@ function resolveArticleParams(article, componentParams) {
 function articleLanguage(article) { return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(article.language ?? '') ? ` lang="${escapeHtml(article.language)}"` : ''; }
 
 /*
- * `highlightTerms` (component `search` option — docs/ADMINISTRATION-EXTENSIONS.md,
+ * `highlightTerms` (component `search` option — docs/EXTENSOES.md#administracao-extensoesmodulostemplates,
  * COMPONENT_OPTIONS in application/component-options.js) safely wraps a
  * literal, case-insensitive match of `query` in `<mark>`, operating on the
  * RAW plain-text title before any HTML is produced — never via regex/string

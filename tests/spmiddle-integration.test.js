@@ -193,7 +193,7 @@ export async function runSPMiddleIntegrationTests() {
   // 2. a conexão real não embute nenhum GUID/URL hardcoded além dos usados no teste.
   assert.equal(app.dataSources.domains.length, 4);
 
-  // 3. mesma suíte de conformidade do contrato v1 (docs/CONTRACTS-MINIJOOMLA.md),
+  // 3. mesma suíte de conformidade do contrato v1 (docs/CONTRATOS.md#minijoomla--contrato-v1-congelado-dos-adapters-de-conteúdo),
   // agora executada contra a composição real (fixture local, sem rede).
   const contractCount = await runContentAdapterContract({
     adapter: app.adapter,
@@ -234,7 +234,7 @@ export async function runSPMiddleIntegrationTests() {
   console.log('ok - integração SPMIDDLE local: provisioning inspect/apply/verify contra schema MiniJoomlaArticles');
 
   // 5. tradução de erro de transporte->domínio (pendência de
-  // docs/INTEGRATION-SPMIDDLE.md §4): quando o transporte real falha
+  // docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto): quando o transporte real falha
   // (aqui simulado como um 503 do próprio double em memória), o adapter de
   // leitura resolve DataError sem detalhe de transporte na mensagem, mas
   // `app.repositories.*` cru continua expondo o erro original — necessário
@@ -267,7 +267,7 @@ export async function runSPMiddleIntegrationTests() {
   console.log('ok - integração SPMIDDLE local: falha de transporte real (503) chega como DataError sem detalhe via adapter, preservando o erro original em repositories cru');
 
   // 6. resposta incompleta/inválida (item restante de §4 de
-  // docs/INTEGRATION-SPMIDDLE.md: "comportamento para resposta incompleta,
+  // docs/CONTRATOS.md#minijoomla--integração-com-spmiddle-local-e-caminho-para-remoto: "comportamento para resposta incompleta,
   // inválida ou indisponível"). Em vez de simular o erro manualmente, um
   // item genuinamente malformado (`null`, como um transporte real poderia
   // devolver numa resposta corrompida/truncada) é inserido diretamente no

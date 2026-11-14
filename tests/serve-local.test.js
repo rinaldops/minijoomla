@@ -63,7 +63,7 @@ export async function runServeLocalTests() {
       }
       const head = await fetch(base + '/examples/index.html', { method: 'HEAD' });
       assert.equal(head.status, 200); assert.equal(await head.text(), '');
-      for (const path of ['/tmp/private.json', '/.git/config', '/docs/secret.md', '/src/%2e%2e%2ftmp/private.json', '/src/%5ctmp/private.json', '/src/%ZZ', '/src/', '/src/absent.js', '/src/tmp/private.js', '/src/.git/private.js', '/examples/secrets/private.js', '/tests/profiles/private.js', '/examples/secrets.json', '/docs/LOCAL-DEMO.md', '/package.json', '/scripts/serve-local.js']) assert.equal((await fetch(base + path)).status, 404, path);
+      for (const path of ['/tmp/private.json', '/.git/config', '/docs/secret.md', '/src/%2e%2e%2ftmp/private.json', '/src/%5ctmp/private.json', '/src/%ZZ', '/src/', '/src/absent.js', '/src/tmp/private.js', '/src/.git/private.js', '/examples/secrets/private.js', '/tests/profiles/private.js', '/examples/secrets.json', '/docs/DESENVOLVIMENTO.md', '/package.json', '/scripts/serve-local.js']) assert.equal((await fetch(base + path)).status, 404, path);
       for (const path of ['/src/../tmp/private.js', '/src/%2e%2e/tmp/private.js', '/src/%00/test.js', '/src/%2F../tmp/private.js', '/src/tmp./private.js', '/src/tmp%20/private.js', '/src/test.js:stream.js', '/src/test.js%3Astream.js']) assert.equal(await rawStatus(base, path), 404, path);
       if (linked) assert.equal((await fetch(base + '/src/linked/private.js')).status, 404);
       for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS']) {

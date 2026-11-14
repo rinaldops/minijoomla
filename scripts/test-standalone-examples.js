@@ -284,7 +284,7 @@ export function runStandaloneExamples() {
     cpSync(join(PROJECT, 'src'), join(root, 'src'), { recursive: true, dereference: false,
       filter: (path) => !relative(join(PROJECT, 'src'), path).split(sep).includes('vendor') });
     cpSync(join(PROJECT, 'examples'), join(root, 'examples'), { recursive: true, dereference: false });
-    for (const file of ['scripts/serve-local.js', 'scripts/test-standalone-examples.js', 'tests/standalone-examples.test.js', 'docs/LOCAL-DEMO.md', 'LICENSE.md', 'docs/licenses/GPL-2.0.txt', 'docs/THIRD-PARTY-NOTICES.md']) {
+    for (const file of ['scripts/serve-local.js', 'scripts/test-standalone-examples.js', 'tests/standalone-examples.test.js', 'docs/DESENVOLVIMENTO.md', 'LICENSE.md', 'docs/licenses/GPL-2.0.txt', 'docs/THIRD-PARTY-NOTICES.md']) {
       mkdirSync(dirname(join(root, file)), { recursive: true });
       cpSync(join(PROJECT, file), join(root, file));
     }

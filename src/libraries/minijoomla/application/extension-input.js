@@ -5,7 +5,7 @@ import { parseJsonObject } from './declared-params.js';
 // templates builtin (`default`/`cassiopeia`) e como piso mínimo
 // para qualquer template, instalado ou não. Um template INSTALADO
 // (manifesto `<key>.manifest.json`, mecanismo descrito em
-// MINIJOOMLA/docs/TEMPLATE-INSTALL-CONTRACT.md) pode declarar suas
+// MINIJOOMLA/docs/TEMPLATES.md#contrato-de-template-instalado-mecanismo-genérico) pode declarar suas
 // próprias posições adicionais, fora desta lista — `templatePositions()`
 // abaixo aceita qualquer nome bem-formado (`isWellFormedPositionName`),
 // não só os desta lista fechada. Isso permite instalar um template com

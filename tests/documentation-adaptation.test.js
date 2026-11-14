@@ -4,7 +4,7 @@
  * Copyright (C) 2006, 2009, 2010 Open Source Matters. All rights reserved.
  * Copyright (C) Jan Pavelka, www.phoca.cz.
  * GPL-2.0-or-later applies to that derived port, not just authored tests/patches.
- * Source/license mapping: docs/PROVENIENCIA-DOCUMENTATION.md; full GPL v2 text:
+ * Source/license mapping: docs/PROVENIENCIA.md#documentation-05x; full GPL v2 text:
  * docs/licenses/GPL-2.0.txt. Historical aggregator MIT is helper-only evidence,
  * not an upstream license or global publication/legal approval.
  */
