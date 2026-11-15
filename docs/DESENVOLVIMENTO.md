@@ -85,6 +85,13 @@ A validação funcional em produção, os limites das capturas e a recuperação
 estão em [instalação](INSTALACAO.md#página-inicial-modular--01710). Capturas sem
 revisão visual não comprovam espaçamento, cor ou paridade visual.
 
+Em **14/11/2026**, o usuário confirmou “funcionou” para a home somente com
+módulos da **0.17.10**. O aceite funcional foi registrado em instalação e estado,
+sem ampliar o escopo para aceite visual/assistivo integral. Esta atualização é
+somente documental: não altera runtime, configuração, conteúdo, ZIP ou versão;
+as **126 suítes aprovadas** acima são o resultado da execução da release, não
+uma nova execução de testes nesta atualização.
+
 ---
 
 <a id="local-demo"></a>

@@ -40,6 +40,14 @@ configuração ou executar instalação.
 Ao concluir a validação, a sessão e o processo FIORI-AUTO próprios foram
 encerrados e somente o perfil temporário dessa sessão foi removido.
 
+**Aceite funcional do usuário (14/11/2026):** após a publicação da **0.17.10**,
+o usuário confirmou “funcionou” para a home somente com módulos, incluindo a
+remoção do componente e do “Início” automático. Esse aceite encerra a pendência
+de confirmação funcional dessa entrega; não substitui a revisão das capturas
+nem uma avaliação visual/assistiva integral. O registro do aceite é uma alteração
+somente documental: mantém a release **0.17.10**, sem nova publicação, alteração
+de configuração ou conteúdo.
+
 Evidências e cópias de recuperação das páginas/configuração ficam em
 `tmp/home-0.17.10/`, fora do Git. Recuperação: usar o snapshot das páginas com
 ETags novos, sem sobrescrever edição concorrente, para apontar novamente para

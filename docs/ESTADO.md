@@ -99,8 +99,9 @@ como pronto para produção):
   Não dispensa o componente e “Início” automático somente na home, sem coluna
   central vazia no Cassiopeia. Persistência JSON existente com ETag, sem migração;
   módulos, demais rotas, manutenção e erros mantidos. Publicação e validação
-  funcional no destino autorizado; capturas sem revisão visual não encerram
-  aceite visual/assistivo. Ver [templates](TEMPLATES.md#página-inicial-somente-com-módulos-01710)
+  funcional no destino autorizado, com **aceite funcional do usuário em
+  14/11/2026** (“funcionou”). Confirmação funcional encerrada; capturas sem revisão
+  visual não encerram aceite visual/assistivo integral. Ver [templates](TEMPLATES.md#página-inicial-somente-com-módulos-01710)
   e [instalação](INSTALACAO.md#página-inicial-modular--01710).
 
 - **Administração:** CRUD de artigos/categorias/tags/menu com filtros,
