@@ -12,6 +12,7 @@ import { MODULE_ASSIGNMENTS, moduleState, normalizeAssignmentTokens, normalizeAs
 import { planLegacyModuleAssignment } from '../../../libraries/minijoomla/application/legacy-module-assignment.js';
 import { PLUGIN_GROUPS } from '../../../libraries/minijoomla/application/extension-manifest.js';
 import { normalizeParamValues, parseJsonObject } from '../../../libraries/minijoomla/application/declared-params.js';
+import { readHomeShowComponent } from '../../../libraries/minijoomla/application/home-settings.js';
 import { renderModulesTable } from '../com_modules/tmpl/modules/default.js';
 import { renderPositionsPreview } from '../com_modules/tmpl/positions/default.js';
 import { renderModuleTypeCatalog } from '../com_modules/tmpl/select/default.js';
@@ -512,7 +513,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     if (record?.templateKey && !choices.has(record.templateKey)) choices.set(record.templateKey, { value: record.templateKey, label: `${record.templateKey} (atual - indisponível)` });
     const unavailable = ['metaDescription', 'metaKeywords', 'robots', 'sitenamePagetitles'];
     const fields = SITE_CONFIG_FIELDS.map((field) => unavailable.includes(field.name) ? { ...field, readOnly: true, label: `${field.label} — indisponível` } : field);
-    const form = renderAdminForm({ formId: 'site-config', fields, values: { homeView: 'category', homeCategory: 'noticias', sitenamePagetitles: 'none', ...record, templateKey: record?.templateKey || 'default' }, relationOptions: {
+    const form = renderAdminForm({ formId: 'site-config', fields, values: { homeView: 'category', homeCategory: 'noticias', sitenamePagetitles: 'none', ...record, homeShowComponent: readHomeShowComponent(record?.componentParamsJson), templateKey: record?.templateKey || 'default' }, relationOptions: {
       templateKey: [...choices.values()],
       homeView: [{ value: 'category', label: 'Categoria (blog da categoria)' }, { value: 'featured', label: 'Artigos em destaque' }],
       robots: [{ value: record?.robots ?? '', label: record?.robots || 'Padrão do navegador' }],

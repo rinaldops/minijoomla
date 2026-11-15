@@ -15,6 +15,11 @@ export async function runAdminConfigViewTests() {
   for (const key of BUILTIN_TEMPLATES) assert.ok(html.includes(`${key} (integrado)`));
   assert.ok(html.includes('Ativo &lt;script&gt;'));
   assert.ok(!html.includes('value="inactive"'));
+  assert.match(html, /name="homeShowComponent" checked/);
+  assert.match(html, /Exibir componente na página inicial/);
+  const modulesOnly = renderConfigPage({ componentParamsJson: '{"home":{"showComponent":false}}' }, link, [], shell);
+  assert.doesNotMatch(modulesOnly, /name="homeShowComponent" checked/);
+  assert.throws(() => renderConfigPage({ componentParamsJson: '{"home":{"showComponent":"false"}}' }, link, [], shell), /booleano/);
 
   const unavailable = renderConfigPage({ templateKey: 'missing<&', siteName: '<img src=x onerror=alert(1)>' }, link, [], shell);
   assert.match(unavailable, /missing&lt;&amp; \(atual — indisponível\)/);

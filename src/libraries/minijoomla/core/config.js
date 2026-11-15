@@ -1,7 +1,7 @@
 export const defaultConfig = Object.freeze({
   siteName: 'MINIJOOMLA', templateKey: 'default', siteDescription: 'Experiência Joomla-like modular',
   language: 'pt-BR', timezone: 'America/Sao_Paulo', basePath: '', pageSize: 5,
-  homeView: 'category', homeCategory: 'noticias'
+  homeView: 'category', homeCategory: 'noticias', homeShowComponent: true
 });
 
 export function createConfig(overrides = {}) {
@@ -12,6 +12,8 @@ export function createConfig(overrides = {}) {
   const customHtmlInput = input.customHtml && typeof input.customHtml === 'object' ? input.customHtml : null;
   const homeView = input.homeView ?? defaultConfig.homeView;
   const homeCategory = input.homeCategory ?? defaultConfig.homeCategory;
+  const homeShowComponent = input.homeShowComponent ?? defaultConfig.homeShowComponent;
+  if (typeof homeShowComponent !== 'boolean') throw new TypeError('Exibição do componente na página inicial inválida.');
   if (!['category', 'featured'].includes(homeView)) throw new TypeError('Tipo de página inicial inválido.');
   if (typeof homeCategory !== 'string' || homeView === 'category' && !homeCategory.trim()) throw new TypeError('Categoria da página inicial inválida.');
   return Object.freeze({
@@ -21,6 +23,7 @@ export function createConfig(overrides = {}) {
     templateKey: typeof input.templateKey === 'string' && input.templateKey.trim() ? input.templateKey.trim() : defaultConfig.templateKey,
     homeView,
     homeCategory: homeCategory.trim(),
+    homeShowComponent,
     siteDescription: String(input.siteDescription ?? defaultConfig.siteDescription),
     language: String(input.language ?? defaultConfig.language),
     timezone: String(input.timezone ?? defaultConfig.timezone),

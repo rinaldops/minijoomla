@@ -6,7 +6,7 @@ Não é distribuição oficial nem equivalência integral ao Joomla/PHP. O objet
 uma distribuição independente, não uma aplicação corporativa; temas corporativos
 são extensões opcionais, nunca requisitos do núcleo.
 
-A versão da fonte em `package.json` é **0.17.8**. Isso não certifica qual release
+A versão da fonte em `package.json` é **0.17.10**. Isso não certifica qual release
 está ativa em um site remoto. O [estado e limites](docs/ESTADO.md)
 distingue implementação, validações históricas e trabalho ainda pendente.
 
@@ -22,6 +22,9 @@ distingue implementação, validações históricas e trabalho ainda pendente.
   incerta. Navegação não cancela uma gravação que já entrou no transporte.
 - Apenas `default` e `cassiopeia` são builtins (ambos usam Cassiopeia).
   Templates externos são publicados, registrados e selecionados explicitamente.
+- Home somente com módulos: **Configuração global → Página inicial → Exibir
+  componente na página inicial** (padrão Sim). Ao desmarcar, remove o componente
+  e “Início” automático somente da home, preservando conteúdo, módulos e demais rotas.
 - Instalação inicial cria oito listas estritamente verificadas e arquivo
   operacional, **zero linhas de conteúdo/configuração**. Sample Data é opcional e
   separado. Journal durável, preflight e recuperação não autorizam adotar listas

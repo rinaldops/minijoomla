@@ -7,6 +7,46 @@ Consulte [contratos](CONTRATOS.md), [extensões](EXTENSOES.md),
 [templates](TEMPLATES.md), [desenvolvimento](DESENVOLVIMENTO.md) e
 [estado e gates](ESTADO.md) para os assuntos complementares.
 
+## Página inicial modular — 0.17.10
+
+A release **0.17.10** acrescenta **Configuração global → Página inicial →
+Exibir componente na página inicial** (padrão Sim). Desmarcar remove o componente
+inteiro e o breadcrumb automático “Início” somente da home. Ver o
+[contrato e os controles independentes do template](TEMPLATES.md#página-inicial-somente-com-módulos-01710).
+Não exige migração de listas: a preferência usa `ComponentParamsJson` e o serviço
+administrativo mantém a exigência de ETag exato.
+
+No destino previamente autorizado, as duas páginas passaram de **0.17.8** para
+**0.17.10**, após upload imutável e conferência SHA-256 de 264 arquivos (263
+payloads mais o manifest do estágio). A pasta **0.17.9** foi enviada, mas não
+ativada: a revisão de compatibilidade exigiu uma nova versão em vez de regravá-la.
+`package.json` acompanha a versão ativa. O pacote é
+`dist/minijoomla-0.17.10.zip` (265 entradas, 4.306.965 bytes, SHA-256
+`ba098993f75e56063ed7d574b5747650cddfdb22062495cfd6d0b835ab1a02b8`);
+os 263 payloads do ZIP foram comparados byte a byte com o estágio publicado.
+
+A validação FIORI-AUTO confirmou o campo marcado inicialmente, envio real do
+formulário com Não, preservação dos campos/namespaces existentes, home sem
+componente/rótulo/coluna central vazia com seis módulos, Sim restaurando a home
+com componente e artigo explícito permanecendo normal. A preferência foi deixada
+em **Não**, conforme o pedido. Verificações DOM em 320, 390, 768, 1366 e 1920 px
+não detectaram overflow horizontal; o skip link levou foco a `main-content`.
+O Enter enviado pelo RPC do FIORI-AUTO também ativou o skip link e manteve a
+rota, sem confundir a âncora de foco com o roteamento hash.
+Capturas foram produzidas, mas os modelos disponíveis não suportaram abri-las:
+**não há aceite visual nem assistivo integral**. A primeira navegação do perfil
+novo falhou na inspeção existente; recarregar completou a inspeção sem alterar
+configuração ou executar instalação.
+Ao concluir a validação, a sessão e o processo FIORI-AUTO próprios foram
+encerrados e somente o perfil temporário dessa sessão foi removido.
+
+Evidências e cópias de recuperação das páginas/configuração ficam em
+`tmp/home-0.17.10/`, fora do Git. Recuperação: usar o snapshot das páginas com
+ETags novos, sem sobrescrever edição concorrente, para apontar novamente para
+0.17.8; a nova preferência é ignorada por essa versão. Para restaurar a
+preferência na versão nova, marque Sim no formulário. Não remover listas,
+conteúdo ou a configuração da instalação.
+
 ## Pré-condições e pacote
 
 A instalação inicial permanece com **aceite real no SharePoint pendente**;

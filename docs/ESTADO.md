@@ -83,7 +83,7 @@ separada do produto genérico; suas decisões e pendências são:
 
 ## Estado de implementação por área
 
-> `package.json` declara **0.17.8** na fonte local; isso não certifica qual
+> `package.json` declara **0.17.10** na fonte local; isso não certifica qual
 > release está ativa em um destino remoto — contagens de versão evoluem a
 > cada publicação e não devem ser propagadas como atuais sem reverificação.
 > Desde a convenção adotada em 11/11/2026, a versão do `package.json` deve
@@ -94,6 +94,14 @@ separada do produto genérico; suas decisões e pendências são:
 Implementado e validado localmente (com níveis de aceite reais diferentes
 por item — ver "Gates atuais" para o que ainda falta antes de tratar algo
 como pronto para produção):
+
+- **Home somente com módulos (0.17.10):** preferência global padrão Sim;
+  Não dispensa o componente e “Início” automático somente na home, sem coluna
+  central vazia no Cassiopeia. Persistência JSON existente com ETag, sem migração;
+  módulos, demais rotas, manutenção e erros mantidos. Publicação e validação
+  funcional no destino autorizado; capturas sem revisão visual não encerram
+  aceite visual/assistivo. Ver [templates](TEMPLATES.md#página-inicial-somente-com-módulos-01710)
+  e [instalação](INSTALACAO.md#página-inicial-modular--01710).
 
 - **Administração:** CRUD de artigos/categorias/tags/menu com filtros,
   ordenação, lote, lixeira e duplicação; editor com imagens/links/

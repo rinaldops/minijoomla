@@ -15,6 +15,34 @@ MINIJOOMLA suporta:
 1. **Templates builtin** (`default`, `cassiopeia`): registrados por `import` estático (`BUILTINS`).
 2. **Templates instalados** (externos): registrados por manifesto e carregados em runtime via `import()` dinâmico, com gates de URL/mesma-origem.
 
+### Página inicial somente com módulos (0.17.10)
+
+Em **Configuração global → Página inicial**, desmarque **Exibir componente na
+página inicial**. O padrão é marcado (**Sim**). A home deixa de executar/renderizar
+o componente de conteúdo e seu breadcrumb automático “Início”: não aparecem o
+nome/descrição do site desse componente, artigos, paginação nem “Nenhum artigo
+encontrado.”. Artigos, categorias, busca e demais rotas continuam normais; avisos
+reais de erro e manutenção não são ocultados.
+
+Os módulos publicados mantêm posições e atribuições. Menus, marca, rodapé e um
+módulo de breadcrumbs criado explicitamente são controles separados; a opção não
+apaga `siteName`, `siteDescription`, artigos ou parâmetros existentes. Cassiopeia
+remove a coluna central quando não há módulos/conteúdo central e mantém um único
+landmark `main`, o alvo `main-content` e o link “Pular para o conteúdo”.
+
+A preferência persiste em `ComponentParamsJson` como
+`{"home":{"showComponent":false}}`, preservando os demais namespaces e campos,
+sem coluna nova ou migração de lista. Salvar **Sim** grava uma preferência capaz de
+prevalecer sobre um **Não** inline. Registros sem namespace `home` preservam o
+valor inline ou o padrão Sim; JSON legado ilegível mantém os defaults públicos
+seguros. Valores inválidos em um namespace `home` declarado são erros de
+configuração, não decisões de ocultação automática.
+
+O runtime fornece `componentVisible` ao `renderShell` (padrão `true`; `false`
+somente na home modular normal). Templates instalados devem respeitar esse sinal
+e manter a região principal acessível para oferecer a mesma remoção de espaço
+residual. Os dois builtins utilizam o Cassiopeia e suportam esse contrato.
+
 ---
 
 <a id="contrato-de-template-instalado-mecanismo-genérico"></a>

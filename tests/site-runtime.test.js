@@ -65,6 +65,48 @@ export async function runSiteRuntimeTests() {
   assert.doesNotMatch(home.documentRef.body.innerHTML, /Não foi possível carregar/);
   console.log('ok - configurable home preserves category defaults and renders featured articles with pagination');
 
+  for (const homeView of ['category', 'featured']) {
+    let categoryReads = 0;
+    const modular = mount({
+      config: { homeView, homeShowComponent: false, homeCategory: 'unused' },
+      getModuleInstances: async () => [
+        { extensionKey: 'custom-html', title: 'Home module', position: 'top-a', enabled: true, scopeKind: 'Route', scopeRoute: 'home', settingsJson: '{"html":"<p>home-module-content</p>"}' },
+        { extensionKey: 'custom-html', position: 'bottom-b', enabled: false, settingsJson: '{"html":"<p>disabled-content</p>"}' }
+      ],
+      adapter: { ...homeAdapter, getCategory: async (alias) => { categoryReads++; return { alias, title: 'Explicit category' }; }, listMenus: async () => [], listTags: async () => [] }
+    });
+    await modular.app.router.navigate('#/');
+    const html = modular.documentRef.body.innerHTML;
+    assert.match(html, /home-module-content/);
+    assert.doesNotMatch(html, /featured-page|class="eyebrow"|Nenhum artigo encontrado|module-breadcrumbs|aria-label="Breadcrumb"|data-mj-component|disabled-content/);
+    assert.doesNotMatch(html, /<h1\b/);
+    assert.equal(categoryReads, 0, 'disabled home does not query its component category');
+    assert.equal((html.match(/<main\b/g) ?? []).length, 1);
+    assert.match(html, /id="main-content"/);
+    await modular.app.router.navigate('#/category/explicit');
+    assert.match(modular.documentRef.body.innerHTML, /Explicit category/);
+    assert.match(modular.documentRef.body.innerHTML, /data-mj-component/);
+    assert.doesNotMatch(modular.documentRef.body.innerHTML, /home-module-content/);
+    await modular.app.router.navigate('#/search?q=Featured');
+    assert.match(modular.documentRef.body.innerHTML, /data-mj-component/);
+    modular.app.stop();
+  }
+  const noModules = mount({ config: { homeShowComponent: false }, getModuleInstances: async () => [] });
+  await noModules.app.router.navigate('#/');
+  assert.doesNotMatch(noModules.documentRef.body.innerHTML, /data-template-main-column|data-mj-component|Nenhum artigo encontrado|class="eyebrow"/);
+  noModules.app.stop();
+  const maintenance = mount({ config: { homeShowComponent: false, offline: true }, getModuleInstances: async () => [] });
+  await maintenance.app.router.navigate('#/');
+  assert.match(maintenance.documentRef.body.innerHTML, /Site em manutenção/);
+  assert.match(maintenance.documentRef.body.innerHTML, /data-mj-component/);
+  maintenance.app.stop();
+  const failing = mount({ config: { homeShowComponent: false }, getModuleInstances: async () => { throw Error('Read failure'); } });
+  await failing.app.router.navigate('#/');
+  assert.match(failing.documentRef.body.innerHTML, /Não foi possível carregar/);
+  assert.match(failing.documentRef.body.innerHTML, /data-mj-component/);
+  failing.app.stop();
+  console.log('ok - modules-only home omits entire component and automatic Início breadcrumb, retains assignments, focus, non-home routes, errors and maintenance');
+
   const runtime = createTemplateRuntime();
   assert.equal((await runtime.resolve('cassiopeia')).key, 'cassiopeia');
   await assert.rejects(() => runtime.resolve('missing'), /não está registrado/);
@@ -280,6 +322,21 @@ export async function runSiteRuntimeTests() {
   await admin.siteConfig.save({ templateKey: 'cassiopeia' }, { etag: configRow.etag });
   assert.equal((await reopened.siteConfig.findById(1)).templateKey, 'cassiopeia');
   console.log('ok - local admin demo shares persistent repositories with the site and enforces fresh ETags');
+  {
+    const saved = await admin.siteConfig.get();
+    await admin.siteConfig.save({ homeShowComponent: false }, { etag: saved.etag });
+    const fresh = await createAdminService(createDemoRepositories({ storage })).siteConfig.get();
+    const modular = mount({ config: toSiteConfigOverrides(fresh), getModuleInstances: async () => [{ extensionKey: 'custom-html', position: 'bottom-a', settingsJson: '{"html":"<p>persisted-home-module</p>"}', enabled: true }] });
+    await modular.app.router.navigate('#/');
+    assert.match(modular.documentRef.body.innerHTML, /persisted-home-module/);
+    assert.doesNotMatch(modular.documentRef.body.innerHTML, /data-mj-component|featured-page|class="eyebrow"/);
+    modular.app.stop();
+    await admin.siteConfig.save({ homeShowComponent: true }, { etag: fresh.etag });
+    const restored = mount({ config: toSiteConfigOverrides(await admin.siteConfig.get()), getModuleInstances: async () => [] });
+    await restored.app.router.navigate('#/');
+    assert.match(restored.documentRef.body.innerHTML, /featured-page/);
+    restored.app.stop();
+  }
 
   // End-to-end proof (Node, no browser) of plan item 1.3.4: edit a parameter in the
   // ADMIN service with the captured ETag -> persisted via the SAME repositories the

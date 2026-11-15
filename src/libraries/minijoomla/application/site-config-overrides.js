@@ -10,6 +10,8 @@ import { resolveTemplateParams, resolveTemplateStyleId } from './template-styles
 import { resolveComponentParams } from './component-options.js';
 import { resolveQueryParams } from './content-service.js';
 import { ownEnumerableData } from '../core/contracts.js';
+import { parseJsonObject } from './declared-params.js';
+import { readHomeShowComponent } from './home-settings.js';
 
 /**
  * Converte a linha única de configuração (ou `null`, se a lista estiver
@@ -35,6 +37,10 @@ export function toSiteConfigOverrides(record) {
   overrides.templateStyleId = resolveTemplateStyleId(record);
   if(record.templateStylesJson!==undefined)overrides.templateStylesJson=record.templateStylesJson;
   overrides.componentParams = resolveComponentParams(record);
+  // Preserve the legacy safe defaults for malformed component JSON; a declared
+  // home namespace, unlike an unreadable legacy envelope, is validated strictly.
+  const componentParams = parseJsonObject(record.componentParamsJson);
+  if (Object.hasOwn(componentParams, 'home')) overrides.homeShowComponent = readHomeShowComponent(componentParams);
   // Preserve provenance: resolved defaults are not explicitly saved limits.
   // An own undefined value keeps historical pageSize when this field is absent.
   overrides.componentParamsJson = record.componentParamsJson;

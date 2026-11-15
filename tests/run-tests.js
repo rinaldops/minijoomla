@@ -127,6 +127,7 @@ export const TEST_SUITES = Object.freeze([
   ['query-options-main-spmiddle.test.js', 'runQueryOptionsMainSPMiddleRegressionTests', true],
   ['offline-gate.test.js', 'runOfflineGateTests'],
   ['site-config-overrides.test.js', 'runSiteConfigOverridesTests'],
+  ['home-component-settings.test.js', 'runHomeComponentSettingsTests'],
   ['schema-migration.test.js', 'runSchemaMigrationTests', true],
   ['entity-contracts-final.test.js', 'runEntityContractsFinalTests', true],
   ['installed-template-positions.test.js', 'runInstalledTemplatePositionsTests']

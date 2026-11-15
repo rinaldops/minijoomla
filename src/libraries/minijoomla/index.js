@@ -86,7 +86,7 @@ export function createApplication({
     try { return activeRenderer({...args,config:renderConfig}); }
     catch {
       console.warn('MINIJOOMLA: falha no template selecionado.');
-      return renderShell({ ...args, content: LOAD_ERROR });
+      return renderShell({ ...args, content: LOAD_ERROR, componentVisible: true });
     }
   }
   const plugins = createPluginManager();
@@ -165,6 +165,7 @@ export function createApplication({
     let similarArticles = [];
     let pendingArticle = null;
     let renderDeferred = null;
+    let componentVisible = true;
     let menuActivePath = location.path;
     const componentParams = siteConfig.componentParams;
     cleanupShell();
@@ -279,6 +280,9 @@ export function createApplication({
           componentParams: componentParams?.content
         });
         crumbs.push({ label: 'Arquivo' });
+      } else if (location.route?.name === 'home' && siteConfig.homeShowComponent === false) {
+        body = '';
+        componentVisible = false;
       } else if (location.route?.name === 'home') {
         const blog = blogSettings(componentParams?.content, siteConfig.pageSize);
         const pageSize = queryInteger(location.params.pageSize);
@@ -356,6 +360,7 @@ export function createApplication({
       if (renderDeferred) body = await renderDeferred((result) => prepareCards(result, moduleContext, renderedModules));
     } catch (error) {
       activeModuleKeys.clear();
+      componentVisible = true;
       body = LOAD_ERROR;
       console.warn('MINIJOOMLA: falha na navegação.', error instanceof TypeError ? 'invalid-contract' : 'load-failed');
     }
@@ -372,8 +377,8 @@ export function createApplication({
       documentRef.body.innerHTML = renderPage({
         config: siteConfig,
         menus: modules.render('menu', { menus, link: (path) => router.link(path), activePath: menuActivePath }),
-        breadcrumbs: modules.render('breadcrumbs', { items: crumbs }),
-        content: body, modules: renderedModules, busy: false
+        breadcrumbs: componentVisible ? modules.render('breadcrumbs', { items: crumbs }) : '',
+        content: body, modules: renderedModules, busy: false, componentVisible
       });
       const cleanupTemplate = selectedTemplate?.bind?.(documentRef.body) ?? (() => {});
       const cleanupMenu = bindMenuTree(documentRef.body);

@@ -29,6 +29,7 @@ import { MODULE_CLASS_PATTERN, moduleTypeCatalog, MODULE_ADVANCED_PARAMS } from 
 import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from './declared-params.js';
 import { createExtensionAdministration, runBatch, optionalPluginGroup, MODULE_POSITIONS } from './admin-extensions-service.js';
 import { readTemplateMetadata, packTemplateMetadata } from './template-metadata.js';
+import { readHomeShowComponent, mergeHomeShowComponent } from './home-settings.js';
 
 function requireRepository(repositories, domain) {
   const repository = repositories?.[domain];
@@ -884,6 +885,13 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
         if (rows.length > 1) throw new ValidationError('Há configurações de site duplicadas. Nenhum registro foi escolhido ou alterado.');
         if (rows.length) requireEtag(etag, 'etag da configuração');
         const record = rows.length ? await repository.findById(rows[0].id) : null;
+        readHomeShowComponent(record?.componentParamsJson);
+        if (input.homeShowComponent !== undefined) {
+          const currentJson = input.componentParamsJson !== undefined ? input.componentParamsJson : record?.componentParamsJson;
+          const nextJson = mergeHomeShowComponent(currentJson, input.homeShowComponent);
+          if (nextJson !== currentJson) operationalInput.componentParamsJson = nextJson;
+        }
+        if (operationalInput.componentParamsJson !== undefined) readHomeShowComponent(operationalInput.componentParamsJson);
         const definitionsByKey = input.templateStylesJson === undefined ? undefined : Object.fromEntries((repositories.templates
           ? await listAll(requireRepository(repositories, 'templates')) : []).filter((row) => !BUILTIN_TEMPLATES.includes(row.key))
           .map((row) => [row.key, readTemplateMetadata(row).definitions]));

@@ -154,7 +154,7 @@ function renderNavigation(menu, search) {
 
 const BACK_TOP_ICON = '<svg class="icon-arrow-up icon-fw" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 2.5 13.5 8l-1.4 1.4L9 6.3V14H7V6.3L3.9 9.4 2.5 8z"/></svg>';
 
-export function renderShell({ config = {}, menus = '', breadcrumbs = '', content = '', modules = {}, busy = false } = {}) {
+export function renderShell({ config = {}, menus = '', breadcrumbs = '', content = '', modules = {}, busy = false, componentVisible = true } = {}) {
   const positions = modules && typeof modules === 'object' ? modules : {};
   const safeConfig = config && typeof config === 'object' ? config : {};
   const params = resolveTemplateParams(safeConfig);
@@ -164,6 +164,19 @@ export function renderShell({ config = {}, menus = '', breadcrumbs = '', content
   const right = `${positions['sidebar-right'] ?? ''}${positions.sidebar ?? ''}`;
   const menu = `${menus ?? ''}${positions.menu ?? ''}`;
   const mainTop = `${positions['main-top'] ?? ''}${positions.content ?? ''}`;
+  const breadcrumbContent = `${breadcrumbs ?? ''}${positions.breadcrumbs ?? ''}`;
+  const mainBottom = positions['main-bottom'] ?? '';
+  const hasMainColumn = componentVisible || [breadcrumbContent, mainTop, mainBottom].some((html) => String(html).trim());
+  const mainRegion = (name, html) => region(name, componentVisible || String(html).trim() ? html : '');
+  const mainColumn = hasMainColumn ? `<div class="grid-child container-component" data-template-main-column>
+${mainRegion('breadcrumbs', breadcrumbContent)}
+${mainRegion('main-top', mainTop)}
+${componentVisible ? `<main class="site-main" data-template-region="component" data-mj-position="component" id="main-content" tabindex="-1" aria-label="Conteúdo principal"${busy ? ' aria-busy="true"' : ''} data-mj-component>${content}</main>` : ''}
+${mainRegion('main-bottom', mainBottom)}
+</div>` : '';
+  // A modules-only page still needs one main landmark and the existing skip/focus target.
+  const gridTag = componentVisible ? 'div' : 'main';
+  const gridAttributes = componentVisible ? '' : ` id="main-content" tabindex="-1" aria-label="Conteúdo principal"${busy ? ' aria-busy="true"' : ''} data-template-modules-only${hasMainColumn ? '' : ' data-template-no-main-column'}`;
   const footer = positions.footer ?? `<p class="site-credit">${escapeHtml(siteName)}</p>`;
   const classes = [
     'cassiopeia-template', 'site', params.fluidContainer ? 'wrapper-fluid' : 'wrapper-static',
@@ -182,21 +195,16 @@ ${region('below-top', positions['below-top'], { classes: 'grid-child container-b
 ${renderBrand(params, siteName, description)}
 ${renderNavigation(menu, positions.search ?? '')}
 </header>
-<div class="site-grid">
+<${gridTag} class="site-grid"${gridAttributes}>
 ${region('banner', positions.banner, { classes: 'container-banner full-width' })}
 ${region('top-a', positions['top-a'], { classes: 'grid-child container-top-a' })}
 ${region('top-b', positions['top-b'], { classes: 'grid-child container-top-b' })}
 ${region('sidebar-left', left, { tag: 'aside', classes: 'grid-child container-sidebar-left', attributes: ' aria-label="Coluna lateral esquerda"' })}
-<div class="grid-child container-component" data-template-main-column>
-${region('breadcrumbs', `${breadcrumbs ?? ''}${positions.breadcrumbs ?? ''}`)}
-${region('main-top', mainTop)}
-<main class="site-main" data-template-region="component" data-mj-position="component" id="main-content" tabindex="-1" aria-label="Conteúdo principal"${busy ? ' aria-busy="true"' : ''} data-mj-component>${content}</main>
-${region('main-bottom', positions['main-bottom'])}
-</div>
+${mainColumn}
 ${region('sidebar-right', right, { tag: 'aside', classes: 'grid-child container-sidebar-right', attributes: ' aria-label="Coluna lateral direita"' })}
 ${region('bottom-a', positions['bottom-a'], { classes: 'grid-child container-bottom-a' })}
 ${region('bottom-b', positions['bottom-b'], { classes: 'grid-child container-bottom-b' })}
-</div>
+</${gridTag}>
 ${footer ? `<footer class="container-footer footer full-width" data-template-region="footer" data-mj-position="footer"><div class="grid-child">${footer}</div></footer>` : ''}
 ${backTop}
 </div>`;

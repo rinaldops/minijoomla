@@ -99,6 +99,88 @@ export async function runCassiopeiaTemplateTests() {
   assert.ok(html.indexOf('data-template-region="main-top"') < html.indexOf('<main '));
   assert.ok(html.indexOf('</main>') < html.indexOf('data-template-region="main-bottom"'));
   assert.ok(html.indexOf('data-template-region="bottom-b"') < html.indexOf('<footer '));
+  assert.equal(renderShell({
+    config: { siteName: '<Portal & equipe>', siteDescription: '<Descrição>' },
+    menus, breadcrumbs, content: '<article><h1>Artigo</h1></article>', modules, busy: true, componentVisible: true
+  }), html, 'Explicit componentVisible=true preserves the default shell markup');
+  assert.match(html, /<div class="site-grid">/);
+  assert.doesNotMatch(html, /data-template-modules-only|data-template-no-main-column/);
+
+  const assertModulesOnlyMain = (output) => {
+    assert.equal(occurrences(output, '<main '), 1, 'Modules-only pages have exactly one main landmark');
+    assert.equal(occurrences(output, 'id="main-content"'), 1, 'The skip destination is unique');
+    assert.equal(occurrences(output, 'data-shell-anchor="main-content"'), 1);
+    assert.match(output, /<main class="site-grid" id="main-content" tabindex="-1" aria-label="Conteúdo principal"/);
+    assert.match(output, /<a class="skip-link" href="#main-content" data-shell-anchor="main-content">/);
+    assert.doesNotMatch(output, /data-template-region="component"|data-mj-position="component"|data-mj-component|class="site-main"/);
+  };
+  const modulesOnly = renderShell({
+    config: { siteName: '<Portal & equipe>', siteDescription: '<Descrição>' },
+    menus, breadcrumbs, content: '<article>hidden-component</article>',
+    modules: { ...modules, content: '<p>legacy-main</p>', sidebar: '<p>legacy-sidebar</p>' },
+    componentVisible: false, busy: true
+  });
+  assertModulesOnlyMain(modulesOnly);
+  assert.doesNotMatch(modulesOnly, /hidden-component|data-template-no-main-column/);
+  assert.match(modulesOnly, /aria-busy="true" data-template-modules-only/);
+  assert.equal(occurrences(modulesOnly, 'data-template-main-column'), 1);
+  for (const position of expected) {
+    assert.equal(occurrences(modulesOnly, `data-template-region="${position}"`), 1, `Modules-only retains ${position}`);
+    assert.equal(occurrences(modulesOnly, `data-mj-position="${position}"`), 1, position);
+    assert.equal(occurrences(modulesOnly, `slot:${position}</p>`), 1, position);
+  }
+  for (const marker of [menus, breadcrumbs, '<p>legacy-main</p>', '<p>legacy-sidebar</p>']) {
+    assert.equal(occurrences(modulesOnly, marker), 1, 'Navigation, breadcrumbs and legacy aliases remain intact');
+  }
+  const modulesOnlyLandmark = modulesOnly.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)[1];
+  for (const position of ['banner', 'top-a', 'top-b', 'breadcrumbs', 'main-top', 'main-bottom', 'sidebar-left', 'sidebar-right', 'bottom-a', 'bottom-b']) {
+    assert.ok(modulesOnlyLandmark.includes(`slot:${position}</p>`), `The main landmark contains useful ${position} content`);
+  }
+  assert.ok(modulesOnly.indexOf('</header>') < modulesOnly.indexOf('<main '));
+  assert.ok(modulesOnly.indexOf('</main>') < modulesOnly.indexOf('<footer '));
+  assert.match(modulesOnly, /class="site-title">&lt;Portal &amp; equipe&gt;<\/span>/);
+  assert.match(modulesOnly, /class="site-description">&lt;Descrição&gt;<\/div>/);
+
+  for (const centralModules of [
+    { breadcrumbs: '<p>central-module</p>' },
+    { 'main-top': '<p>central-module</p>' },
+    { 'main-bottom': '<p>central-module</p>' },
+    { content: '<p>central-module</p>' }
+  ]) {
+    const centralOnly = renderShell({ modules: centralModules, componentVisible: false });
+    assertModulesOnlyMain(centralOnly);
+    assert.equal(occurrences(centralOnly, 'data-template-main-column'), 1, 'A real central module retains its column');
+    assert.doesNotMatch(centralOnly, /data-template-no-main-column/);
+    assert.match(centralOnly, /<main\b[^>]*>[\s\S]*central-module[\s\S]*<\/main>/);
+  }
+  const breadcrumbOnly = renderShell({ breadcrumbs, componentVisible: false });
+  assertModulesOnlyMain(breadcrumbOnly);
+  assert.match(breadcrumbOnly, /data-template-main-column/);
+  assert.match(breadcrumbOnly, /data-template-region="breadcrumbs"/);
+
+  for (const sidebarModules of [
+    { 'sidebar-left': '<p>left-module</p>' },
+    { 'sidebar-right': '<p>right-module</p>' },
+    { sidebar: '<p>legacy-sidebar-module</p>' },
+    { 'sidebar-left': '<p>left-module</p>', 'sidebar-right': '<p>right-module</p>' }
+  ]) {
+    const surroundingModules = { ...sidebarModules, 'top-a': '<p>top-module</p>', 'bottom-b': '<p>bottom-module</p>' };
+    const sidebarOnly = renderShell({ modules: surroundingModules, content: '<p>hidden-component</p>', componentVisible: false });
+    assertModulesOnlyMain(sidebarOnly);
+    assert.match(sidebarOnly, /data-template-modules-only data-template-no-main-column/);
+    assert.doesNotMatch(sidebarOnly, /container-component|data-template-main-column|hidden-component/);
+    for (const marker of Object.values(surroundingModules)) assert.equal(occurrences(sidebarOnly, marker), 1);
+    assert.match(sidebarOnly, /<main\b[^>]*>[\s\S]*top-module[\s\S]*bottom-module[\s\S]*<\/main>/);
+  }
+  for (const emptyModules of [{}, { breadcrumbs: ' \n ', 'main-top': '\t', content: ' ', 'main-bottom': '  ' }]) {
+    const noModules = renderShell({ componentVisible: false, modules: emptyModules, content: '<p>hidden-component</p>' });
+    assertModulesOnlyMain(noModules);
+    assert.match(noModules, /data-template-no-main-column/);
+    assert.doesNotMatch(noModules, /container-component|data-template-main-column|hidden-component|empty-state|loading-state|data-template-region="(?:breadcrumbs|main-top|main-bottom)"/);
+    assert.match(noModules, /<main\b[^>]*>\s*<\/main>/, 'Zero modules do not manufacture content or a placeholder');
+    assert.match(noModules, /container-brand/);
+    assert.match(noModules, /<footer /);
+  }
 
   const empty = renderShell();
   assert.doesNotMatch(empty, /has-sidebar|<aside|aria-busy|container-nav|site-description/);
@@ -342,6 +424,7 @@ export async function runCassiopeiaTemplateTests() {
   const skipClick = () => skipFixture.listeners.get('click')({ target: { closest: () => ({ getAttribute: () => 'main-content' }) }, button: 0, preventDefault() {} });
   skipClick();
   assert.equal(main.getAttribute('data-focus-origin'), 'skip');
+  assert.equal(main.focused, 1, 'The existing skip binding focuses the main-content destination, including the modules-only grid');
   blurListeners.get('blur')();
   assert.equal(main.getAttribute('data-focus-origin'), null);
   skipClick();
@@ -378,6 +461,17 @@ export async function runCassiopeiaTemplateTests() {
   assert.match(css, /\.pagination > a\[aria-current="page"\]:focus-visible \{ outline-color: #fff; outline-offset: -4px;/, 'Active pagination has contrasting inset focus');
   assert.match(css, /grid-template-columns: \[full-start\] minmax\(0, 1fr\) \[main-start\] repeat\(4, minmax\(0, 19\.875rem\)\) \[main-end\] minmax\(0, 1fr\) \[full-end\]/);
   assert.match(css, /". side-l comp comp side-r ."/);
+  const noMainGridRules = [...rules.matchAll(/\.cassiopeia-template \.site-grid\[data-template-no-main-column\]\s*\{([^}]*)\}/g)].map((match) => match[1]);
+  assert.equal(noMainGridRules.length, 2, 'Empty-center layouts are defined for mobile and desktop');
+  for (const rule of noMainGridRules) {
+    assert.doesNotMatch(rule, /\bcomp\b/, 'No grid area reserves a fake component gap');
+    for (const area of ['banner', 'top-a', 'top-b', 'side-l', 'side-r', 'bot-a', 'bot-b']) assert.ok(rule.includes(area), area);
+  }
+  assert.match(noMainGridRules[0], /"\. side-r side-r side-r side-r \."[\s\S]*"\. side-l side-l side-l side-l \."/, 'Mobile sidebars remain full-width stacked positions');
+  assert.match(noMainGridRules[1], /"\. side-l side-l side-r side-r \."/, 'Desktop sidebars split the vacated central width');
+  assert.match(css, /@media \(min-width: 992px\)[\s\S]*\.site-grid\[data-template-no-main-column\]/);
+  assert.match(css, /:not\(\.has-sidebar-right\) \.site-grid\[data-template-no-main-column\] > \.container-sidebar-left \{ grid-column-end: main-end; \}/, 'A lone left sidebar spans the main width');
+  assert.match(css, /:not\(\.has-sidebar-left\) \.site-grid\[data-template-no-main-column\] > \.container-sidebar-right \{ grid-column-start: main-start; \}/, 'A lone right sidebar spans the main width');
   assert.match(css, /\.wrapper-fluid \.site-grid/);
   assert.match(css, /\.wrapper-fluid \.site-grid\s*\{\s*grid-template-columns: \[full-start\] 0 \[main-start\] repeat\(4, minmax\(0, 1fr\)\) \[main-end\] 0 \[full-end\]/, 'Fluid tracks share the space left after gutters instead of adding 100% plus gaps');
   assert.doesNotMatch(css, /repeat\(4, minmax\(0, 25%\)\)/);
@@ -386,6 +480,8 @@ export async function runCassiopeiaTemplateTests() {
   assert.doesNotMatch(css, /\.container-menu li > ul a \{[^}]*color:/, 'No-JS inline submenu links retain white header text');
   assert.doesNotMatch(css, /li\.parent:hover[^{}]*\.mm-collapse/, 'Hover must not reopen a submenu closed by Escape with aria-expanded=false');
   assert.match(css, /\.site-main\[data-focus-origin="skip"\]:focus \{ outline: 2px solid/, 'Skip destination is visibly indicated regardless of focus-visible heuristics');
+  assert.match(css, /#main-content\.site-grid\[data-focus-origin="skip"\]:focus \{ outline: 2px solid[^}]*outline-offset: -2px;/, 'Modules-only skip focus has a visible inset outline without changing grid display');
+  assert.match(css, /@media \(forced-colors: active\)[\s\S]*#main-content\.site-grid\[data-focus-origin="skip"\]:focus,[^{}]*\{ outline-color: Highlight; \}/, 'Modules-only skip focus supports forced colors');
   assert.doesNotMatch(css, /\.article-card\s*\{[^}]*overflow: hidden|\.content-article[^}]*overflow: hidden/, 'No clipping keyboard focus to hide article overflow');
   assert.match(css, /:is\(\.article-body, \.lead, \.article-card, \.custom-html\) table \{[^}]*overflow-x: auto/, 'Tables scroll locally even when all article HTML is introtext, including listing teasers');
   assert.match(css, /\.skip-link:focus \{[^}]*max-width: calc\(100% - 2rem\)[^}]*white-space: normal/, 'Focused skip text fits 320px and zoom');

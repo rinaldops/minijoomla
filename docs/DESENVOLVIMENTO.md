@@ -58,6 +58,33 @@ carregamento está descrita em [instalação](INSTALACAO.md#carregamento-de-um-s
 e a compatibilidade dos títulos em [extensões](EXTENSOES.md). Permanecem os
 limites de aceite visual, assistivo e de primeira instalação real.
 
+### Página inicial modular — 0.17.10
+
+O ciclo acrescenta a suíte `home-component-settings.test.js`, cobertura pública
+em `site-runtime.test.js`, regressões do formulário e contratos de layout
+Cassiopeia. São verificados padrão Sim, Não somente na home, remoção de “Início”
+automático, execução do componente dispensada, módulos/atribuições, demais
+rotas, manutenção/erros, landmark/foco e persistência sem nova coluna com ETag.
+
+A revisão independente detectou dois casos corrigidos antes da ativação:
+preservar os defaults públicos seguros de JSON legado ilegível e fazer um Sim
+salvo sobrepor um Não inline quando o namespace ainda não existe. As duas suítes
+de configuração passaram novamente após as correções. O primeiro `npm test`
+registrou **125 suítes aprovadas, zero skips e uma falha** em `runner.test.js`:
+o checkout standalone havia sido copiado antes da correção e ainda continha a
+leitura estrita incompatível. Não houve afrouxamento de asserção ou timeout.
+A nova execução completa sobre as fontes finais da **0.17.10** terminou com
+**126 suítes aprovadas, zero skips e zero falhas**, incluindo `runner.test.js`
+e o checkout standalone, encerrando essa pendência sem apagar o resultado anterior.
+
+`npm run check` passou para **366 arquivos**. Os oito grupos do host genérico
+staged e os oito grupos dos exemplos standalone passaram; `release:check`
+permanece um gate estrutural local, não aprovação de publicação ou direitos.
+Os testes focados de configuração, serviço/admin, runtime e Cassiopeia passaram.
+A validação funcional em produção, os limites das capturas e a recuperação
+estão em [instalação](INSTALACAO.md#página-inicial-modular--01710). Capturas sem
+revisão visual não comprovam espaçamento, cor ou paridade visual.
+
 ---
 
 <a id="local-demo"></a>

@@ -232,6 +232,7 @@ export const SITE_CONFIG_FIELDS = [
   { name: 'customHtmlBody', label: 'HTML personalizado — conteúdo', type: 'richtext', tab: 'HTML personalizado' },
   { name: 'homeView', label: 'Página inicial exibe', type: 'select', options: ['category', 'featured'], tab: 'Página inicial' },
   { name: 'homeCategory', label: 'Alias da categoria da página inicial', type: 'text', tab: 'Página inicial' },
+  { name: 'homeShowComponent', label: 'Exibir componente na página inicial', type: 'checkbox', tab: 'Página inicial' },
   { name: 'offline', label: 'Site offline (manutenção)', type: 'checkbox', tab: 'Offline' },
   { name: 'offlineMessage', label: 'Mensagem de site offline', type: 'textarea', tab: 'Offline' },
   { name: 'metaDescription', label: 'Meta descrição do site (indisponível)', type: 'textarea', tab: 'Metadados', readOnly: true },
