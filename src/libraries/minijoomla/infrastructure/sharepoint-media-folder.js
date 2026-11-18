@@ -22,7 +22,14 @@ export function withSharePointMediaFolder({ fileClient, transport, libraryPath }
     catch (error) { if (allowMissing && missing(error)) return null; throw error; }
     if (allowMissing && response?.status === 404) return null;
     const folder = response?.data?.d ?? response?.data;
-    if (!Number.isInteger(response?.status) || response.status < 200 || response.status >= 300 || folder?.Exists !== true || folder.ServerRelativeUrl !== path) throw new TypeError('Pasta de mídia não pôde ser verificada.');
+    const ok = Number.isInteger(response?.status) && response.status >= 200 && response.status < 300;
+    // The base package must exist; the optional child may be absent.
+    if (folder?.Exists !== true) {
+      if (allowMissing && ok && folder?.Exists === false) return null;
+      throw new TypeError('Pasta de mídia não pôde ser verificada.');
+    }
+    const sameUrl = typeof folder.ServerRelativeUrl === 'string' && folder.ServerRelativeUrl.toLowerCase() === path.toLowerCase();
+    if (!ok || !sameUrl) throw new TypeError('Pasta de mídia não pôde ser verificada.');
     return folder;
   }
   const checkFolder = input => { if (input?.folderPath !== 'uploads') throw new TypeError('Somente a pasta de uploads é gerenciada.'); };
@@ -30,15 +37,16 @@ export function withSharePointMediaFolder({ fileClient, transport, libraryPath }
     ...fileClient,
     async listFiles(input) {
       checkFolder(input);
-      if (await readFolder(uploads, true)) return fileClient.listFiles(input);
-      // A missing package/base is not an empty, valid media directory.
+      // The base package is probed first: a 200/Exists=false answer for uploads is
+      // indistinguishable from a project that was never installed.
       await readFolder(libraryPath, false);
+      if (await readFolder(uploads, true)) return fileClient.listFiles(input);
       return { status: 200, data: { value: [] } };
     },
     async uploadFile(input) {
       checkFolder(input);
+      await readFolder(libraryPath, false);
       if (!await readFolder(uploads, true)) {
-        await readFolder(libraryPath, false);
         // Recheck next to POST; cross-browser uniqueness is the server's job.
         if (!await readFolder(uploads, true)) {
           const created = await transport.request(`${api}/folders/AddUsingPath(decodedurl='${uploads}')`, { method: 'POST' });
