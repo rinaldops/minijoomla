@@ -122,6 +122,15 @@ const SIDEBAR_GROUPS = [
   ] }
 ];
 
+/*
+ * Regra da sidebar: cada link do menu carrega a última query lembrada da
+ * listagem de destino (`recallListFilters`) já embutida no href. Assim o
+ * clique no menu chega sempre como parâmetro explícito, sem depender de
+ * interceptar o clique nem de saber a origem da navegação — o mesmo
+ * caminho usado por qualquer outro link com filtros. Voltar pelo menu
+ * depois de sair de uma lista filtrada reaplica o filtro; a primeira
+ * visita (sem memória) continua abrindo a lista limpa.
+ */
 function sidebarHref(key, link) {
   if (key === 'home') return link('/');
   if (key === 'config') return link('/config');
@@ -135,7 +144,7 @@ function sidebarHref(key, link) {
   if (key === 'discoverExtensions') return link('/extensions/discover');
   if (key === 'discoverTemplates') return link('/templates/discover');
   if (key === 'templateRevision') return link('/templates/revision');
-  return link(`/${key}`);
+  return link(`/${key}`, recallListFilters(`/${key}`));
 }
 
 function renderSidebarGroups(link) {
@@ -367,6 +376,73 @@ function filterColumnValues(domain, rows, params = {}) {
   }, rows);
 }
 
+/*
+ * Liga os menus de filtro por coluna das listagens de domínio
+ * (render-list.js: `renderColumnFilter`). Mesmo contrato de teclado dos
+ * menus de content-pages.js, porque para o usuário é o mesmo controle:
+ * Enter/Espaço/clique abre; Escape fecha e devolve o foco ao botão;
+ * ↑/↓/Home/End percorrem; Enter/Espaço escolhem; clicar fora fecha
+ * todos. A escolha NAVEGA (a URL passa a descrever a tela, "voltar"
+ * funciona e recarregar mantém o filtro), preservando os outros
+ * filtros, a busca e a ordenação, e voltando à página 1 — um filtro
+ * novo muda o conjunto de resultados.
+ *
+ * `link` é injetado (não capturado do escopo do módulo) porque app.js
+ * não tem um `link` global: cada página resolve o seu via router.
+ */
+function bindColumnFilters(location, link, navigate, scope) {
+  const containers = Array.from(scope?.querySelectorAll?.('[data-colfilter]') ?? []);
+  if (!containers.length) return;
+  const closeAll = (except) => containers.forEach((container) => {
+    if (container === except) return;
+    container.querySelector?.('[data-colfilter-menu]')?.setAttribute('hidden', '');
+    container.querySelector?.('[data-colfilter-toggle]')?.setAttribute('aria-expanded', 'false');
+    container.classList.remove('is-open');
+  });
+  containers.forEach((container) => {
+    const toggle = container.querySelector?.('[data-colfilter-toggle]');
+    const menu = container.querySelector?.('[data-colfilter-menu]');
+    if (!toggle || !menu) return;
+    const items = () => Array.from(menu.querySelectorAll?.('[data-colfilter-option]') ?? []);
+    const focusItem = (index) => { const options = items(); if (!options.length) return; const target = options[(index + options.length) % options.length]; options.forEach((option) => { option.tabIndex = option === target ? 0 : -1; }); target.focus?.(); };
+    const setOpen = (open) => {
+      if (open) closeAll(container);
+      menu.toggleAttribute?.('hidden', !open);
+      menu.hidden = !open;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      container.classList.toggle?.('is-open', open);
+      if (open) focusItem(Math.max(0, items().findIndex((option) => option.getAttribute?.('aria-checked') === 'true')));
+    };
+    toggle.addEventListener?.('click', (event) => { event?.preventDefault?.(); setOpen(Boolean(menu.hidden)); });
+    toggle.addEventListener?.('keydown', (event) => {
+      if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) return;
+      event.preventDefault?.();
+      const wasOpen = !menu.hidden; setOpen(true); if (!wasOpen) focusItem(0);
+    });
+    menu.addEventListener?.('keydown', (event) => {
+      const options = items();
+      const current = options.indexOf(scope.activeElement ?? options.find((option) => option.tabIndex === 0));
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault?.();
+        focusItem(event.key === 'ArrowDown' ? current + 1 : event.key === 'ArrowUp' ? current - 1 : event.key === 'Home' ? 0 : options.length - 1);
+        return;
+      }
+      if (event.key === 'Escape') { event.preventDefault?.(); setOpen(false); toggle.focus?.(); return; }
+      if (event.key === 'Tab') { setOpen(false); return; }
+      if (['Enter', ' '].includes(event.key)) { event.preventDefault?.(); options[current]?.click?.(); }
+    });
+    items().forEach((option) => option.addEventListener?.('click', (event) => {
+      event?.preventDefault?.();
+      const value = option.dataset?.colfilterValue ?? '';
+      const next = { ...(location.params ?? {}), [container.dataset.colfilterName]: value || undefined, page: undefined };
+      setOpen(false);
+      navigate(link(location.path, next));
+    }));
+  });
+  scope?.addEventListener?.('click', (event) => { if (!containers.some((container) => container.contains?.(event.target))) closeAll(); });
+  scope?.addEventListener?.('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
+}
+
 function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, params = {}, now } = {}) {
   const config = ADMIN_DOMAINS[domain];
   const label = domainLabel(domain);
@@ -412,10 +488,14 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
   return shell({ activeKey: domain, pageTitle: label, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: link('/' + domain, listState) }], toolbarActionsHtml: newAction, bodyHtml: help + renderCapabilities(domain) + status + body, link });
 }
 
-function renderDomainFormPage(domain, values, { isNew, link, relationOptions, imageUpload = false }) {
+function renderDomainFormPage(domain, values, { isNew, link, relationOptions, imageUpload = false, returnParams = {} }) {
   const config = ADMIN_DOMAINS[domain];
   const label = domainLabel(domain);
   const title = isNew ? `Novo registro em ${label}` : `Editar ${label}`;
+  // Cancelar e o breadcrumb precisam voltar à lista COMO ELA ESTAVA (filtros,
+  // busca, ordenação e página), senão editar um item filtrado devolve o
+  // usuário a uma lista sem filtro e ele perde o contexto de trabalho.
+  const backHref = link(`/${domain}`, returnParams);
   const fields = domain === 'moduleInstances' ? config.fields.map((field) => field.name === 'extensionKey' ? { ...field, label: 'Tipo de módulo' } : field) : config.fields;
   const displayValues = domain === 'extensions' ? { ...values, type: extensionTypeLabel(values.type) } : values;
   const form = domain === 'articles'
@@ -426,15 +506,15 @@ function renderDomainFormPage(domain, values, { isNew, link, relationOptions, im
         relationOptions,
         layout: ARTICLE_EDITOR_LAYOUT,
         submitLabel: isNew ? 'Criar' : 'Salvar',
-        cancelHref: link(`/${domain}`),
+        cancelHref: backHref,
         imageUpload
       })
-    : renderAdminForm({ formId: domain, fields, values: displayValues, submitLabel: isNew ? 'Criar' : 'Salvar', cancelHref: link(`/${domain}`), relationOptions });
+    : renderAdminForm({ formId: domain, fields, values: displayValues, submitLabel: isNew ? 'Criar' : 'Salvar', cancelHref: backHref, relationOptions });
   // Como no Joomla, artigos/categorias/tags só são excluídos definitivamente a partir da lixeira.
   const deletable = !isNew && (!['articles', 'categories', 'tags'].includes(domain) || values.state === 'Trashed');
   const deleteButton = !deletable ? '' : `<button type="button" class="admin-btn admin-btn-danger" data-admin-delete="true" data-confirm="Excluir este registro de ${escapeHtml(label)}? Esta ação não pode ser desfeita.">${trashIcon()}Excluir</button>`;
   const body = `${renderCapabilities(domain)}<p role="status" aria-live="polite" aria-atomic="true" class="admin-form-status"></p>${form}${deleteButton}`;
-  return shell({ activeKey: domain, pageTitle: title, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: link(`/${domain}`) }, { label: isNew ? 'Novo' : 'Editar' }], bodyHtml: body, link });
+  return shell({ activeKey: domain, pageTitle: title, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: backHref }, { label: isNew ? 'Novo' : 'Editar' }], bodyHtml: body, link });
 }
 
 /*
@@ -511,11 +591,16 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
       const [, domain, idSegment] = domainMatch;
       if (domain === 'templates' && adminService.templates?.available === false) return { html: shell({ activeKey: 'templates', pageTitle: 'Templates', breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label: 'Templates' }], bodyHtml: '<p role="status">Catálogo de templates não configurado. Os templates integrados continuam disponíveis na <a href="' + link('/config') + '">configuração do site</a>.</p>', link }) };
       if (idSegment === undefined) {
+        // Memória por lista: parâmetros explícitos na URL passam a ser a
+        // última query conhecida; uma URL limpa (ex.: "Artigos" no fim de um
+        // formulário, ou "Limpar filtros") esquece a query anterior. A
+        // sidebar não depende disto: ela já embute a memória no href.
+        const listParams = effectiveListParams(`/${domain}`, location.params);
         let rows = await adminService[domain].list();
         let siteConfig;
         if (ADMIN_CAPABILITIES[domain]) {
           // findMany omits ETags; actions must use the snapshot captured with this screen.
-          const visible = filterAndPaginate(filterManagementRows(domain, rows, location.params), ADMIN_DOMAINS[domain], location.params?.q, location.params?.page).pageRows;
+          const visible = filterAndPaginate(filterManagementRows(domain, rows, listParams), ADMIN_DOMAINS[domain], listParams?.q, listParams?.page).pageRows;
           const snapshots = new Map((await Promise.all(visible.map((row) => adminService[domain].get(row.id)))).filter(Boolean).map((row) => [row.id, row]));
           rows = rows.map((row) => snapshots.get(row.id) ?? row);
           if (domain === 'templates') {
@@ -523,22 +608,26 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
             rows = rows.map((row) => ({ ...row, etag: row.etag, isDefault: row.key === (siteConfig?.templateKey || 'default') }));
           }
         }
-        return { html: renderDomainListPage(domain, rows, link, { searchTerm: location.params?.q, pageNumber: location.params?.page, params: location.params, now: domain === 'articles' ? clock() : undefined }), management: { domain, rows, siteConfig } };
+        return { html: renderDomainListPage(domain, rows, link, { searchTerm: listParams?.q, pageNumber: listParams?.page, params: listParams, now: domain === 'articles' ? clock() : undefined }), management: { domain, rows, siteConfig } };
       }
       const config = ADMIN_DOMAINS[domain];
+      // Voltar do formulário deve reproduzir a lista de origem: usa a query
+      // que a listagem gravou por último (a sidebar e os links de edição já
+      // embutem a mesma memória, então os três caminhos coincidem).
+      const returnParams = recallListFilters(`/${domain}`);
       if (idSegment === 'new') {
         if (['extensions', 'templates'].includes(domain)) return { html: renderNotFoundPage(link) };
         const relationOptions = await resolveRelationOptions(config.fields, adminService, undefined);
         const newFormValues = domain === 'menu' ? toMenuFormValues({}) : domain === 'articles' ? toArticleFormValues({}) : domain === 'moduleInstances' ? { enabled: true, ordering: 0, scopeKind: 'All', position: 'sidebar-right' } : {};
         if (domain === 'menu') relationOptions.menuType = menuTypeOptions(newFormValues);
-        return { html: renderDomainFormPage(domain, newFormValues, { isNew: true, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage) }) };
+        return { html: renderDomainFormPage(domain, newFormValues, { isNew: true, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage), returnParams }) };
       }
       const record = await adminService[domain].get(Number(idSegment));
       if (!record) return { html: renderNotFoundPage(link) };
       const formValues = domain === 'menu' ? toMenuFormValues(record) : domain === 'moduleInstances' ? toModuleInstanceFormValues(record) : domain === 'templates' ? toTemplateFormValues(record) : domain === 'articles' ? toArticleFormValues(record) : record;
       const relationOptions = await resolveRelationOptions(config.fields, adminService, record?.id, formValues);
       if (domain === 'menu') relationOptions.menuType = menuTypeOptions(formValues);
-      return { html: renderDomainFormPage(domain, formValues ?? {}, { isNew: false, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage) }), etag: record?.etag, record };
+      return { html: renderDomainFormPage(domain, formValues ?? {}, { isNew: false, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage), returnParams }), etag: record?.etag, record };
     }
     return { html: renderNotFoundPage(link) };
   }
@@ -656,7 +745,10 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
         if (domain === 'templates' && values.positionsText !== undefined) { values.positions = JSON.parse(values.positionsText || '[]'); delete values.positionsText; }
         if (idSegment === 'new') { await adminService[domain].create(values); report('Criado com sucesso.'); }
         else { await adminService[domain].update(Number(idSegment), values, { etag }); report('Salvo com sucesso.'); }
-        if (isCurrent()) await router.navigate(router.link(`/${domain}`));
+        // Volta para a lista com os filtros que o usuário tinha antes de entrar
+        // no formulário: sem isto, salvar um item filtrado joga o usuário numa
+        // lista completa e ele perde o contexto de trabalho.
+        if (isCurrent()) await router.navigate(router.link(`/${domain}`, recallListFilters(`/${domain}`)));
       } catch (error) {
         report(error?.code === 'concurrency-conflict' ? 'O registro foi alterado por outra pessoa. Recarregue antes de salvar.' : error?.name === 'ValidationError' ? error.message : (['moduleInstances', 'templates'].includes(domain) && error instanceof SyntaxError ? 'Configurações (JSON) inválido.' : 'Não foi possível salvar.'));
       } finally { saving = false; }
@@ -669,7 +761,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
       if (!isCurrent()) return;
       try {
         await adminService[domain].remove(Number(idSegment), { etag });
-        if (isCurrent()) await router.navigate(router.link(`/${domain}`));
+        if (isCurrent()) await router.navigate(router.link(`/${domain}`, recallListFilters(`/${domain}`)));
       } catch (error) { report(error?.code === 'concurrency-conflict' ? 'O registro foi alterado por outra pessoa. Recarregue antes de excluir.' : error?.name === 'ValidationError' ? error.message : 'Não foi possível excluir.'); }
     });
   }
@@ -931,6 +1023,13 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     const domainMatch = location.path.match(/^\/([a-zA-Z]+)(?:\/(new|\d+))?$/);
     if (domainMatch && DOMAIN_KEYS.includes(domainMatch[1]) && domainMatch[2] !== undefined) bindFormHandlers(domainMatch[1], domainMatch[2], etag, navigationId, record);
     else if (location.path === '/config') bindFormHandlers('config', undefined, etag, navigationId, record);
+    // Listagem de domínio pura (sem `new`/id): estes menus de coluna são
+    // ligados aqui porque estas páginas não têm `bind()` próprio — os
+    // módulos de páginas de conteúdo/extensão ligam os seus no `bind()`.
+    if (domainMatch && DOMAIN_KEYS.includes(domainMatch[1]) && domainMatch[2] === undefined) {
+      const navigate = (href) => { if (navigationId === latestNavigation) router.navigate(href); };
+      bindColumnFilters(location, (path, params) => router.link(path, params), navigate, documentRef);
+    }
   }});
 
   const application = { router, start: () => {
