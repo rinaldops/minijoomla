@@ -4,7 +4,7 @@
  * Uso: node scripts/deploy-sharepoint.mjs --version X.Y.Z --web /sites/site --session <id>
  *      [--rpc 47173] [--skip-provision] [--prepare-only] [--expected-origin https://tenant.sharepoint.com]
  *      [--public-page NomeReal.aspx] [--mse-layout FullBleed|Contained]
- *      [--pages Administrator.aspx | --admin-only] [--activate-existing]
+ *      [--pages Administrator.aspx | --admin-only] [--activate-existing] [--stage-dir <nome>]
  * Recusa versão já existente. Grava em tmp/deploy/ o canvas anterior (rollback) e o
  * mapa de listas. Nenhum cookie/token é lido ou gravado: todo acesso roda no navegador.
  * --public-page informa o nome real do .aspx público já criado no site de
@@ -23,6 +23,12 @@
  * --prepare-only anterior. Nada é gravado na release: o readback completo por
  * hash contra o manifest local roda ANTES de qualquer escrita em página e
  * aborta se algo divergir. Sem a opção, a recusa de release existente vale.
+ * --stage-dir escolhe o nome do diretório de stage dentro de
+ * tmp/deploy/<versão> quando for preciso retomar o stage de uma preparação
+ * anterior (ex.: `--stage-dir stage` no passo de ativação). Omitido, cada
+ * invocação recebe um destino determinístico e ainda inexplorado (`stage`,
+ * `stage.2`, ...), porque stage-release.js recusa, de propósito, sobrescrever
+ * um stage já criado; sem isso a sequência preparar→ativar colidiria.
  * --mse-layout é opcional; omitido preserva o snippet legado sem wrapper
  * (sem mudança de comportamento). Quando informado, publishPages() envolve
  * a raiz do CMS no wrapper data-spmiddle-host/data-spmiddle-layout real do
@@ -37,8 +43,8 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSharePointRestClient } from '../../SPMIDDLE/packages/sharepoint-rest-browser/src/index.js';
 import { createProvisioningManager } from '../../SPMIDDLE/packages/sharepoint-provisioning/src/index.js';
@@ -215,8 +221,35 @@ function scopedAdminCss(css) {
   return `@scope ([data-minijoomla-admin-root]) {\n${css.replace(/^(:root|body)\s*\{/gm, ':scope{')}\n}\n`;
 }
 
+// O stage é a matriz local dos bytes enviados. `stage-release.js` recusa de
+// propósito qualquer destino já existente, então cada invocação precisa do seu
+// próprio diretório: sem isso, o passo 2 (`--activate-existing`) morreria ao
+// tentar regravar o stage criado pelo passo 1 (`--prepare-only`), antes mesmo
+// do readback e de qualquer escrita em página. `--stage-dir` permite retomar
+// explicitamente o stage de uma preparação anterior; sem ele, o destino é
+// determinístico e novo (`stage`, `stage.2`, ...), nunca reaproveitado.
+function resolveStageDir() {
+  const explicit = option('stage-dir');
+  if (explicit) {
+    if (basename(explicit) !== explicit) throw new TypeError('--stage-dir deve ser um diretório dentro de tmp/deploy/<versão> (ex.: stage-ativacao).');
+    return join('tmp', 'deploy', version, explicit);
+  }
+  const parent = join(PROJECT, 'tmp', 'deploy', version);
+  try {
+    if (!existsSync(join(parent, 'stage'))) return join('tmp', 'deploy', version, 'stage');
+    for (let n = 2; n < 1000; n += 1) {
+      const candidate = join('tmp', 'deploy', version, `stage.${n}`);
+      if (!existsSync(join(PROJECT, candidate))) return candidate;
+    }
+    throw new Error('Não foi possível reservar um diretório de stage novo.');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return join('tmp', 'deploy', version, 'stage');
+  }
+}
+
 function buildStage(lists) {
-  const stage = join('tmp', 'deploy', version, 'stage');
+  const stage = resolveStageDir();
   execFileSync(process.execPath, ['scripts/stage-release.js', '--version', version, '--output', stage, '--target', 'all'], { cwd: PROJECT, stdio: 'inherit' });
   const root = join(PROJECT, stage);
   const host = readFileSync(join(PROJECT, 'host-adapters', 'modern-script-editor', 'host.js'), 'utf8')

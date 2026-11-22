@@ -74,15 +74,16 @@ function startBridge({ releaseExists = true } = {}) {
   });
 }
 
-async function runDeploy(args, { releaseExists = true } = {}) {
+async function runDeploy(args, { releaseExists = true, clean = true } = {}) {
   const bridge = await startBridge({ releaseExists });
   // The suite also runs from a staged contributor copy, where tmp/ may not exist.
   mkdirSync(TMP, { recursive: true });
   const base = mkdtempSync(join(TMP, 'deploy-pages-scope-'));
   const deployDir = join(PROJECT, 'tmp', 'deploy', VERSION);
   // The script stages into a fixed tmp/deploy/<version>/stage path and refuses
-  // to overwrite, so each case starts from a clean deploy directory.
-  rmSync(deployDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
+  // to overwrite, so each case starts from a clean deploy directory. The
+  // two-step sequence passes clean: false to share one tree across both calls.
+  if (clean) rmSync(deployDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
   try {
     const child = spawn(process.execPath, [
       SCRIPT, '--version', VERSION, '--web', '/teams/camap-agp', '--session', '1',
@@ -105,6 +106,21 @@ async function runDeploy(args, { releaseExists = true } = {}) {
     await bridge.close();
     rmSync(base, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
   }
+}
+
+/**
+ * The real activation sequence: `--prepare-only` and then `--activate-existing`
+ * on one shared deploy tree, with nothing removed between the two runs. The
+ * second call must build its own stage instead of colliding with the first.
+ */
+async function runDeploySequence() {
+  const deployDir = join(PROJECT, 'tmp', 'deploy', VERSION);
+  rmSync(deployDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 });
+  // Step 1 uploads the release, so it must start from a release that does not
+  // exist yet; step 2 then finds it present, exactly like the real activation.
+  const prepare = await runDeploy(['--prepare-only', '--skip-provision'], { clean: false, releaseExists: false });
+  const activate = await runDeploy(['--activate-existing', '--admin-only', '--skip-provision'], { clean: false, releaseExists: true });
+  return { prepare, activate };
 }
 
 /** Page names appearing in any expression the script sent to the bridge. */
@@ -203,6 +219,34 @@ export async function runDeployPagesScopeTests() {
   const fresh = await runDeploy(['--admin-only', '--skip-provision'], { releaseExists: false });
   assert.equal(fresh.status, 0, `release nova deve ser preparada: ${fresh.stderr}`);
   cases.push('release-nova-comportamento-inalterado');
+
+  // 8. The real two-step activation sequence: --prepare-only followed by
+  //    --activate-existing on the SAME tree, with nothing deleted in between.
+  //    step-release.js refuses to overwrite a stage, so this is the case that
+  //    catches the stage collision: the second run must build its own stage
+  //    instead of dying before the readback and the panel write.
+  const sequence = await runDeploySequence();
+  assert.equal(sequence.prepare.status, 0,
+    `--prepare-only (passo 1) deve concluir: ${sequence.prepare.stderr}`);
+  assert.deepEqual(sequence.prepare.written, [],
+    '--prepare-only nao pode gerar rollback: nenhuma pagina pode ser escrita');
+  assert.equal(sequence.prepare.seen.some((expression) => expression.includes('X-HTTP-Method')), false,
+    '--prepare-only nao pode publicar pagina alguma');
+  assert.equal(sequence.activate.status, 0,
+    `--activate-existing (passo 2) deve concluir apos o passo 1: ${sequence.activate.stderr}`);
+  assert.deepEqual(sequence.activate.written, [`rollback-${ADMIN_PAGE}.html`],
+    'o passo de ativacao deve gerar rollback somente de Administrator.aspx');
+  assert.deepEqual(pagesMentioned(sequence.activate.seen), [ADMIN_PAGE],
+    'a sequencia ativada com --admin-only nao pode enderecar a pagina publica');
+  assert.ok(!/Destino já existe/.test(`${sequence.activate.stdout}${sequence.activate.stderr}`),
+    'a ativacao nao pode colidir com o stage deixado pelo passo de preparo');
+  // Both stages coexist: the second invocation did not reuse or destroy the first.
+  const stageDirs = readdirSync(join(PROJECT, 'tmp', 'deploy', VERSION))
+    .filter((name) => name === 'stage' || /^stage\.\d+$/.test(name)).sort();
+  assert.ok(stageDirs.length >= 2,
+    `o passo de ativacao deve montar o proprio stage sem apagar o do preparo: ${stageDirs.join(', ')}`);
+  assert.ok(stageDirs.includes('stage'), 'o stage do passo 1 deve continuar intacto');
+  cases.push('prepare-only-depois-activate-existing-na-mesma-arvore');
 
   return cases;
 }

@@ -39,15 +39,31 @@ Confirmado **sem acessar o SharePoint**, pelos registros em `CAMAP-V3/tmp`:
   entrada"*; a SPA monta as rotas 01–08 como rotas de hash sobre ela). A pasta
   *Site Pages* contém `Default.aspx`, `Administrator.aspx` e `Contatos.aspx`.
 - **`MiniJoomla.aspx` não existe neste site** — é apenas o default do parâmetro
-  `--public-page` no script. Hoje `Default.aspx` (`pageItemId 3`) referencia o
-  loader `releases/0.17.10/host/loader.js` e `Administrator.aspx`
-  (`pageItemId 16`) referencia `releases/0.17.13/host/loader.js`.
+  `--public-page` no script. No registro antigo dos artefatos locais,
+  `Default.aspx` (`pageItemId 3`) referenciava o loader
+  `releases/0.17.10/host/loader.js`; esse registro está **desatualizado**.
+  O estado atual da página pública, **medido pela outra equipe**, é o loader
+  `releases/0.17.13/host/loader.js`. `Administrator.aspx` (`pageItemId 16`)
+  também referencia `releases/0.17.13/host/loader.js`.
+- A ativação restrita (`--admin-only`) **não altera** a página pública: ela
+  permanece com o loader `releases/0.17.13/host/loader.js`. A versão da página
+  pública é informação **medida no host**, não derivada destes documentos;
+  confirme-a com o passo somente leitura abaixo antes de qualquer operação.
 - Consequência prática: o nome a passar em `--public-page` neste site é
   **`Default.aspx`**. Se algum comando omitir `--public-page`, o script tentará
   localizar `MiniJoomla.aspx` e falhará em `FileLeafRef` — e, como o alvo agora
   é restrito, **não há risco de escrever em página errada**.
 
 ### Comandos exatos (não executar nesta tarefa)
+
+Passo 0 (somente leitura) — registrar qual loader a **página pública** referencia,
+antes de qualquer operação. Não escreve nada:
+
+```sh
+# Rode no navegador do FioriAgent já autenticado (mesma sessão do deploy).
+# Lê o CanvasContent1 de Default.aspx e imprime a URL <release>/host/loader.js
+# referenciada. Anote o valor: é a linha de base que o passo 3 vai comparar.
+```
 
 Passo 1 — subir e verificar a release, **sem alterar página alguma**:
 
@@ -69,15 +85,25 @@ intocada:
 
 ```sh
 node scripts/deploy-sharepoint.mjs --version 0.17.14 \
-  --web /teams/camap-agp --session <id> --public-page Default.aspx \
+  --web /teams/camap-agp --session <id> \
   --activate-existing --admin-only
 ```
+
+Não passe `--public-page` aqui: `--admin-only` é exclusivo com
+`--public-page`/`--pages` e a combinação é **rejeitada com erro antes de
+qualquer contato com o host**. Com `--admin-only` só `Administrator.aspx` entra
+em `PAGES`, então o nome da página pública é irrelevante e nem precisa ser
+resolvido.
 
 - `--activate-existing` é necessário porque o passo 1 já criou a release: sem
   ele o script recusa (`Release 0.17.14 já existe`) e a ativação jamais
   aconteceria. Ele **não** regrava arquivos: refaz o readback completo por hash
   contra o manifest local e aborta se algo divergir, tudo **antes** da primeira
   escrita em página.
+- `--activate-existing` monta o próprio stage em um diretório novo (o passo 1
+  deixou `tmp/deploy/0.17.14/stage` ocupado e `stage-release.js` recusa
+  sobrescrever). Para retomar explicitamente o stage já preparado, acrescente
+  `--stage-dir stage`.
 - `--admin-only` (equivalente a `--pages Administrator.aspx`) restringe
   `publishPages()` a `Administrator.aspx`. Nessa execução a página pública
   **não é localizada, lida, escrita, publicada, nem tem rollback gerado** — a
@@ -89,6 +115,12 @@ node scripts/deploy-sharepoint.mjs --version 0.17.14 \
   `Administrator.aspx`). Trocar o host do site público pertence a outra frente e
   não é feito aqui.
 
+Passo 3 (somente leitura) — repetir o passo 0 e comparar. A página pública deve
+referenciar **o mesmo loader de antes** (`releases/0.17.13/host/loader.js`),
+provando que `--admin-only` não a alterou. Se o valor tiver mudado, algo fora do
+escopo escreveu na página pública: pare e acione o rollback. Registre os dois
+valores lado a lado no aceite.
+
 ## 2. Rollback
 
 `publishPages()` grava, antes da primeira escrita, o estado anterior em
@@ -98,7 +130,8 @@ página pública não recebe rollback porque não é tocada).
 
 - **Rollback da página:** restaurar o `CanvasContent1` salvo em
   `rollback-<page>.html` pelo mesmo MERGE + Publish. As páginas antigas voltam a
-  apontar para `releases/0.17.13/` (painel) ou `0.17.10` (página pública).
+  apontar para `releases/0.17.13/` (painel, e também o estado medido atual da
+  página pública).
 - **Rollback por pointer (equivalente e preferível):** publicar novamente com
   `--version 0.17.13` — a release 0.17.13 continua no SharePoint e é imutável,
   então basta reapontar a página para ela. Não é preciso reenviar arquivos.
@@ -114,9 +147,10 @@ Três mecanismos, todos já existentes e comprovados neste projeto:
    entradas independentes: a pública (`--public-page`, atributo
    `data-minijoomla-site`) e **`Administrator.aspx`** (atributo
    `data-minijoomla-admin-root`); cada página carrega o próprio
-   `CanvasContent1` com a URL `<release>/host/loader.js`. Hoje a pública
-   (`Default.aspx`) aponta para **0.17.10** e `Administrator.aspx` para
-   **0.17.13**. Com `--admin-only` é possível publicar `Administrator.aspx`
+   `CanvasContent1` com a URL `<release>/host/loader.js`. Hoje a página pública
+   (`Default.aspx`) e `Administrator.aspx` apontam para **0.17.13** (valor da
+   pública medido pela outra equipe). Com `--admin-only` é possível publicar
+   `Administrator.aspx`
    apontando para **0.17.14** sem tocar na página pública, que é o comando do
    passo 2 acima. O aceite visual acontece no painel, liberando a ativação do
    site público só depois da aprovação — e essa troca pertence a outra frente.
