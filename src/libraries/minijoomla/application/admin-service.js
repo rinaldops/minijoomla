@@ -425,6 +425,25 @@ export function descendantIds(rows, id) {
   return found;
 }
 
+/*
+ * Rótulo canônico de uma categoria, independente da árvore de artigos:
+ * devolve o caminho "Pai › Filho" (raiz primeiro), de modo que
+ * homônimas em ramos distintos fiquem distinguíveis. Usado só como
+ * RÓTULO no menu de filtro — o valor do filtro continua sendo o ID.
+ */
+export function categoryPathLabel(rows, id, labelField = 'title') {
+  const byId = new Map(rows.map((row) => [Number(row.id), row]));
+  const chain = [];
+  const seen = new Set();
+  let current = byId.get(Number(id));
+  while (current && !seen.has(Number(current.id))) {
+    seen.add(Number(current.id));
+    chain.unshift(String(current[labelField] ?? '').trim() || `Item ${current.id}`);
+    current = current.parentId === null || current.parentId === undefined ? null : byId.get(Number(current.parentId));
+  }
+  return chain.join(' › ');
+}
+
 /** Ordena em árvore (pai antes dos filhos, irmãos por título) devolvendo { row, depth }. */
 export function treeOrder(rows, labelField = 'title') {
   const ids = new Set(rows.map((row) => row.id));
@@ -536,6 +555,15 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
   async function queryArticles(params = {}) {
     const [rows, categoryList] = await Promise.all([articleRows(), categoryRows()]);
     const titles = new Map(categoryList.map((row) => [row.id, row.title]));
+    /*
+     * G1: a ordenação e o filtro por categoria usam o ID CANÔNICO, nunca
+     * o título. Duas categorias homônimas em ramos distintos têm o
+     * mesmo título, então ordenar por título misturava os dois ramos e
+     * não havia como distinguir a qual delas uma linha pertencia.
+     * `categoryPaths` dá o rótulo desambiguado ("Pai › Filho") usado no
+     * menu de filtro da coluna Categoria.
+     */
+    const categoryPaths = new Map(categoryList.map((row) => [row.id, categoryPathLabel(categoryList, row.id, 'title')]));
     const categoryScope = params.categoryId ? new Set([Number(params.categoryId), ...descendantIds(categoryList, params.categoryId)]) : null;
     const term = String(params.q ?? '').trim();
     const filtered = rows.filter((row) => {
@@ -546,18 +574,38 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       if (params.author && row.author !== params.author) return false;
       if (params.language && row.language !== params.language) return false;
       if (params.tag && !tagNames(row.tags).some((name) => lower(name) === lower(params.tag))) return false;
+      /*
+       * Filtros por COLUNA (menu tipo Excel) — comparação exata do valor
+       * da célula, independente da busca textual `q`. `title`/`alias`
+       * são exatos (case-insensitive) porque o menu lista valores
+       * distintos reais da coluna; um filtro por substring esconderia
+       * justamente o valor escolhido quando um título é prefixo de
+       * outro.
+       */
+      if (params.title && lower(row.title) !== lower(params.title)) return false;
+      if (params.alias && lower(row.alias) !== lower(params.alias)) return false;
       return matchesSearch(row, term, ['title', 'alias', 'note']);
     });
     const sort = ARTICLE_SORTS.includes(params.sort) ? params.sort : 'id';
     const direction = (params.dir ?? (sort === 'id' ? 'desc' : 'asc')) === 'desc' ? -1 : 1;
-    const key = (row) => sort === 'category' ? lower(titles.get(row.categoryId)) : sort === 'state' ? stateOf(row) : sort === 'featured' ? (row.featured ? 1 : 0) : sort === 'publishUp' ? (row.publishUp ? new Date(row.publishUp).getTime() || 0 : 0) : sort === 'id' ? row.id : lower(row[sort]);
-    filtered.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) * direction || a.id - b.id);
+    /*
+     * G1 — ordenação por categoria por ID canônico (nunca pelo título, que
+     * mistura homônimas de ramos distintos). O desempate por título fica
+     * ACIMA da direção para que a categoria nunca seja partida ao meio e
+     * `asc`/`desc` produzam estritamente a ordem inversa. Sem isso, `desc`
+     * intercalava ramos.
+     */
+    const key = (row) => sort === 'category' ? Number(row.categoryId) || 0 : sort === 'state' ? stateOf(row) : sort === 'featured' ? (row.featured ? 1 : 0) : sort === 'publishUp' ? (row.publishUp ? new Date(row.publishUp).getTime() || 0 : 0) : sort === 'id' ? row.id : lower(row[sort]);
+    const tier = (row) => sort === 'category' ? lower(titles.get(Number(row.categoryId)) ?? '') : '';
+    filtered.sort((a, b) => tier(a).localeCompare(tier(b))
+      || (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) * direction
+      || a.id - b.id);
     const limit = PAGE_LIMITS.includes(Number(params.limit)) ? Number(params.limit) : 20;
     const pageCount = Math.max(1, Math.ceil(filtered.length / limit));
     const page = Math.min(pageCount, Math.max(1, Number.parseInt(params.page, 10) || 1));
     const pageRows = await snapshots(articleCrud, filtered.slice((page - 1) * limit, page * limit));
     return {
-      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '' })), total: filtered.length, page, pageCount, limit,
+      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(Number(row.categoryId)) ?? '' })), total: filtered.length, page, pageCount, limit,
       facets: { authors: [...new Set(rows.map((row) => row.author).filter(Boolean))].sort(), languages: [...new Set(rows.map((row) => row.language).filter(Boolean))].sort() }
     };
   }
@@ -671,7 +719,21 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       async query(params = {}) {
         const [rows, articleList] = await Promise.all([rowsOf(), articleRows()]);
         const term = String(params.q ?? '').trim();
-        const visible = treeOrder(rows, titleField).filter(({ row }) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed') && matchesSearch(row, term, [titleField, aliasField]));
+        /*
+         * Filtro por coluna (menu tipo Excel): cada coluna tem seu próprio
+         * parâmetro e compara o valor da célula por igualdade
+         * case-insensitive — `q` continua sendo a busca textual ampla.
+         * Sem isto, a única forma de filtrar uma coluna seria reusar `q`,
+         * que cruzaria título e alias e misturaria colunas diferentes.
+         */
+        const exact = (name, value) => {
+          const wanted = params[name];
+          return wanted === undefined || wanted === null || wanted === '' ? true : lower(value) === lower(wanted);
+        };
+        const visible = treeOrder(rows, titleField).filter(({ row }) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed')
+          && matchesSearch(row, term, [titleField, aliasField])
+          && exact(titleField, row[titleField])
+          && exact(aliasField, row[aliasField]));
         const fresh = await snapshots(base, visible.map(({ row }) => row));
         return visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
       },
@@ -679,9 +741,24 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       async treeOptions({ excludeId, current } = {}) {
         const rows = await rowsOf();
         const blocked = excludeId === undefined ? new Set() : new Set([Number(excludeId), ...descendantIds(rows, excludeId)]);
+        const paths = new Map(rows.map((row) => [Number(row.id), categoryPathLabel(rows, row.id, titleField)]));
+        const counts = new Map();
+        for (const path of paths.values()) counts.set(path, (counts.get(path) ?? 0) + 1);
         return treeOrder(rows, titleField)
           .filter(({ row }) => !blocked.has(row.id) && (stateOf(row) !== 'Trashed' || row.id === Number(current)))
-          .map(({ row, depth }) => ({ value: row.id, label: `${'— '.repeat(depth)}${row[titleField]}` }));
+          /*
+           * G1: homônimas em ramos distintos produziam rótulos idênticos
+           * ("Avisos" e "Avisos"), impossíveis de distinguir no dropdown.
+           * O rótulo vira o caminho completo ("Pai › Avisos") SÓ quando
+           * existe mais de uma categoria com o mesmo caminho textual —
+           * caso contrário mantém a indentação simples e legível do
+           * Joomla real.
+           */
+          .map(({ row, depth }) => {
+            const path = paths.get(Number(row.id)) ?? String(row[titleField] ?? '');
+            const label = (counts.get(path) ?? 0) > 1 ? path : row[titleField];
+            return { value: row.id, label: `${'— '.repeat(depth)}${label}` };
+          });
       },
       async duplicate(id) {
         const record = await base.get(id);

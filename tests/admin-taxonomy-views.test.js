@@ -35,7 +35,9 @@ export function runAdminTaxonomyViewsTests() {
     { id: 6, name: '  ', alias: '', state: 'Unpublished', counts: { count: 0 } }
   ], { link });
   assert.match(tags, /<th scope="col">Nome<\/th>/);
-  assert.match(tags, /<th scope="col">Artigos com a tag<\/th>/);
+  // A coluna de contagem usa o mesmo padrão das demais: texto curto visível e
+  // rótulo completo acessível, para o cabeçalho não destoar dos vizinhos.
+  assert.match(tags, /<th scope="col" class="admin-col-count"><span class="visually-hidden">Artigos com a tag<\/span>/);
   assert.equal((tags.match(/class="admin-badge/g) ?? []).length, 2, 'tags show a single count badge per row');
   assert.match(tags, /href="#\/articles\?tag=Tag &lt;b&gt;"/);
   assert.match(tags, /aria-label="7 artigo\(s\) com a tag Tag &lt;b&gt;"/);

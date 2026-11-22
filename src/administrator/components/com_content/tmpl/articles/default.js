@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
 import { selectAllCell, selectionCell } from '../../../com_minijoomla/extension-pages.js';
-import { renderArticleIndicator } from '../../../com_minijoomla/render-list.js';
+import { renderArticleIndicator, renderColumnFilter } from '../../../com_minijoomla/render-list.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const dateText = (value) => {
@@ -8,8 +8,14 @@ const dateText = (value) => {
   return date && Number.isFinite(date.getTime()) ? date.toLocaleDateString('pt-BR') : '';
 };
 
-export function renderArticlesTable(result, { link, params = {}, now = new Date() } = {}) {
-  if (!result.rows.length) return '<p class="admin-empty" role="status">Nenhum artigo encontrado.</p>';
+export function renderArticlesTable(result, { link, params = {}, now = new Date(), columnFilters = [], returnParams = {} } = {}) {
+  /*
+   * Estado vazio AINDA renderiza o cabeçalho: sem ele, um filtro que não
+   * casa com nada deixava o usuário preso — não havia mais como trocar o
+   * valor do menu de coluna sem recarregar a página pelo navegador. O
+   * aviso substitui o corpo da tabela, o cabeçalho permanece.
+   */
+  const emptyNotice = '<p class="admin-empty" role="status">Nenhum artigo encontrado.</p>';
 
   const sort = params.sort || 'id';
   const dir = params.dir || (sort === 'id' ? 'desc' : 'asc');
@@ -18,9 +24,20 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
     const next = active && dir === 'asc' ? 'desc' : 'asc';
     return `<a href="${esc(link('/articles', { ...params, sort: key, dir: next, page: undefined }))}">${esc(label)}${active ? ` <span aria-hidden="true">${dir === 'asc' ? '▲' : '▼'}</span>` : ''}</a>`;
   };
+  /*
+   * Cada coluna tem seu próprio ordenador e, quando `columnFilters` traz
+   * uma entrada para ela, também o menu de filtro independente — o
+   * mesmo "filtro por coluna" do Joomla real. `filter.column` é o NOME
+   * DA COLUNA e pode diferir do parâmetro de URL (`filter.name`): a
+   * coluna Categoria filtra por `categoryId` canônico, nunca pelo
+   * rótulo, para que categorias homônimas em ramos distintos não se
+   * confundam.
+   */
+  const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
   const header = (key, label, extraKey, extraLabel) => {
     const active = sort === key || sort === extraKey;
-    return `<th scope="col"${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}</th>`;
+    const filter = filterFor(key);
+    return `<th scope="col"${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}${filter ? renderColumnFilter(filter, key) : ''}</th>`;
   };
   const rows = result.rows.map((row) => {
     const title = String(row.title ?? '').trim() || `Artigo ${row.id}`;
@@ -28,7 +45,17 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
       ? `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="restore" data-ext-id="${esc(row.id)}" aria-label="Restaurar ${esc(title)}">Restaurar</button>`
       : `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="toggle-state" data-ext-id="${esc(row.id)}" aria-label="${(row.state ?? 'Published') === 'Published' ? 'Despublicar' : 'Publicar'} ${esc(title)}">${renderArticleIndicator(row, 'state', now)}</button>`;
     const featuredButton = `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="toggle-featured" data-ext-id="${esc(row.id)}" aria-label="${row.featured ? 'Remover destaque de' : 'Destacar'} ${esc(title)}">${renderArticleIndicator(row, 'featured', now)}</button>`;
-    return `<tr>${selectionCell(row.id, title)}<td>${featuredButton}</td><td>${stateButton}</td><th scope="row" class="admin-col-title"><a href="${esc(link(`/articles/${row.id}`))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a><div class="admin-list-note">Alias: ${esc(row.alias)}</div>${row.note ? `<div class="admin-list-note">Nota: ${esc(row.note)}</div>` : ''}<div class="admin-list-note">Categoria: ${esc(row.categoryTitle)}</div></th><td class="admin-col-nowrap">${esc(row.author)}${row.authorAlias ? `<div class="admin-list-note">Alias: ${esc(row.authorAlias)}</div>` : ''}</td><td class="admin-col-nowrap">${esc(dateText(row.publishUp))}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
+    const categoryCell = row.categoryTitle
+      ? `<a href="${esc(link('/articles', { categoryId: row.categoryId }))}">${esc(row.categoryTitle)}</a>`
+      : '<span class="admin-list-note" aria-hidden="true">—</span><span class="visually-hidden">Sem categoria</span>';
+    const author = String(row.author ?? '').trim();
+    return `<tr>${selectionCell(row.id, title)}<td>${featuredButton}</td><td>${stateButton}</td>`
+          + `<th scope="row" class="admin-col-title"><a href="${esc(link(`/articles/${row.id}`, returnParams))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.note ? `<div class="admin-list-note">Nota: ${esc(row.note)}</div>` : ''}</th>`
+      + `<td class="admin-col-alias">${esc(row.alias)}</td>`
+      + `<td class="admin-col-category">${categoryCell}</td>`
+      + `<td class="admin-col-author">${author ? esc(author) : '<span class="admin-list-note" aria-hidden="true">—</span><span class="visually-hidden">Sem autor</span>'}${row.authorAlias ? `<div class="admin-list-note">Alias: ${esc(row.authorAlias)}</div>` : ''}</td>`
+      + `<td class="admin-col-nowrap">${dateText(row.publishUp) || '—'}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-  return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${header('featured', 'Destaque')}${header('state', 'Estado')}${header('title', 'Título', 'category', 'Categoria')}${header('author', 'Autor')}${header('publishUp', 'Data')}${header('id', 'ID')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const headers = [header('featured', 'Destaque'), header('state', 'Estado'), header('title', 'Título'), header('alias', 'Alias'), header('category', 'Categoria'), header('author', 'Autor'), header('publishUp', 'Data'), header('id', 'ID')].join('');
+      return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${headers}</tr></thead><tbody>${rows}</tbody></table>${result.rows.length ? '' : emptyNotice}</div>`;
 }

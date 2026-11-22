@@ -220,7 +220,7 @@ export async function runAdminJoomlaContentTests() {
   assert.match(listing.html, /<th scope="col" aria-sort="ascending"><a href="[^"]*dir=desc[^"]*">Título/);
   for (const label of ['Categoria', 'Autor', 'Data', 'Destaque', 'Estado', 'ID']) assert.match(listing.html, new RegExp(`>${label}`));
   for (const name of ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']) assert.match(listing.html, new RegExp(`name="${name}"`));
-  assert.match(listing.html, /Alias: gol/);
+  assert.match(listing.html, /admin-col-alias">gol</);
   assert.match(listing.html, /Gol &lt;b&gt;/);
   assert.doesNotMatch(listing.html, /Gol <b>/);
   assert.doesNotMatch(listing.html, /value="delete"/, 'excluir definitivamente só aparece na lixeira');
@@ -242,7 +242,7 @@ export async function runAdminJoomlaContentTests() {
   const uiPages = createContentPages({ adminService: admin, shell,
     router: { link: router.link.bind(router), navigate: async () => { navigations += 1; } },
     documentRef: { body: {
-      querySelector: (selector) => selector === '[data-ext-status]' ? uiStatus : null,
+      querySelector: (selector) => selector === '[data-ext-status]' ? uiStatus : (selector === '[data-colfilter]' ? null : null),
       querySelectorAll: (selector) => selector === '[data-ext-action]' ? [button] : []
     } }
   });

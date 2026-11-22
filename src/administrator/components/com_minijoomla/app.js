@@ -217,6 +217,68 @@ async function resolveRelationOptions(fields, adminService, recordId, record = {
 const PAGE_SIZE = 20;
 
 /*
+ * Persistência de filtro por lista (item 1 do pedido: "sair e voltar pelo
+ * menu lateral não pode perder os filtros").
+ *
+ * Regra escolhida, explícita: a ÚLTIMA query explícita (a URL com que o
+ * usuário saiu daquela lista) é lembrada por lista em `sessionStorage` — a
+ * memória vive enquanto a aba do navegador viver, some quando ela fecha e
+ * nunca vaza para outra aba, que é o comportamento esperado de um painel
+ * administrativo. Ao abrir uma lista SEM query explícita (clique na
+ * sidebar), a query lembrada é reaplicada; abrir a lista COM query
+ * explícita sempre vence e substitui a memória (é mais recente e foi
+ * pedida diretamente). Como a navegação da sidebar e os retornos
+ * pós-salvar já carregam a query na URL, a sidebar passa a devolver o
+ * usuário exatamente à lista filtrada de onde ele saiu.
+ *
+ * `sessionStorage` é acessado sempre dentro de try/catch: modo privado,
+ * política de cookies ou um `storage` indisponível (ex.: testes sem DOM)
+ * nunca pode quebrar a navegação — na pior hipótese o filtro não é
+ * lembrado, que é o comportamento antigo, nunca um erro de tela.
+ */
+const LIST_FILTER_PREFIX = 'minijoomla.admin.listFilters:';
+
+function listFilterKey(path) { return `${LIST_FILTER_PREFIX}${String(path ?? '')}`; }
+
+function rememberListFilters(path, params, storage = globalThis.sessionStorage) {
+  if (!path || !storage) return;
+  try {
+    const meaningful = Object.entries(params ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '');
+    if (meaningful.length) storage.setItem(listFilterKey(path), JSON.stringify(Object.fromEntries(meaningful)));
+    else storage.removeItem(listFilterKey(path));
+  } catch { /* sem memória de filtro: comportamento antigo, nunca erro de tela */ }
+}
+
+function recallListFilters(path, storage = globalThis.sessionStorage) {
+  if (!path || !storage) return {};
+  try {
+    const raw = storage.getItem(listFilterKey(path));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => typeof key === 'string' && (typeof value === 'string' || typeof value === 'number')).map(([key, value]) => [key, String(value)]));
+  } catch { return {}; }
+}
+
+/*
+ * Resolve a query efetiva de uma listagem: `explicit` quando o usuário
+ * chegou com parâmetros na URL; a memória da última visita quando a URL
+ * vem limpa (clique na sidebar); e grava a decisão de volta — inclusive
+ * apagando a memória quando uma URL limpa é aberta explicitamente por um
+ * link que não seja da sidebar (ex.: clicar em "Artigos" no fim de um
+ * formulário depois de usar "Limpar filtros"). Nunca muta `params`.
+ */
+function effectiveListParams(path, params, { fromSidebar = false } = {}) {
+  const explicit = params ?? {};
+  const hasExplicit = Object.entries(explicit).some(([, value]) => value !== undefined && value !== null && value !== '');
+  if (hasExplicit) { rememberListFilters(path, explicit); return explicit; }
+  const remembered = recallListFilters(path);
+  const resolved = fromSidebar ? remembered : {};
+  if (!fromSidebar) rememberListFilters(path, {});
+  return resolved;
+}
+
+/*
  * Filtra `rows` por `searchTerm` (comparação case-insensitive contra
  * `config.titleField`, nunca contra todos os campos — mesmo princípio de
  * busca simples já usado por src/libraries/minijoomla/application/content-service.js para o
@@ -234,30 +296,120 @@ function filterAndPaginate(rows, config, searchTerm, pageNumber) {
   return { pageRows, pageCount, currentPage };
 }
 
+/*
+ * Prefixo dos parâmetros do menu de filtro por coluna. `col_<campo>`
+ * mantém os filtros de coluna separados dos filtros de gerenciamento já
+ * existentes (`state`, `type`, `position`…): os dois podem coexistir na
+ * mesma URL sem que um sobrescreva o outro.
+ */
+const COLUMN_FILTER_PREFIX = 'col_';
+const columnFilterParam = (column) => `${COLUMN_FILTER_PREFIX}${column}`;
+
+/*
+ * Extrai de `params` só os filtros de coluna ativos, para o estado da
+ * lista (`listState`) devolvido ao abrir/editar/voltar de um registro.
+ */
+function columnFilterParams(domain, params = {}) {
+  return Object.fromEntries(LIST_COLUMNS[domain]
+    .map((column) => [columnFilterParam(column), params[columnFilterParam(column)]])
+    .filter(([, value]) => value !== undefined && value !== null && value !== ''));
+}
+
+/*
+ * Colunas cujo valor é um indicador (não texto): o menu de coluna lista
+ * os valores brutos ("1"/"0", "Published"…) e o rótulo amigável vem
+ * daqui, senão o dropdown mostraria códigos em vez do que a coluna
+ * exibe.
+ */
+const ICON_COLUMN_VALUES = {
+  featured: { '1': 'Em destaque', '0': 'Sem destaque' },
+  enabled: { '1': 'Habilitado', '0': 'Desabilitado' },
+  published: { '1': 'Publicado', '0': 'Despublicado' },
+  state: { Published: 'Publicado', Draft: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' },
+  scopeKind: { site: 'Site', administrator: 'Administrador' }
+};
+
+/*
+ * Monta um menu de filtro por coluna para cada coluna pedida em
+ * `LIST_COLUMNS[domain]`, com os valores distintos REALMENTE presentes
+ * nas linhas exibidas. Diferente do menu de content-pages.js (que
+ * também pode filtrar por um campo que não é a própria coluna, como
+ * Categoria por id), aqui cada menu casa 1:1 com a coluna, porque estas
+ * listas de domínio são planas e os campos exibidos são os filtráveis.
+ * Um único valor distinto não oferece escolha: o menu é omitido, exceto
+ * quando já está ativo (senão não haveria como desfazê-lo).
+ */
+function columnFilterDefinitions(domain, rows, params = {}) {
+  return LIST_COLUMNS[domain].map((column) => {
+    const name = columnFilterParam(column);
+    const values = [...new Set(rows.map((row) => row[column]).filter((value) => value !== undefined && value !== null && value !== '').map((value) => String(value)))];
+    const labels = ICON_COLUMN_VALUES[column] ?? {};
+    const options = values.sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => [value, labels[value] ?? value]);
+    const selected = String(params[name] ?? '');
+    return { column, name, value: selected, options, keep: selected !== '' || options.length > 1 };
+  }).filter((filter) => filter.keep).map(({ keep, ...filter }) => filter);
+}
+
+/*
+ * Aplica os filtros de coluna (`col_<campo>`) por IGUALDADE EXATA do
+ * valor exibido. Exato (e não "contém") porque o menu de coluna oferece
+ * uma lista fechada de valores reais: escolher "Draft" deve mostrar
+ * exatamente os despublicados, não tudo que contenha "Draft".
+ * `extensions` exibe `type` já traduzido, então compara contra o rótulo
+ * para o menu (que lista o que está na tela) continuar coerente.
+ */
+function filterColumnValues(domain, rows, params = {}) {
+  return LIST_COLUMNS[domain].reduce((current, column) => {
+    const selected = params[columnFilterParam(column)];
+    if (selected === undefined || selected === null || selected === '') return current;
+    const label = (row) => domain === 'extensions' && column === 'type' ? extensionTypeLabel(row[column]) : row[column];
+    return current.filter((row) => String(label(row) ?? '') === String(selected));
+  }, rows);
+}
+
 function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, params = {}, now } = {}) {
   const config = ADMIN_DOMAINS[domain];
   const label = domainLabel(domain);
-  const { pageRows, pageCount, currentPage } = filterAndPaginate(filterManagementRows(domain, rows, params), config, searchTerm, pageNumber);
+  /*
+   * `managementRows` é o conjunto ANTES dos filtros de coluna: os menus
+   * de coluna são montados a partir dele para que um filtro ativo
+   * continue oferecendo as demais opções (senão o dropdown só listaria
+   * o próprio valor escolhido e não haveria como trocar ou limpar).
+   */
+  const managementRows = filterManagementRows(domain, rows, params);
+  const { pageRows, pageCount, currentPage } = filterAndPaginate(filterColumnValues(domain, managementRows, params), config, searchTerm, pageNumber);
   const filters = managementFilters(domain, params).map((filter) => domain === 'extensions' && filter.name === 'type'
     ? { ...filter, options: filter.options.map(([value]) => [value, value ? extensionTypeLabel(value) : 'Módulo / Plugin']) } : filter);
   const filterParams = Object.fromEntries(filters.filter((filter) => filter.value).map((filter) => [filter.name, filter.value]));
+  /*
+   * Estado da lista que precisa sobreviver a "novo", "editar", "voltar":
+   * os filtros de coluna ativos, os campos de gerenciamento (estado,
+   * tipo, posição), a busca textual e a ordenação/limite — nunca a
+   * página, que pertence à listagem seguinte e não ao registro aberto.
+   * Sem isto, abrir um registro e cancelar devolvia a lista ao padrão,
+   * que é o defeito relatado.
+   */
+  const listState = { ...filterParams, ...columnFilterParams(domain, params), q: searchTerm, sort: params.sort, dir: params.dir, limit: params.limit };
+  const columnFilters = columnFilterDefinitions(domain, managementRows, params);
   const body = renderAdminList({
     domain, now,
     rows: domain === 'extensions' ? pageRows.map((row) => ({ ...row, etag: row.etag, type: extensionTypeLabel(row.type) })) : pageRows,
     columns: LIST_COLUMNS[domain], columnLabels: COLUMN_LABELS, titleField: config.titleField,
     emptyLabel: searchTerm ? `Nenhum registro em "${label}" encontrado para "${searchTerm}".` : `Nenhum registro em "${label}" ainda.`,
-    editHref: (id) => link(`/${domain}/${id}`),
-    searchValue: searchTerm, searchHref: link(`/${domain}`),
+    editHref: (id) => link(`/${domain}/${id}`, listState),
+    searchValue: searchTerm, searchHref: link(`/${domain}`, listState),
     searchFilters: filters,
+    columnFilters,
+    columnFormId: `admin-${domain}-colfilter`,
     rowActions: (row) => renderManagementActions(domain, row),
-    pagination: { page: currentPage, pageCount, link: (pageNumber) => link(`/${domain}`, { ...filterParams, q: searchTerm, page: pageNumber > 1 ? pageNumber : undefined }) }
+    pagination: { page: currentPage, pageCount, link: (pageNumber) => link(`/${domain}`, { ...listState, page: pageNumber > 1 ? pageNumber : undefined }) }
   });
   const newAction = ['extensions', 'templates'].includes(domain)
-    ? `<a class="admin-btn admin-btn-ghost" href="${link(`/${domain}/discover`)}">${searchIcon()}Descobrir</a>`
-    : `<a class="admin-btn admin-btn-success" href="${link(`/${domain}/new`)}">${plusIcon()}Novo</a>`;
+    ? `<a class="admin-btn admin-btn-ghost" href="${link(`/${domain}/discover`, listState)}">${searchIcon()}Descobrir</a>`
+    : `<a class="admin-btn admin-btn-success" href="${link(`/${domain}/new`, listState)}">${plusIcon()}Novo</a>`;
   const status = ADMIN_CAPABILITIES[domain] ? '<p role="status" aria-live="polite" aria-atomic="true" class="admin-management-status"></p>' : '';
   const help = ['extensions', 'moduleInstances'].includes(domain) ? renderModuleInstanceHelp(link) : '';
-  return shell({ activeKey: domain, pageTitle: label, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label }], toolbarActionsHtml: newAction, bodyHtml: help + renderCapabilities(domain) + status + body, link });
+  return shell({ activeKey: domain, pageTitle: label, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: link('/' + domain, listState) }], toolbarActionsHtml: newAction, bodyHtml: help + renderCapabilities(domain) + status + body, link });
 }
 
 function renderDomainFormPage(domain, values, { isNew, link, relationOptions, imageUpload = false }) {

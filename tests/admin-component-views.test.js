@@ -4,7 +4,12 @@ import { formatMediaSize, renderMediaFiles } from '../src/administrator/componen
 
 export function runAdminComponentViewsTests() {
   const link = (path, params = {}) => `${path}?${new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined))}`;
-  assert.equal(renderArticlesTable({ rows: [], total: 0 }, { link }), '<p class="admin-empty" role="status">Nenhum artigo encontrado.</p>');
+  // Resultado vazio ainda renderiza o cabeçalho: os menus de filtro por coluna
+  // precisam continuar acessíveis para o usuário desfazer o filtro.
+  const empty = renderArticlesTable({ rows: [], total: 0 }, { link });
+  assert.match(empty, /<caption class="visually-hidden">Artigos — 0 encontrado\(s\)<\/caption>/);
+  assert.match(empty, /<th scope="col"><a href="\/articles\?sort=title[^"]*">Título<\/a><\/th>/);
+  assert.match(empty, /<p class="admin-empty" role="status">Nenhum artigo encontrado\.<\/p>/);
   const hostile = '<img src=x onerror=alert(1)>';
   const article = renderArticlesTable({ total: 1, rows: [{
     id: 7, title: hostile, alias: hostile, note: hostile, categoryTitle: hostile, author: hostile, authorAlias: hostile,

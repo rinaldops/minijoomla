@@ -123,8 +123,39 @@ body{margin:0;background:var(--atum-bg-light)}
 .admin-list .admin-col-check{width:2.5rem;text-align:center}
 .admin-list .admin-col-nowrap{white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
 .admin-list .admin-col-title{min-width:12rem;overflow-wrap:anywhere}
+.admin-list .admin-col-alias{min-width:9rem;overflow-wrap:anywhere}
+/* Achado real confirmado por captura de tela: sem largura mínima, os
+ * rótulos "Autor"/"Categoria" quebravam letra a letra ("Au/tor") e as
+ * células apareciam vazias. A largura mínima garante que o rótulo caiba
+ * inteiro e que o valor (nome do autor, título da categoria) tenha espaço
+ * para aparecer; o conteúdo longo continua quebrando dentro da célula. */
+.admin-list .admin-col-category{min-width:10rem;overflow-wrap:anywhere}
+.admin-list .admin-col-author{min-width:9rem;overflow-wrap:anywhere}
+.admin-list .admin-col-count{min-width:6rem;white-space:nowrap;overflow-wrap:normal;word-break:keep-all;text-align:center}
 .admin-list .admin-col-action{width:1%;white-space:nowrap;text-align:right}
 .admin-empty{border:1px solid var(--atum-border);padding:1.5rem;background:#fff;text-align:center;color:var(--atum-gray-600)}
+
+/* ---------- Filtro por coluna ("filtro tipo Excel" por cabeçalho) ---------- */
+/* O menu abre ancorado ao próprio <th>: a posição absoluta fica relativa ao
+ * .admin-colfilter, que é inline-block dentro do cabeçalho. O menu é
+ * posicionado à esquerda e pode estourar para a direita; o contêiner
+ * .admin-table-wrap rola horizontalmente, então nada é cortado. */
+.admin-colfilter{position:relative;display:inline-flex;align-items:center;margin-inline-start:.35rem;vertical-align:middle}
+.admin-colfilter-toggle{display:inline-flex;align-items:center;gap:.2rem;min-height:1.6rem;max-width:9rem;padding:.1rem .35rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);font:inherit;font-size:.7rem;line-height:1.2;cursor:pointer}
+.admin-colfilter-toggle:hover{border-color:var(--atum-link)}
+.admin-colfilter-toggle:focus,.admin-colfilter-toggle:focus-visible{outline:2px solid var(--atum-link);outline-offset:2px}
+.admin-colfilter-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-colfilter-caret{font-size:.6rem;line-height:1}
+.admin-colfilter.is-active .admin-colfilter-toggle{border-color:var(--atum-link);background:var(--atum-link);color:#fff;font-weight:700}
+.admin-colfilter-menu{position:absolute;z-index:30;inset-inline-start:0;top:calc(100% + .2rem);min-width:11rem;max-width:18rem;max-height:16rem;overflow-y:auto;margin:0;padding:.2rem;list-style:none;background:#fff;border:1px solid var(--atum-border);border-radius:var(--atum-radius);box-shadow:0 6px 16px rgb(0 0 0 / 18%)}
+.admin-colfilter-menu[hidden]{display:none}
+.admin-colfilter-option{display:block;width:100%;min-height:1.9rem;padding:.25rem .5rem;border:0;border-radius:var(--atum-radius);background:transparent;color:var(--atum-gray-700);font:inherit;font-size:.75rem;text-align:start;cursor:pointer}
+.admin-colfilter-option:hover{background:var(--atum-gray-100,#f3f3f3)}
+.admin-colfilter-option:focus,.admin-colfilter-option:focus-visible{outline:2px solid var(--atum-link);outline-offset:-2px}
+.admin-colfilter-option.is-selected{font-weight:700;color:var(--atum-link)}
+.admin-colfilter-headers{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:.5rem .75rem;margin:0 0 .5rem;background:#fff;border:1px solid var(--atum-border)}
+.admin-colfilter-headers-label{font-size:.8rem;color:var(--atum-gray-600)}
+.admin-list th .admin-colfilter{font-weight:400}
 
 /* ---------- Paginação ---------- */
 .admin-pagination{margin:1rem 0 0}
