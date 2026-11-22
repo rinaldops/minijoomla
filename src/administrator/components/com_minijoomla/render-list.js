@@ -152,7 +152,7 @@ export function renderColumnFilter(filter, index) {
   return `<span class="admin-colfilter${active ? ' is-active' : ''}" data-colfilter data-colfilter-column="${escapeHtml(filter.column)}" data-colfilter-name="${escapeHtml(filter.name)}" data-colfilter-value="${escapeHtml(filter.value ?? '')}">`
     + `<button type="button" class="admin-colfilter-toggle" data-colfilter-toggle aria-haspopup="true" aria-expanded="false" aria-controls="${menuId}" aria-label="${escapeHtml(`Filtrar coluna ${filter.label}${active ? ` (filtro atual: ${selectedLabel})` : ''}`)}">`
     + `<span class="admin-colfilter-label" aria-hidden="true">${escapeHtml(active ? selectedLabel : 'Filtrar')}</span><span class="admin-colfilter-caret" aria-hidden="true">▾</span></button>`
-    + `<ul class="admin-colfilter-menu" id="${menuId}" role="menu" aria-label="${escapeHtml(`Filtros da coluna ${filter.label}`)}" hidden>`
+    + `<ul class="admin-colfilter-menu" id="${menuId}" data-colfilter-menu role="menu" aria-label="${escapeHtml(`Filtros da coluna ${filter.label}`)}" hidden>`
     + `<li role="none"><button type="button" role="menuitemradio" class="admin-colfilter-option${active ? '' : ' is-selected'}" data-colfilter-option data-colfilter-value="" aria-checked="${active ? 'false' : 'true'}">Todos</button></li>`
     + `${options}</ul></span>`;
 }
