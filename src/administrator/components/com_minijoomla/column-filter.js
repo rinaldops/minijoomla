@@ -281,28 +281,56 @@ export const PANEL_OFFSET = 4;
 
 /*
  * Coordenadas (left/top) do painel em CSS px RELATIVOS à caixa de
- * posicionamento da layer. Abre abaixo do botão; se não couber e houver
- * mais espaço acima, abre acima; se nenhum dos lados comportar a altura,
- * limita a altura ao espaço disponível e o painel rola internamente
- * (`maxHeight`). A borda direita/direita alinha à borda direita do botão
- * quando o painel passaria da área visível.
+ * posicionamento da layer. TODO o cálculo é feito em coordenadas da
+ * JANELA e só no fim convertido para a layer (Adendo 3, 2.1): misturar as
+ * duas coisas (medir espaço com `button.top - container.top` e comparar
+ * com a altura da janela) quebra assim que a raiz do painel não começa em
+ * `top: 0` — no SharePoint ela começa abaixo do cabeçalho (~150 px) — ou
+ * quando a página rola.
+ *
+ * Abre abaixo do botão; se não couber e houver mais espaço acima, abre
+ * acima; se nenhum dos lados comportar a altura, limita a altura ao
+ * espaço do lado maior e o painel rola internamente (`maxHeight`). A
+ * borda direita alinha à borda direita do botão quando o painel passaria
+ * da área visível.
  */
 export function placePanel(buttonRect, panelSize, containerRect, viewport) {
-  const width = Math.min(Number(panelSize?.width) || 0, Math.max(0, containerRect.width - PANEL_MARGIN * 2));
-  const spaceBelow = viewport.height - (buttonRect.top - containerRect.top) - buttonRect.height - PANEL_OFFSET - PANEL_MARGIN;
-  const spaceAbove = (buttonRect.top - containerRect.top) - PANEL_OFFSET - PANEL_MARGIN;
-  const belowFits = panelSize.height <= spaceBelow;
-  const aboveFits = panelSize.height <= spaceAbove;
-  const openAbove = !belowFits && aboveFits;
-  const top = openAbove
-    ? (buttonRect.top - containerRect.top) - PANEL_OFFSET - panelSize.height
-    : (buttonRect.top - containerRect.top) + buttonRect.height + PANEL_OFFSET;
-  const maxHeight = openAbove ? spaceAbove : spaceBelow;
-  let left = buttonRect.left - containerRect.left;
-  const viewportRight = viewport.left + viewport.width - PANEL_MARGIN;
-  if (left + width > viewportRight) left = (buttonRect.right - containerRect.left) - width;
-  if (left < PANEL_MARGIN) left = PANEL_MARGIN;
-  return { left, top, width, maxHeight: Math.max(0, maxHeight), openAbove };
+  const view = {
+    left: Number(viewport?.left) || 0,
+    top: Number(viewport?.top) || 0,
+    width: Number(viewport?.width) || 0,
+    height: Number(viewport?.height) || 0
+  };
+  const container = { left: Number(containerRect?.left) || 0, top: Number(containerRect?.top) || 0 };
+  const button = {
+    left: Number(buttonRect?.left) || 0,
+    top: Number(buttonRect?.top) || 0,
+    width: Number(buttonRect?.width) || 0,
+    height: Number(buttonRect?.height) || 0,
+    right: Number(buttonRect?.right) || (Number(buttonRect?.left) || 0) + (Number(buttonRect?.width) || 0),
+    bottom: Number(buttonRect?.bottom) || (Number(buttonRect?.top) || 0) + (Number(buttonRect?.height) || 0)
+  };
+  const panelHeight = Number(panelSize?.height) || 0;
+  const width = Math.min(Number(panelSize?.width) || 0, Math.max(0, view.width - PANEL_MARGIN * 2));
+  const viewportBottom = view.top + view.height;
+  const spaceBelow = viewportBottom - button.bottom - PANEL_OFFSET - PANEL_MARGIN;
+  const spaceAbove = button.top - view.top - PANEL_OFFSET - PANEL_MARGIN;
+  const belowFits = panelHeight <= spaceBelow;
+  const aboveFits = panelHeight <= spaceAbove;
+  const openAbove = !belowFits && (aboveFits || spaceAbove > spaceBelow);
+  const sideSpace = openAbove ? spaceAbove : spaceBelow;
+  const usedHeight = Math.min(panelHeight, Math.max(0, sideSpace));
+  const topV = openAbove ? button.top - PANEL_OFFSET - usedHeight : button.bottom + PANEL_OFFSET;
+  let leftV = button.left;
+  if (leftV + width > view.left + view.width - PANEL_MARGIN) leftV = button.right - width;
+  if (leftV < view.left + PANEL_MARGIN) leftV = view.left + PANEL_MARGIN;
+  return {
+    left: leftV - container.left,
+    top: topV - container.top,
+    width,
+    maxHeight: Math.max(0, sideSpace),
+    openAbove
+  };
 }
 
 // ---------------------------------------------------------------------------
