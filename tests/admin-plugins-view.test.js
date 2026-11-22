@@ -4,7 +4,7 @@ import { renderPluginsTable } from '../src/administrator/components/com_plugins/
 const link = (path) => `#${path}`;
 
 export function runAdminPluginsViewTests() {
-  assert.equal(renderPluginsTable([], { link }), '<p class="admin-empty">Nenhum plugin encontrado.</p>');
+  assert.match(renderPluginsTable([], { link }), /<p class="admin-empty">Nenhum plugin encontrado\.<\/p>/);
 
   const html = renderPluginsTable([
     { id: 1, title: 'Plugin <script>"x"</script>', enabled: true, group: 'grupo <script>"x"', ordering: 0, key: 'chave"<script>', version: '', description: 'Descrição <script>"x"' },
@@ -24,8 +24,8 @@ export function runAdminPluginsViewTests() {
   assert.match(html, /<code>chave&quot;&lt;script&gt;<\/code>/);
   assert.match(html, /<td>0<\/td><td><code>chave/);
   assert.match(html, /<td><\/td><\/tr>/, 'empty version leaves a valid empty cell');
-  assert.match(html, /<th scope="col">Nome do plugin<\/th>/);
-  assert.match(html, /<th scope="col">Versão<\/th>/);
+  assert.match(html, /<th scope="col" class="admin-th"><span class="admin-th-label">Nome do plugin<\/span><\/th>/);
+  assert.match(html, /<th scope="col" class="admin-th"><span class="admin-th-label">Versão<\/span><\/th>/);
 
   console.log('ok - admin plugins view: tabela, estados, virtual, descrições e escaping');
 }

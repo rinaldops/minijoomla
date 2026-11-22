@@ -222,7 +222,7 @@ async function runModuleInstanceCountPresentationTests() {
       const writesBeforeList = writes;
       await app.router.navigate('#/moduleInstances?state=*');
       assert.match(html(), /<h1>Módulos do site<\/h1>/);
-      assert.match(html(), /<th scope="col">Tipo de módulo</);
+      assert.match(html(), /<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Tipo de módulo<\/span>/);
       assert.match(html(), /for="admin-modules-filter-type" class="visually-hidden">Tipo de módulo<\/label>/);
       assert.match(html(), /Primeira instância/);
       assert.equal(writes, writesBeforeList);
@@ -238,7 +238,7 @@ async function runModuleInstanceCountPresentationTests() {
   const app = createAdminApplication({ adminService: fallback, documentRef, autoStart: false });
   try {
     await app.router.navigate('#/moduleInstances');
-    assert.match(documentRef.body.innerHTML, /<th scope="col">Tipo de módulo</);
+    assert.match(documentRef.body.innerHTML, /<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Tipo de módulo<\/span>/);
     await app.router.navigate('#/moduleInstances/new');
     assert.match(documentRef.body.innerHTML, /for="admin-field-moduleInstances-extensionKey">Tipo de módulo \*/);
     assert.deepEqual(ADMIN_DOMAINS.moduleInstances.fields, fieldsBefore);

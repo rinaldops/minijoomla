@@ -210,7 +210,7 @@ async function runCountColumnWidthTests() {
    * visível precisa ser o curto — antes o span trazia a classe do CSS.
    */
   const tagCountsHtml = renderTagsTable([{ id: 1, name: 'Destaque', alias: 'destaque', state: 'Published', depth: 0, counts: { Published: 3 } }], { link });
-  assert.match(tagCountsHtml, /<span class="visually-hidden">Artigos com a tag<\/span><span aria-hidden="true">Artigos<\/span>/, 'Tags mantem rotulo curto visivel e o descritivo oculto');
+  assert.match(tagCountsHtml, /<span class="admin-th-label">Artigos<span class="visually-hidden"> \(Artigos com a tag\)<\/span><\/span>/, 'Tags mantem rotulo curto visivel e o descritivo oculto');
 
   /*
    * Nem todo agregado traz todos os estados. Quando a chave faltava, o badge e

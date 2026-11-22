@@ -5,7 +5,7 @@ const link = (path, params) => `#${path}${params ? `?${Object.entries(params).ma
 const render = (styles) => renderTemplateStylesTable(styles, { link });
 
 export function runAdminTemplateStylesViewTests() {
-  assert.equal(render([]), '<p class="admin-empty" role="status">Nenhum estilo encontrado.</p>');
+  assert.match(render([]), /<p class="admin-empty" role="status">Nenhum estilo encontrado\.<\/p>/);
 
   const siteDefault = render([{ id: 1, title: 'Principal', template: 'base', templateTitle: 'Base', isDefault: true }]);
   assert.match(siteDefault, /<span class="admin-default-star" role="img" aria-label="Estilo padrão do site">/);
@@ -21,26 +21,28 @@ export function runAdminTemplateStylesViewTests() {
   assert.match(ordinary, /<button[^>]*data-ext-action="remove"/);
   assert.match(ordinary, /Duplicar/);
   assert.match(ordinary, /href="#\/templates\/positions\?template=base">Posições/);
-  assert.match(ordinary, /<th scope="col" class="admin-col-default">Padrão<\/th>[\s\S]*<th scope="col" class="admin-col-style">Estilo<\/th>[\s\S]*<th scope="col" class="admin-col-template">Template<\/th>[\s\S]*<th scope="col" class="admin-col-action">Ações<\/th>/);
+  assert.match(ordinary, /<th scope="col" class="admin-th admin-col-default"><span class="admin-th-label">Padrão<\/span><\/th>[\s\S]*<th scope="col" class="admin-th admin-col-style[^"]*"><span class="admin-th-label">Estilo<\/span>[\s\S]*<th scope="col" class="admin-th admin-col-template[^"]*"><span class="admin-th-label">Template<\/span>[\s\S]*<th scope="col" class="admin-th admin-col-action"><span class="admin-th-label">Ações<\/span><\/th>/);
 
   // Item 3 do spec: Estilo e Template oferecem menu de filtro por coluna
   // independente, e o form que hospeda os menus acompanha os filtros.
   const filtered = renderTemplateStylesTable([{ id: 5, title: 'Alternativo', template: 'base', templateTitle: 'Base' }], {
     link,
-    columnFormId: 'admin-styles',
     columnFilters: [
-      { column: 'style', name: 'col_style', label: 'Estilo', value: '', options: [['', 'Todos'], ['Alternativo', 'Alternativo']] },
-      { column: 'template', name: 'col_template', label: 'Template', value: 'base', options: [['', 'Todos'], ['base', 'Base']] }
+      { key: 'style', column: 'style', label: 'Estilo', value: '', values: [], options: [{ value: '', label: 'Todos', count: 2 }, { value: 'Alternativo', label: 'Alternativo', count: 1 }] },
+      { key: 'template', column: 'template', label: 'Template', value: 'base', values: ['base'], options: [{ value: '', label: 'Todos', count: 2 }, { value: 'base', label: 'Base', count: 2 }] }
     ]
   });
-  assert.match(filtered, /<form[^>]*data-colfilter-form/);
+  assert.match(filtered, /<table class="admin-list" data-colfilter-form="admin-styles"/);
   assert.match(filtered, /data-colfilter-column="style"/);
   assert.match(filtered, /data-colfilter-column="template"/);
-  assert.match(filtered, /data-colfilter-name="col_template"[^>]*data-colfilter-value="base"/);
-  assert.match(filtered, /aria-label="Filtrar coluna Template \(filtro atual: Base\)"/);
+  assert.match(filtered, /class="admin-colfilter-toggle is-active"[^>]*data-colfilter-key="template"[^>]*data-colfilter-values="base"/);
+  assert.match(filtered, /aria-label="Filtrar coluna Template \(filtro ativo: 1 valores\)"/);
   assert.match(filtered, /aria-label="Filtrar coluna Estilo"/);
-  // Sem filtros o cabeçalho continua sendo uma tabela simples, sem form.
-  assert.doesNotMatch(render([{ id: 6, title: 'X', template: 'base', templateTitle: 'Base' }]), /data-colfilter-form/);
+  // Sem filtros, Estilo e Template ainda existem como colunas, mas sem menu.
+  const plain = render([{ id: 6, title: 'X', template: 'base', templateTitle: 'Base' }]);
+  assert.match(plain, /<span class="admin-th-label">Estilo<\/span><\/th>/);
+  assert.match(plain, /<span class="admin-th-label">Template<\/span><\/th>/);
+  assert.doesNotMatch(plain, /data-colfilter-toggle/);
 
   for (const flags of [{ home: true }, { virtual: true }]) {
     assert.doesNotMatch(render([{ id: 4, title: 'Protegido', template: 'base', templateTitle: 'Base', ...flags }]), /data-ext-action="remove"/);

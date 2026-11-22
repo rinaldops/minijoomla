@@ -8,7 +8,7 @@ export function runAdminComponentViewsTests() {
   // precisam continuar acessíveis para o usuário desfazer o filtro.
   const empty = renderArticlesTable({ rows: [], total: 0 }, { link });
   assert.match(empty, /<caption class="visually-hidden">Artigos — 0 encontrado\(s\)<\/caption>/);
-  assert.match(empty, /<th scope="col"[^>]*><a href="\/articles\?sort=title[^"]*">Título<\/a><\/th>/);
+  assert.match(empty, /<th scope="col"[^>]*><span class="admin-th-label"><a href="\/articles\?sort=title[^"]*">Título<\/a><\/span>/);
   assert.match(empty, /<p class="admin-empty" role="status">Nenhum artigo encontrado\.<\/p>/);
   const hostile = '<img src=x onerror=alert(1)>';
   const article = renderArticlesTable({ total: 1, rows: [{

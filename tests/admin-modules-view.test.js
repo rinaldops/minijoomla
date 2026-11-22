@@ -5,7 +5,7 @@ const link = (path) => `#${path}`;
 const positions = { positions: ['sidebar-right'], all: ['sidebar-right', 'footer'] };
 
 export function runAdminModulesViewTests() {
-  assert.equal(renderModulesTable([], { link, types: new Map(), positions }), '<p class="admin-empty">Nenhum módulo encontrado.</p>');
+  assert.match(renderModulesTable([], { link, types: new Map(), positions }), /<p class="admin-empty">Nenhum módulo encontrado\.<\/p>/);
 
   const rows = [
     { id: 1, title: 'Publicado <script>alert(1)</script>', extensionKey: 'custom-html', enabled: true, position: 'sidebar-right', note: 'Nota "hostil" <script>', assignment: 'all' },
@@ -13,8 +13,8 @@ export function runAdminModulesViewTests() {
     { id: 3, title: 'Na lixeira', extensionKey: 'custom-html', trashed: true, position: 'sidebar-right', assignment: 'all', ordering: undefined }
   ];
   const html = renderModulesTable(rows, { link, types: new Map([['custom-html', { title: 'HTML & personalizado' }]]), positions });
-  assert.match(html, /^<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Módulos do site<\/caption>/);
-  assert.match(html, /<th scope="col">Estado<\/th><th scope="col">Título<\/th><th scope="col">Tipo de módulo<\/th><th scope="col">Posição<\/th><th scope="col">Páginas<\/th><th scope="col">Ordem<\/th><th scope="col">Ação<\/th>/);
+  assert.match(html, /^<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form="admin-list"><caption class="visually-hidden">Módulos do site<\/caption>/);
+  assert.match(html, /<th scope="col" class="admin-th"><span class="admin-th-label">Estado<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Título<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Tipo de módulo<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Posição<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Páginas<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Ordem<\/span><\/th><th scope="col" class="admin-th"><span class="admin-th-label">Ação<\/span><\/th>/);
   assert.match(html, /data-ext-action="unpublish"/);
   assert.match(html, /aria-label="Despublicar Publicado &lt;script&gt;alert\(1\)&lt;\/script&gt;"/);
   assert.match(html, /data-ext-action="publish"/);

@@ -43,10 +43,10 @@ export async function runAdminRenderTests() {
 
   // 4. renderAdminList: colunas escolhidas (com rótulo mapeável), link de edição por id (com ícone), estado vazio acessível, link de "Novo" opcional.
   const listHtml = renderAdminList({ rows: [{ id: 1, title: '<Artigo>', alias: 'artigo' }], columns: ['title', 'alias'], columnLabels: { title: 'Título' }, editHref: (id) => `#/admin/articles/${id}`, newHref: '#/admin/articles/new' });
-  assert.match(listHtml, /<th scope="col">Título<\/th><th scope="col">alias<\/th><th scope="col">Ação<\/th>/);
+  assert.match(listHtml, /<thead><tr><th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Título<\/span>[\s\S]*?<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">alias<\/span>[\s\S]*?<th scope="col" class="admin-th"><span class="admin-th-label">Ação<\/span><\/th><\/tr><\/thead>/);
   assert.match(listHtml, /<th scope="row"><a href="#\/admin\/articles\/1" aria-label="Editar: &lt;Artigo&gt;">&lt;Artigo&gt;<\/a><\/th><td>artigo<\/td>/);
   assert.match(listHtml, /<td class="admin-col-action"><a class="admin-btn admin-btn-ghost" href="#\/admin\/articles\/1" aria-label="Editar: &lt;Artigo&gt;">.*Editar<\/a><\/td>/);
-  assert.match(listHtml, /<div class="admin-table-wrap"><table class="admin-list">/);
+  assert.match(listHtml, /<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form>/);
   assert.match(listHtml, /<a class="admin-new-link admin-btn admin-btn-success" href="#\/admin\/articles\/new">.*Novo<\/a>/);
   const emptyList = renderAdminList({ rows: [], emptyLabel: 'Nada por aqui.' });
   assert.match(emptyList, /<p class="admin-empty" role="status">Nada por aqui\.<\/p>/);
