@@ -20,7 +20,20 @@ const VERSION = '0.17.14';
  * Nothing here contacts SharePoint, so the test asserts on the real execution
  * path (which pages the script addresses) without any network access.
  */
-function startBridge({ releaseExists = true } = {}) {
+/**
+ * Real staged file count, read from the release the script itself built in
+ * tmp/deploy/<version>/stage. Deriving it here (instead of hardcoding a
+ * number) keeps the comparison honest: the assertion is "the server agrees
+ * with what we staged", not "the server agrees with a constant".
+ */
+function countStagedFiles() {
+  const stage = join(PROJECT, 'tmp', 'deploy', VERSION, 'stage');
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true })
+    .reduce((total, entry) => total + (entry.isDirectory() ? walk(join(dir, entry.name)) : 1), 0);
+  return existsSync(stage) ? walk(stage) : 0;
+}
+
+function startBridge({ releaseExists = true, stagedFiles = 0 } = {}) {
   const seen = [];
   let canvasReads = 0;
   const server = createServer((request, response) => {
@@ -45,9 +58,11 @@ function startBridge({ releaseExists = true } = {}) {
         const page = expression.includes(PUBLIC_PAGE) ? PUBLIC_PAGE : ADMIN_PAGE;
         return answer({ value: `rollback-de-${page}-${canvasReads}` });
       }
-      // Remote file-count walk: the script compares this to the staged file count,
-      // so report a number. Case 7 uses a fresh release and also passes here.
-      if (expression.includes('return walk(')) return answer({ value: 265 });
+      // Remote file-count walk: the script compares this to the staged file
+      // count. The number is derived from the real stage produced by the
+      // previous call in the sequence, so it never drifts when the package
+      // gains or loses a file.
+      if (expression.includes('return walk(')) return answer({ value: stagedFiles || countStagedFiles() });
       // listMap(): an array of [domain, descriptor] pairs, one per schema.
       if (expression.includes('const out = [];') && expression.includes('listId')) {
         const titles = expression.match(/\[\"([a-zA-Z]+)\",\"[^\"]+\"\]/g) ?? [];
