@@ -217,7 +217,7 @@ export async function runAdminJoomlaContentTests() {
   const pages = createContentPages({ adminService: admin, documentRef: { body: {} }, router, shell, clock: () => new Date('2026-06-01T00:00:00Z') });
   const listing = await pages.render({ path: '/articles', params: { sort: 'title', dir: 'asc' } });
   assert.match(listing.html, /data-ext-select-all/);
-  assert.match(listing.html, /<th scope="col" aria-sort="ascending"><a href="[^"]*dir=desc[^"]*">Título/);
+  assert.match(listing.html, /<th scope="col"[^>]*aria-sort="ascending"[^>]*><a href="[^"]*dir=desc[^"]*">Título/);
   for (const label of ['Categoria', 'Autor', 'Data', 'Destaque', 'Estado', 'ID']) assert.match(listing.html, new RegExp(`>${label}`));
   for (const name of ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']) assert.match(listing.html, new RegExp(`name="${name}"`));
   assert.match(listing.html, /admin-col-alias">gol</);

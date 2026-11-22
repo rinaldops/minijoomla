@@ -50,6 +50,7 @@ export const TEST_SUITES = Object.freeze([
   ['admin-installer-confirmation.test.js', 'runAdminInstallerConfirmationTests'],
   ['admin-taxonomy-views.test.js', 'runAdminTaxonomyViewsTests'],
   ['admin-list-filters.test.js', 'runAdminListFiltersTests'],
+  ['visual-findings.test.js', 'runVisualFindingsTests'],
   ['admin-modules-view.test.js', 'runAdminModulesViewTests'],
   ['admin-plugins-view.test.js', 'runAdminPluginsViewTests'],
   ['admin-template-styles-view.test.js', 'runAdminTemplateStylesViewTests'],

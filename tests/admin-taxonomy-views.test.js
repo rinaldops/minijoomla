@@ -18,8 +18,8 @@ export function runAdminTaxonomyViewsTests() {
   assert.match(hostile, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(hostile, /<script>|onmouseover="x/);
   assert.match(hostile, /Nota &amp; &quot;citada&quot;/);
-  assert.match(hostile, /<th scope="col">Título<\/th>/);
-  assert.match(hostile, /Artigos \(publicados, despublicados, arquivados, lixeira\)/);
+  assert.match(hostile, /<th scope="col"[^>]*>Título<\/th>/);
+  assert.match(hostile, /Artigos<span class="visually-hidden"> \(publicados, despublicados, arquivados, lixeira\)<\/span><\/th>/, 'a coluna de contagem mantém rótulo curto visível e rótulo completo acessível');
   assert.equal((hostile.match(/class="admin-badge/g) ?? []).length, 4, 'categories show one badge per article state');
   assert.equal((hostile.match(/ is-muted/g) ?? []).length, 3, 'zero counts are muted');
   assert.match(hostile, /data-ext-action="toggle-state"/);
@@ -34,10 +34,10 @@ export function runAdminTaxonomyViewsTests() {
     { id: 5, name: 'Tag <b>', alias: 'tag', description: 'Com nota', state: 'Published', counts: { count: 7 } },
     { id: 6, name: '  ', alias: '', state: 'Unpublished', counts: { count: 0 } }
   ], { link });
-  assert.match(tags, /<th scope="col">Nome<\/th>/);
+  assert.match(tags, /<th scope="col"[^>]*>Nome<\/th>/);
   // A coluna de contagem usa o mesmo padrão das demais: texto curto visível e
   // rótulo completo acessível, para o cabeçalho não destoar dos vizinhos.
-  assert.match(tags, /<th scope="col" class="admin-col-count"><span class="visually-hidden">Artigos com a tag<\/span>/);
+  assert.match(tags, /<th scope="col" class="[^"]*admin-col-count[^"]*"><span class="visually-hidden">Artigos com a tag<\/span>/);
   assert.equal((tags.match(/class="admin-badge/g) ?? []).length, 2, 'tags show a single count badge per row');
   assert.match(tags, /href="#\/articles\?tag=Tag &lt;b&gt;"/);
   assert.match(tags, /aria-label="7 artigo\(s\) com a tag Tag &lt;b&gt;"/);
