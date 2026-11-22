@@ -20,6 +20,7 @@ import { closeIcon, saveIcon } from '../../../com_minijoomla/icons.js';
 import { ARTICLE_OPTION_FIELDS, ARTICLE_IMAGE_FIELDS, ARTICLE_LINK_FIELDS, ARTICLE_EDITOR_LIMITS } from '../../../com_minijoomla/field-schemas.js';
 import { MEDIA_MIME_TYPES } from '../../../../../libraries/minijoomla/application/media-upload-service.js';
 import { parseJsonObject } from '../../../../../libraries/minijoomla/application/declared-params.js';
+import { parseLocalDate } from '../../../../../libraries/minijoomla/core/format.js';
 
 function renderArticleOptions(formId, values) {
   let attribs;
@@ -56,8 +57,8 @@ function renderArticleImagesAndLinks(formId, values, imageUpload) {
 }
 
 function formatInfoDate(value) {
-  const date = value ? new Date(value) : null;
-  return date && Number.isFinite(date.getTime()) ? date.toLocaleString('pt-BR') : String(value ?? '');
+  const date = parseLocalDate(value);
+  return date ? date.toLocaleString('pt-BR') : String(value ?? '');
 }
 
 // Somente leitura: id e colunas de sistema do SharePoint (Created/Modified).

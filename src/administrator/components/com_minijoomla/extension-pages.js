@@ -6,6 +6,7 @@
  * usa o ETag capturado ao renderizar a tela (concorrência otimista).
  */
 import { escapeHtml } from '../../../libraries/minijoomla/security/sanitize.js';
+import { parseLocalDate } from '../../../libraries/minijoomla/core/format.js';
 import { MODULE_ADVANCED_PARAMS } from '../../../libraries/minijoomla/application/module-catalog.js';
 import { BUILTIN_TEMPLATES } from '../../../libraries/minijoomla/application/template-styles.js';
 import { MODULE_ASSIGNMENTS, moduleState, normalizeAssignmentTokens, normalizeAssignment } from '../../../libraries/minijoomla/application/module-assignment.js';
@@ -56,8 +57,8 @@ export function extensionErrorMessage(error, fallback = 'Não foi possível conc
 
 export function toLocalDateTimeInput(value) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = parseLocalDate(value);
+  if (!date) return '';
   const pad = (number) => String(number).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
