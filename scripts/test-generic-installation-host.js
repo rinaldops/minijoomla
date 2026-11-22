@@ -110,6 +110,10 @@ async function loadHost(rootPath, inventory, server, storage, kind, wrapped = fa
       }
       if (url === `${web}/_api/web?$select=Id,Url,ServerRelativeUrl,EffectiveBasePermissions`) return response({status:200,data:{Id:'11111111-1111-4111-8111-111111111111',Url:`https://tenant.example${web}`,ServerRelativeUrl:server.webUrl,EffectiveBasePermissions:{Low:'2048',High:'0'}}});
       if (url === `${web}/_api/web/currentuser?$select=Title`) return response({ status: 200, data: {} });
+      // O painel resolve o escopo da memória de filtros com o Id numérico do
+      // usuário (opaco, sem PII) — um segundo fetch ao currentuser. O
+      // contrato do host continua o mesmo: só GET na web simulada.
+      if (url === `${web}/_api/web/currentuser?$select=Id`) return response({ status: 200, data: { Id: 7 } });
       const method = init.headers?.['X-HTTP-Method'] ?? init.method ?? 'GET';
       if (method !== 'GET') {
         assert.equal(init.headers['X-RequestDigest'], 'offline-fixture-only');
