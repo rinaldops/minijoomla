@@ -596,14 +596,31 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   // ---------- Estilos de template (com_templates) ----------
 
   async function styleListPage(location) {
-    const params = location.params ?? {};
+    const params = listParams(location);
     const { etag, styles, catalog } = await adminService.templateStyles.list();
-    const filtered = styles.filter((style) => !params.template || style.template === params.template);
+    // `col_template` (menu da coluna) tem precedência sobre `template` (barra)
+    // porque `listParams` já sobrepõe; os dois podem conviver na URL.
+    const templateTitle = new Map(catalog.map((template) => [String(template.key), template.title]));
+    const filtered = styles
+      .filter((style) => !params.template || style.template === params.template)
+      .filter((style) => !params.col_template || style.template === params.col_template)
+      .filter((style) => !params.col_style || String(style.title) === String(params.col_style));
     const filters = filterBar('admin-styles-filter', [{ name: 'template', label: 'Template', value: params.template, options: [['', '— Template —'], ...catalog.map((template) => [template.key, template.title])] }]);
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/templates'))}">Templates registrados</a>`;
-    const html = page('templateStyles', 'Templates: Estilos (Site)', [{ label: 'Estilos de template' }], `${status}${filters}${renderTemplateStylesTable(filtered, { link })}`, toolbar);
+    const table = renderTemplateStylesTable(filtered, {
+      link,
+      columnFormId: 'admin-styles',
+      // Rótulo do Template pelo título do catálogo (o valor filtrado é a
+      // chave); Estilo usa os títulos distintos presentes na lista.
+      columnFilters: [
+        { column: 'style', name: 'col_style', label: 'Estilo', value: params.col_style, options: uniqueValues(styles, (style) => style.title) },
+        { column: 'template', name: 'col_template', label: 'Template', value: params.col_template, options: uniqueValues(styles, (style) => style.template).map(([key, label]) => [key, templateTitle.get(String(key)) ?? label]) }
+      ]
+    });
+    const html = page('templateStyles', 'Templates: Estilos (Site)', [{ label: 'Estilos de template' }], `${status}${filters}${table}`, toolbar);
     const bind = () => {
       bindFilter(location, ['template']);
+      bindColumnFilters(location);
       bindActions({
         default: async (id) => { await adminService.templateStyles.setDefault(id, { etag }); await reload(location); },
         duplicate: async (id) => { const created = await adminService.templateStyles.duplicate(id, { etag }); await navigate(link(`/templates/styles/${encodeURIComponent(created)}`)); },

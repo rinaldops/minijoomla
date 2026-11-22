@@ -608,6 +608,110 @@ async function runExtensionColumnTests() {
 }
 
 // ---------------------------------------------------------------------------
+// 5b. /templates/styles — Estilo e Template com menus por coluna (item 3)
+// ---------------------------------------------------------------------------
+
+async function runTemplateStylesColumnTests() {
+  /*
+   * A listagem `/templates/styles` tinha só a barra única com "Template":
+   * a coluna Estilo não tinha filtro próprio, e o filtro de coluna nem
+   * existia. Aqui se prova que as DUAS colunas de valor têm menu
+   * independente, que o menu realmente restringe as linhas, que os filtros
+   * coexistem na URL e que `/installer` continua com a barra única (o
+   * pedido permite).
+   */
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const catalog = [{ key: 'cassiopeia', title: 'Cassiopeia' }, { key: 'atlas', title: 'Atlas' }];
+    const styles = [
+      { id: 'cassiopeia-0', title: 'Cassiopeia - Padrão', template: 'cassiopeia', templateTitle: 'Cassiopeia', home: '1', isDefault: true },
+      { id: 'atlas-0', title: 'Atlas - Azul', template: 'atlas', templateTitle: 'Atlas', home: '1', isDefault: false },
+      { id: 'atlas-1', title: 'Atlas - Escuro', template: 'atlas', templateTitle: 'Atlas', home: '0', isDefault: false }
+    ];
+    const admin = createFakeAdminService({});
+    admin.templateStyles = {
+      list: async () => ({ etag: '"styles"', styles, catalog }),
+      setDefault: async () => {},
+      duplicate: async () => 'atlas-2',
+      remove: async () => {}
+    };
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/templates/styles');
+      const html = fake.documentRef.body.innerHTML;
+      const columns = [...html.matchAll(/data-colfilter-column="([^"]*)"/g)].map((match) => match[1]);
+      assert.ok(columns.includes('style'), 'a coluna Estilo tem menu de filtro próprio');
+      assert.ok(columns.includes('template'), 'a coluna Template tem menu de filtro próprio');
+
+      const labels = [...html.matchAll(/aria-label="(Filtrar coluna [^"]*)"/g)].map((match) => match[1]);
+      assert.ok(labels.some((label) => /Estilo/.test(label)), 'o menu da coluna Estilo tem rótulo acessível');
+      assert.ok(labels.some((label) => /Template/.test(label)), 'o menu da coluna Template tem rótulo acessível');
+      assert.ok(!labels.some((label) => /undefined/.test(label)), 'nenhum rótulo acessível cai em "undefined"');
+
+      // As opções do Template usam o TÍTULO do catálogo, não a chave crua —
+      // o usuário não deveria ler "cassiopeia" no menu.
+      const templateOptions = fake.lastColumnFilters?.optionsByContainer?.get('col_template') ?? [];
+      const optionValues = templateOptions.map((option) => String(option.dataset?.colfilterValue ?? ''));
+      assert.ok(optionValues.length > 0, 'o menu de Template tem opcoes');
+      assert.ok(optionValues.includes('atlas') && optionValues.includes('cassiopeia'), 'o menu de Template filtra pela chave do template');
+      // O RÓTULO lido pelo usuário, porém, vem do catálogo: "Cassiopeia",
+      // não a chave crua "cassiopeia". O fake só expõe o dataset, então o
+      // rótulo é conferido no markup renderizado.
+      const templateMenu = /data-colfilter-name="col_template"[\s\S]*?<ul class="admin-colfilter-menu"[^>]*>([\s\S]*?)<\/ul>/.exec(html);
+      assert.ok(templateMenu, 'o menu de Template está no markup');
+      const rawLabels = [...templateMenu[1].matchAll(/data-colfilter-option[^>]*>([\s\S]*?)<\/button>/g)].map(([, text]) => text.replace(/<[^>]*>/g, '').trim());
+      assert.ok(rawLabels.includes('Cassiopeia'), 'o menu de Template rotula pelo título do catálogo');
+      assert.ok(!rawLabels.includes('cassiopeia'), 'o menu de Template não expõe a chave crua como rótulo');
+
+      // O FILTRO, contudo, casa pela chave — o valor do dataset precisa ser a
+      // chave, senão "Cassiopeia" não filtraria nada.
+      const cassiopeiaOption = templateOptions.find((option) => option.dataset?.colfilterValue === 'cassiopeia');
+      assert.ok(cassiopeiaOption, 'a opção do catálogo carrega a chave como valor');
+
+      // Filtrar por Estilo restringe de verdade (não é só rótulo no botão).
+      // A comparação é feita sobre as LINHAS da tabela: o catálogo de
+      // templates alimenta o <select> da barra e faria o HTML inteiro casar.
+      const bodyRows = (rendered) => {
+        const table = /<tbody>([\s\S]*?)<\/tbody>/.exec(rendered);
+        return table ? table[1] : '';
+      };
+      await app.router.navigate('#/templates/styles?col_style=Atlas%20-%20Escuro');
+      const styleRows = bodyRows(fake.documentRef.body.innerHTML);
+      assert.ok(/Atlas - Escuro/.test(styleRows), 'o estilo filtrado aparece');
+      assert.ok(!/Atlas - Azul/.test(styleRows), 'o filtro por Estilo restringe as linhas exibidas');
+      assert.ok(!/Cassiopeia/.test(styleRows), 'o filtro por Estilo descarta os demais templates');
+
+      // E os filtros das duas colunas convivem na mesma URL.
+      await app.router.navigate('#/templates/styles?col_template=atlas');
+      const templateRows = bodyRows(fake.documentRef.body.innerHTML);
+      assert.ok(/Atlas - Azul/.test(templateRows) && /Atlas - Escuro/.test(templateRows), 'o filtro por Template mantém os estilos do template');
+      assert.ok(!/Cassiopeia/.test(templateRows), 'o filtro por Template descarta os estilos dos outros templates');
+
+      await app.router.navigate('#/templates/styles?col_template=atlas&col_style=Atlas%20-%20Azul');
+      const bothRows = bodyRows(fake.documentRef.body.innerHTML);
+      assert.ok(/Atlas - Azul/.test(bothRows), 'com os dois filtros o estilo escolhido aparece');
+      assert.ok(!/Atlas - Escuro/.test(bothRows), 'as duas colunas filtram ao mesmo tempo');
+
+      // Sem resultado o cabeçalho (e os menus) precisam sobreviver, senão o
+      // usuário não teria como voltar a "Todos".
+      await app.router.navigate('#/templates/styles?col_style=Inexistente');
+      const emptyHtml = fake.documentRef.body.innerHTML;
+      assert.match(emptyHtml, /data-colfilter-column="style"/, 'o menu sobrevive ao estado vazio');
+      assert.match(emptyHtml, /admin-empty/, 'o estado vazio é anunciado');
+
+      // `/installer` fica com a barra única, por decisão do pedido.
+      await app.router.navigate('#/installer');
+      const installerHtml = fake.documentRef.body.innerHTML;
+      assert.ok(!/data-colfilter-column=/.test(installerHtml), 'a lista de instalador mantém a barra única');
+    } finally { app.stop(); }
+  });
+
+  console.log('ok - estilos de template: Estilo e Template com menu por coluna independente');
+}
+
+// ---------------------------------------------------------------------------
 // 6. Categorias homônimas (G1) — filtro por id canônico, rótulo desambiguado
 // ---------------------------------------------------------------------------
 
@@ -727,6 +831,7 @@ export async function runAdminListFiltersTests() {
   await runPaginationSortTests();
   await runBatchTests();
   await runExtensionColumnTests();
+  await runTemplateStylesColumnTests();
   await runHomonymCategoryTests();
   console.log('ok - filtros administrativos persistentes e por coluna');
 }
