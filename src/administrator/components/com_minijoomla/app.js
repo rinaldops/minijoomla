@@ -42,6 +42,7 @@ import { renderConfigPage } from '../com_config/tmpl/application/default.js';
 import { loadExtensionDiscoveryPage } from '../com_installer/src/Controller/discover.js';
 import { loadExtensionRootsPage } from '../com_installer/src/Controller/roots.js';
 import { loadTemplateDiscoveryPage } from '../com_templates/src/Controller/discover.js';
+import { loadTemplateRevisionPage } from '../com_templates/template-revision-page.js';
 import { loadSampleDataPage } from '../../modules/mod_sampledata/mod_sampledata.js';
 import { renderAdminForm, readAdminFormValues } from './render-form.js';
 import { renderArticleAdminForm } from '../com_content/tmpl/article/edit.js';
@@ -65,6 +66,23 @@ const LIST_COLUMNS = {
 const COLUMN_LABELS = { version: 'Versão', title: 'Título', alias: 'Alias', featured: 'Destaque', state: 'Estado', name: 'Nome', path: 'Caminho', published: 'Publicado', key: 'Chave', type: 'Tipo', enabled: 'Habilitado', extensionKey: 'Tipo de módulo', position: 'Posição', ordering: 'Ordem', scopeKind: 'Escopo', scopeRoute: 'Rota' };
 // Presentation-only overrides: shared schemas, filters and persisted enums stay unchanged.
 const DOMAIN_LABELS = { moduleInstances: 'Módulos do site', extensions: 'Extensões registradas' };
+/*
+ * Filtros de listagem precisam sobreviver ao ida-e-volta de edição
+ * (salvar/cancelar/excluir). O app é um router de hash puro: os filtros
+ * vivem SOMENTE na query da URL, não há sessão de servidor.
+ *
+ * Estratégia: os links de edição/novo (`editHref`) e o próprio formulário
+ * carregam a query da lista INLINE na URL (`/articles/7?state=Draft&...`).
+ * `listParamsOf` lê essa query de volta, descartando os parâmetros que não
+ * pertencem à lista, e o seu resultado vira o destino de cancelar/salvar/
+ * excluir. Sem isso qualquer `link('/'+domain)` volta à lista SEM filtro —
+ * era exatamente o defeito relatado.
+ */
+function listParamsOf(location) {
+  const params = location?.params ?? {};
+  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '');
+  return Object.fromEntries(entries);
+}
 const EXTENSION_TYPE_LABELS = { Module: 'Módulo', Plugin: 'Plugin' };
 const extensionTypeLabel = (type) => Object.hasOwn(EXTENSION_TYPE_LABELS, type) ? EXTENSION_TYPE_LABELS[type] : type;
 const domainLabel = (domain) => DOMAIN_LABELS[domain] ?? ADMIN_DOMAINS[domain].label;
@@ -111,7 +129,8 @@ const SIDEBAR_GROUPS = [
     { key: 'installer', label: 'Gerenciar extensões', icon: pluginIcon() },
     { key: 'extensionRoots', label: 'Raízes de extensões', icon: configIcon() },
     { key: 'discoverExtensions', label: 'Descobrir extensões', icon: searchIcon() },
-    { key: 'discoverTemplates', label: 'Descobrir templates', icon: searchIcon() }
+    { key: 'discoverTemplates', label: 'Descobrir templates', icon: searchIcon() },
+    { key: 'templateRevision', label: 'Revisão de template', icon: desktopIcon() }
   ] },
   { key: 'system', label: 'Sistema', icon: configIcon(), items: [
     { key: 'config', label: 'Configuração', icon: configIcon() },
@@ -132,6 +151,7 @@ function sidebarHref(key, link) {
   if (key === 'componentOptions') return link('/options');
   if (key === 'discoverExtensions') return link('/extensions/discover');
   if (key === 'discoverTemplates') return link('/templates/discover');
+  if (key === 'templateRevision') return link('/templates/revision');
   return link(`/${key}`);
 }
 
@@ -238,12 +258,21 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
   const filters = managementFilters(domain, params).map((filter) => domain === 'extensions' && filter.name === 'type'
     ? { ...filter, options: filter.options.map(([value]) => [value, value ? extensionTypeLabel(value) : 'Módulo / Plugin']) } : filter);
   const filterParams = Object.fromEntries(filters.filter((filter) => filter.value).map((filter) => [filter.name, filter.value]));
+  // Query completa da lista (todos os filtros + ordenação + página): é ela
+  // que a tela de edição devolve, para o usuário permanecer no MESMO
+  // conjunto filtrado. `q` entra explicitamente porque é um filtro de
+  // texto e não aparece em `filterParams`.
+  // A `page` entra aqui de propósito: editar/salvar/cancelar a partir da
+  // página 3 deve devolver o usuário à página 3 do MESMO conjunto filtrado,
+  // não à primeira página.
+  const listParams = { ...filterParams, ...(searchTerm ? { q: searchTerm } : {}), ...(params.sort ? { sort: params.sort } : {}), ...(params.dir ? { dir: params.dir } : {}), ...(currentPage > 1 ? { page: String(currentPage) } : {}) };
+  const editHref = (id) => link(`/${domain}/${id}`, listParams);
   const body = renderAdminList({
     domain, now,
     rows: domain === 'extensions' ? pageRows.map((row) => ({ ...row, etag: row.etag, type: extensionTypeLabel(row.type) })) : pageRows,
     columns: LIST_COLUMNS[domain], columnLabels: COLUMN_LABELS, titleField: config.titleField,
     emptyLabel: searchTerm ? `Nenhum registro em "${label}" encontrado para "${searchTerm}".` : `Nenhum registro em "${label}" ainda.`,
-    editHref: (id) => link(`/${domain}/${id}`),
+    editHref,
     searchValue: searchTerm, searchHref: link(`/${domain}`),
     searchFilters: filters,
     rowActions: (row) => renderManagementActions(domain, row),
@@ -251,18 +280,20 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
   });
   const newAction = ['extensions', 'templates'].includes(domain)
     ? `<a class="admin-btn admin-btn-ghost" href="${link(`/${domain}/discover`)}">${searchIcon()}Descobrir</a>`
-    : `<a class="admin-btn admin-btn-success" href="${link(`/${domain}/new`)}">${plusIcon()}Novo</a>`;
+    : `<a class="admin-btn admin-btn-success" href="${link(`/${domain}/new`, listParams)}">${plusIcon()}Novo</a>`;
   const status = ADMIN_CAPABILITIES[domain] ? '<p role="status" aria-live="polite" aria-atomic="true" class="admin-management-status"></p>' : '';
   const help = ['extensions', 'moduleInstances'].includes(domain) ? renderModuleInstanceHelp(link) : '';
   return shell({ activeKey: domain, pageTitle: label, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label }], toolbarActionsHtml: newAction, bodyHtml: help + renderCapabilities(domain) + status + body, link });
 }
 
-function renderDomainFormPage(domain, values, { isNew, link, relationOptions, imageUpload = false }) {
+function renderDomainFormPage(domain, values, { isNew, link, relationOptions, imageUpload = false, returnHref }) {
   const config = ADMIN_DOMAINS[domain];
   const label = domainLabel(domain);
   const title = isNew ? `Novo registro em ${label}` : `Editar ${label}`;
   const fields = domain === 'moduleInstances' ? config.fields.map((field) => field.name === 'extensionKey' ? { ...field, label: 'Tipo de módulo' } : field) : config.fields;
   const displayValues = domain === 'extensions' ? { ...values, type: extensionTypeLabel(values.type) } : values;
+  // Cancelar volta para a MESMA lista filtrada de onde o usuário veio.
+  const cancelHref = returnHref ?? link(`/${domain}`);
   const form = domain === 'articles'
     ? renderArticleAdminForm({
         formId: domain,
@@ -271,15 +302,15 @@ function renderDomainFormPage(domain, values, { isNew, link, relationOptions, im
         relationOptions,
         layout: ARTICLE_EDITOR_LAYOUT,
         submitLabel: isNew ? 'Criar' : 'Salvar',
-        cancelHref: link(`/${domain}`),
+        cancelHref,
         imageUpload
       })
-    : renderAdminForm({ formId: domain, fields, values: displayValues, submitLabel: isNew ? 'Criar' : 'Salvar', cancelHref: link(`/${domain}`), relationOptions });
+    : renderAdminForm({ formId: domain, fields, values: displayValues, submitLabel: isNew ? 'Criar' : 'Salvar', cancelHref, relationOptions });
   // Como no Joomla, artigos/categorias/tags só são excluídos definitivamente a partir da lixeira.
   const deletable = !isNew && (!['articles', 'categories', 'tags'].includes(domain) || values.state === 'Trashed');
   const deleteButton = !deletable ? '' : `<button type="button" class="admin-btn admin-btn-danger" data-admin-delete="true" data-confirm="Excluir este registro de ${escapeHtml(label)}? Esta ação não pode ser desfeita.">${trashIcon()}Excluir</button>`;
   const body = `${renderCapabilities(domain)}<p role="status" aria-live="polite" aria-atomic="true" class="admin-form-status"></p>${form}${deleteButton}`;
-  return shell({ activeKey: domain, pageTitle: title, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: link(`/${domain}`) }, { label: isNew ? 'Novo' : 'Editar' }], bodyHtml: body, link });
+  return shell({ activeKey: domain, pageTitle: title, breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label, href: cancelHref }, { label: isNew ? 'Novo' : 'Editar' }], bodyHtml: body, link });
 }
 
 /*
@@ -319,7 +350,7 @@ function renderNotFoundPage(link) {
  * Omitido, os campos `data-admin-richtext` continuam só `<textarea>`
  * sem editor rico — nunca lança, nunca bloqueia a tela.
  */
-export function createAdminApplication({ adminService, discoveryService, mediaService, pluginRuntime, sampleDataService, extensionRootsService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
+export function createAdminApplication({ adminService, discoveryService, mediaService, pluginRuntime, sampleDataService, extensionRootsService, templateRevisionService, documentRef = globalThis.document, basePath = '', autoStart = true, richTextEditorFactory, clock = () => new Date() } = {}) {
   let latestNavigation = 0;
   let stopped = false;
   let started = false;
@@ -334,6 +365,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     const isCurrent = () => navigationId === latestNavigation;
     if (location.path === '/sampledata') return loadSampleDataPage({ sampleDataService, documentRef, router, shell, isCurrent });
     if (location.path === '/installer/roots') return loadExtensionRootsPage({ service: extensionRootsService, documentRef, router, shell, isCurrent });
+    if (location.path === '/templates/revision') return loadTemplateRevisionPage({ templateRevisionService, adminService, documentRef, router, shell, isCurrent });
     const extensionPage = location.path === '/config' ? null : await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(location);
     if (extensionPage) return extensionPage;
     const contentPage = await createContentPages({ adminService, documentRef, router, shell, mediaService, clock, isCurrent }).render(location);
@@ -370,19 +402,22 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
         return { html: renderDomainListPage(domain, rows, link, { searchTerm: location.params?.q, pageNumber: location.params?.page, params: location.params, now: domain === 'articles' ? clock() : undefined }), management: { domain, rows, siteConfig } };
       }
       const config = ADMIN_DOMAINS[domain];
+      // A URL do formulário carrega a query da lista (vinda de editHref/Novo);
+      // reusá-la como destino de cancelar/salvar mantém o usuário no filtro.
+      const returnHref = link(`/${domain}`, listParamsOf(location));
       if (idSegment === 'new') {
         if (['extensions', 'templates'].includes(domain)) return { html: renderNotFoundPage(link) };
         const relationOptions = await resolveRelationOptions(config.fields, adminService, undefined);
         const newFormValues = domain === 'menu' ? toMenuFormValues({}) : domain === 'articles' ? toArticleFormValues({}) : domain === 'moduleInstances' ? { enabled: true, ordering: 0, scopeKind: 'All', position: 'sidebar-right' } : {};
         if (domain === 'menu') relationOptions.menuType = menuTypeOptions(newFormValues);
-        return { html: renderDomainFormPage(domain, newFormValues, { isNew: true, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage) }) };
+        return { html: renderDomainFormPage(domain, newFormValues, { isNew: true, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage), returnHref }) };
       }
       const record = await adminService[domain].get(Number(idSegment));
       if (!record) return { html: renderNotFoundPage(link) };
       const formValues = domain === 'menu' ? toMenuFormValues(record) : domain === 'moduleInstances' ? toModuleInstanceFormValues(record) : domain === 'templates' ? toTemplateFormValues(record) : domain === 'articles' ? toArticleFormValues(record) : record;
       const relationOptions = await resolveRelationOptions(config.fields, adminService, record?.id, formValues);
       if (domain === 'menu') relationOptions.menuType = menuTypeOptions(formValues);
-      return { html: renderDomainFormPage(domain, formValues ?? {}, { isNew: false, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage) }), etag: record?.etag, record };
+      return { html: renderDomainFormPage(domain, formValues ?? {}, { isNew: false, link, relationOptions, imageUpload: Boolean(mediaService?.uploadImage), returnHref }), etag: record?.etag, record };
     }
     return { html: renderNotFoundPage(link) };
   }
@@ -396,9 +431,14 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
    * achado real ao escrever os testes desta tela: o primeiro design
    * fazia exatamente isso, mascarando o conflito com um "sucesso" falso.
    */
-  function bindFormHandlers(domain, idSegment, etag, navigationId, record = {}) {
+  function bindFormHandlers(domain, idSegment, etag, navigationId, record = {}, location = {}) {
     const formElement = documentRef.body.querySelector?.('[data-admin-form]');
     if (!formElement) return;
+    // Destino de retorno após salvar/excluir: a MESMA lista filtrada de
+    // onde o usuário veio (query carregada na URL do formulário). Sem isso
+    // o salvamento caía em `link('/'+domain)` e descartava todo filtro.
+    const listParams = listParamsOf(location);
+    const returnHref = router.link(`/${domain}`, listParams);
     const status = documentRef.body.querySelector?.('.admin-form-status');
     const isCurrent = () => navigationId === latestNavigation;
     const report = (message) => { if (isCurrent() && status) status.textContent = message; };
@@ -500,7 +540,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
         if (domain === 'templates' && values.positionsText !== undefined) { values.positions = JSON.parse(values.positionsText || '[]'); delete values.positionsText; }
         if (idSegment === 'new') { await adminService[domain].create(values); report('Criado com sucesso.'); }
         else { await adminService[domain].update(Number(idSegment), values, { etag }); report('Salvo com sucesso.'); }
-        if (isCurrent()) await router.navigate(router.link(`/${domain}`));
+        if (isCurrent()) await router.navigate(returnHref);
       } catch (error) {
         report(error?.code === 'concurrency-conflict' ? 'O registro foi alterado por outra pessoa. Recarregue antes de salvar.' : error?.name === 'ValidationError' ? error.message : (['moduleInstances', 'templates'].includes(domain) && error instanceof SyntaxError ? 'Configurações (JSON) inválido.' : 'Não foi possível salvar.'));
       } finally { saving = false; }
@@ -513,7 +553,7 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
       if (!isCurrent()) return;
       try {
         await adminService[domain].remove(Number(idSegment), { etag });
-        if (isCurrent()) await router.navigate(router.link(`/${domain}`));
+        if (isCurrent()) await router.navigate(returnHref);
       } catch (error) { report(error?.code === 'concurrency-conflict' ? 'O registro foi alterado por outra pessoa. Recarregue antes de excluir.' : error?.name === 'ValidationError' ? error.message : 'Não foi possível excluir.'); }
     });
   }
@@ -773,8 +813,8 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     await bindRichTextEditors(navigationId);
     if (navigationId !== latestNavigation) return;
     const domainMatch = location.path.match(/^\/([a-zA-Z]+)(?:\/(new|\d+))?$/);
-    if (domainMatch && DOMAIN_KEYS.includes(domainMatch[1]) && domainMatch[2] !== undefined) bindFormHandlers(domainMatch[1], domainMatch[2], etag, navigationId, record);
-    else if (location.path === '/config') bindFormHandlers('config', undefined, etag, navigationId, record);
+    if (domainMatch && DOMAIN_KEYS.includes(domainMatch[1]) && domainMatch[2] !== undefined) bindFormHandlers(domainMatch[1], domainMatch[2], etag, navigationId, record, location);
+    else if (location.path === '/config') bindFormHandlers('config', undefined, etag, navigationId, record, location);
   }});
 
   const application = { router, start: () => {
