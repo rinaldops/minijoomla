@@ -342,6 +342,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/component-options-runtime.test.js',
   'tests/contributor-stage.test.js',
   'tests/core.test.js',
+  'tests/deploy-pages-scope.test.js',
   'tests/distribution-audit.test.js',
   'tests/dynamic-modules.test.js',
   'tests/editor-final.test.js',

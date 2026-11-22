@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TMP = join(PROJECT, 'tmp');
-const OWNED_PREFIXES = ['tooling-validation-', 'distribution-audit-test-', 'contributor-agent-', 'test-runner-', 'release-core-test-'];
+const OWNED_PREFIXES = ['tooling-validation-', 'distribution-audit-test-', 'contributor-agent-', 'test-runner-', 'release-core-test-', 'deploy-pages-scope-'];
 const within = (root, path) => {
   const name = relative(root, path);
   return name === '' || (name !== '..' && !name.startsWith(`..${sep}`) && !isAbsolute(name));

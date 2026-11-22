@@ -4,11 +4,25 @@
  * Uso: node scripts/deploy-sharepoint.mjs --version X.Y.Z --web /sites/site --session <id>
  *      [--rpc 47173] [--skip-provision] [--prepare-only] [--expected-origin https://tenant.sharepoint.com]
  *      [--public-page NomeReal.aspx] [--mse-layout FullBleed|Contained]
+ *      [--pages Administrator.aspx | --admin-only] [--activate-existing]
  * Recusa versão já existente. Grava em tmp/deploy/ o canvas anterior (rollback) e o
  * mapa de listas. Nenhum cookie/token é lido ou gravado: todo acesso roda no navegador.
  * --public-page informa o nome real do .aspx público já criado no site de
  * destino (default 'MiniJoomla.aspx'); o MINIJOOMLA não assume nenhum nome
  * específico de site/template.
+ * --pages restringe a publicação exatamente às páginas nomeadas (lista
+ * separada por vírgula). E a única forma de publicar sem a página pública:
+ * `--pages Administrator.aspx` (ou o alias `--admin-only`) publica somente o
+ * painel e NÃO lê, NÃO escreve e NÃO publica nenhuma outra página, nem gera
+ * o rollback dela. Sem a opção, o comportamento é o de sempre (público +
+ * Administrator.aspx). Trocar o host do site público pertence a outra frente
+ * e não é feito por aqui.
+ * --admin-only é exclusivo: combiná-lo com --pages ou com --public-page é
+ * rejeitado, para não publicar o site público por ambiguidade.
+ * --activate-existing permite ativar uma release já enviada por um
+ * --prepare-only anterior. Nada é gravado na release: o readback completo por
+ * hash contra o manifest local roda ANTES de qualquer escrita em página e
+ * aborta se algo divergir. Sem a opção, a recusa de release existente vale.
  * --mse-layout é opcional; omitido preserva o snippet legado sem wrapper
  * (sem mudança de comportamento). Quando informado, publishPages() envolve
  * a raiz do CMS no wrapper data-spmiddle-host/data-spmiddle-layout real do
@@ -51,7 +65,27 @@ const rpcPort = option('rpc', '47173');
 // confinamento de templates instalados fora do MINIJOOMLA.
 const publicPage = option('public-page', 'MiniJoomla.aspx');
 if (!publicPage.endsWith('.aspx')) throw new TypeError('--public-page requer um nome de arquivo .aspx.');
-const PAGES = { [publicPage]: { attribute: 'data-minijoomla-site', instance: 'minijoomla-site' }, 'Administrator.aspx': { attribute: 'data-minijoomla-admin-root', instance: 'minijoomla-admin' } };
+const ALL_PAGES = { [publicPage]: { attribute: 'data-minijoomla-site', instance: 'minijoomla-site' }, 'Administrator.aspx': { attribute: 'data-minijoomla-admin-root', instance: 'minijoomla-admin' } };
+// Publishing is opt-in per page. Without --pages/--admin-only both pages are
+// published exactly as before. With it, only the named pages are touched: no
+// other page is located, read, written, published, or given a rollback file.
+const requestedPages = flag('pages') ? option('pages') : (flag('admin-only') ? 'Administrator.aspx' : null);
+// --admin-only é um atalho restritivo: combiná-lo com uma escolha explícita de
+// páginas (ou com --public-page) é ambíguo e poderia publicar o site público
+// por engano, então é rejeitado em vez de resolvido por precedência.
+if (flag('admin-only') && flag('pages')) throw new TypeError('--admin-only é exclusivo e não pode ser combinado com --pages.');
+if (flag('admin-only') && flag('public-page')) throw new TypeError('--admin-only é exclusivo e não pode ser combinado com --public-page.');
+if (flag('pages') && !requestedPages) throw new TypeError('--pages requer uma lista de páginas .aspx separada por vírgula.');
+const selected = requestedPages === null
+  ? Object.keys(ALL_PAGES)
+  : requestedPages.split(',').map((name) => name.trim()).filter(Boolean);
+if (!selected.length) throw new TypeError('--pages requer ao menos uma página .aspx.');
+for (const name of selected) {
+  if (!name.endsWith('.aspx')) throw new TypeError(`--pages aceita somente nomes de arquivo .aspx: '${name}'.`);
+  if (!ALL_PAGES[name]) throw new TypeError(`Página não suportada em --pages: '${name}'. Use ${Object.keys(ALL_PAGES).map((page) => `'${page}'`).join(' ou ')}.`);
+}
+const PAGES = Object.fromEntries(selected.map((name) => [name, ALL_PAGES[name]]));
+if (requestedPages !== null) console.log(`publicação restrita a: ${Object.keys(PAGES).join(', ')}`);
 // Publisher's explicit choice, same two values mse-layout.js accepts; default
 // preserves the legacy unwrapped snippet (no behavior change for existing
 // publications that never asked for this).
@@ -223,6 +257,33 @@ function buildStage(lists) {
 // rejeitada. Todas as outras extensões mantêm a exigência de hash idêntico
 // de sempre, sem excecão.
 const WEAK_INTEGRITY_EXTENSIONS = new Set(['.html']);
+// Leitura de volta + hash, sem escrever nada. Usada pelo upload (após gravar)
+// e por --activate-existing, que precisa provar que a release já enviada
+// continua íntegra contra o manifest local ANTES de tocar qualquer página.
+async function verifyReadback(files) {
+  const integrity = files.map(({ path, name }) => {
+    const bytes = readFileSync(path);
+    return { name, sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length, weakIntegrity: WEAK_INTEGRITY_EXTENSIONS.has(name.slice(name.lastIndexOf('.')).toLowerCase()) };
+  });
+  for (let i = 0; i < integrity.length; i += 8) {
+    const chunk = integrity.slice(i, i + 8);
+    await browser(`const hex = (buffer) => [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      await Promise.all(${JSON.stringify(chunk)}.map(async (file) => {
+        const parts = file.name.split('/');
+        const leaf = parts.pop();
+        const folder = [${JSON.stringify(release)}, ...parts].join('/');
+        const remote = await (await fetch(folder + '/' + leaf + '?verify=' + Date.now(), { cache: 'no-store' })).arrayBuffer();
+        if (file.weakIntegrity) {
+          if (remote.byteLength < file.byteLength) throw new Error('arquivo truncado pelo servidor (verificação frouxa .html): ' + file.name);
+          const prefix = remote.slice(0, file.byteLength);
+          if (hex(await crypto.subtle.digest('SHA-256', prefix)) !== file.sha256) throw new Error('prefixo divergente do conteúdo original (verificação frouxa .html): ' + file.name);
+        } else if (hex(await crypto.subtle.digest('SHA-256', remote)) !== file.sha256) throw new Error('hash divergente: ' + file.name);
+      }));
+      return true;`);
+    process.stdout.write(`\r${Math.min(i + 8, integrity.length)}/${integrity.length} verificados`);
+  }
+  console.log();
+}
 async function upload(files) {
   const folders = [...new Set(files.flatMap(({ name }) => name.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))))].sort();
   const shared = [assets, `${assets}/releases`, `${assets}/uploads`, `${assets}/extensions`, `${assets}/templates`];
@@ -235,27 +296,19 @@ async function upload(files) {
   for (let i = 0; i < files.length; i += 8) {
     const chunk = files.slice(i, i + 8).map(({ path, name }) => {
       const bytes = readFileSync(path);
-      const weakIntegrity = WEAK_INTEGRITY_EXTENSIONS.has(name.slice(name.lastIndexOf('.')).toLowerCase());
-      return { name, base64: bytes.toString('base64'), sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length, weakIntegrity };
+      return { name, base64: bytes.toString('base64') };
     });
-    await browser(`const hex = (buffer) => [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-      await Promise.all(${JSON.stringify(chunk)}.map(async (file) => {
+    await browser(`await Promise.all(${JSON.stringify(chunk)}.map(async (file) => {
         const bytes = Uint8Array.from(atob(file.base64), (char) => char.charCodeAt(0));
         const parts = file.name.split('/');
         const leaf = parts.pop();
         const folder = [${JSON.stringify(release)}, ...parts].join('/');
         await call('web/GetFolderByServerRelativePath(decodedurl=' + q(folder) + ')/Files/addusingpath(decodedurl=' + q(leaf) + ',overwrite=false)', { method: 'POST', body: bytes });
-        const remote = await (await fetch(folder + '/' + leaf + '?verify=' + Date.now(), { cache: 'no-store' })).arrayBuffer();
-        if (file.weakIntegrity) {
-          if (remote.byteLength < file.byteLength) throw new Error('arquivo truncado pelo servidor (verificação frouxa .html): ' + file.name);
-          const prefix = remote.slice(0, file.byteLength);
-          if (hex(await crypto.subtle.digest('SHA-256', prefix)) !== file.sha256) throw new Error('prefixo divergente do conteúdo original (verificação frouxa .html): ' + file.name);
-        } else if (hex(await crypto.subtle.digest('SHA-256', remote)) !== file.sha256) throw new Error('hash divergente: ' + file.name);
       }));
       return true;`);
-    process.stdout.write(`\r${Math.min(i + 8, files.length)}/${files.length} verificados`);
+    process.stdout.write(`\r${Math.min(i + 8, files.length)}/${files.length} enviados`);
   }
-  console.log();
+  await verifyReadback(files);
 }
 
 async function publishPages() {
@@ -292,14 +345,22 @@ async function publishPages() {
 }
 
 // Recusa antes de qualquer escrita: versão já publicada é imutável.
-if (await browser(`return (await call('web/GetFolderByServerRelativePath(decodedurl=' + q(${JSON.stringify(release)}) + ')/Exists')).body.value;`)) throw new Error(`Release ${version} já existe; publique uma versão nova.`);
+const releaseExists = await browser(`return (await call('web/GetFolderByServerRelativePath(decodedurl=' + q(${JSON.stringify(release)}) + ')/Exists')).body.value;`);
+if (releaseExists && !flag('activate-existing')) throw new Error(`Release ${version} já existe; publique uma versão nova ou use --activate-existing para apenas ativar a release já enviada.`);
 await verifyExtensionPackages();
 if (!flag('skip-provision')) await provision();
 const lists = await listMap();
 if (extensionConfig.joomlaDiscoveryRoots?.length && !await createAtomicExtensionKeyGuard({ transport: createSharePointRestClient({ webUrl: web, fetchImpl: bridgeFetch }), webUrl: web, listId: lists.extensions?.listId })()) throw new Error('Ativacao XML bloqueada: Key precisa de Indexed e EnforceUniqueValues reais no catalogo. Nenhuma pagina foi alterada.');
 writeFileSync(join(output, 'lists.json'), JSON.stringify(lists, null, 2));
 const files = buildStage(lists);
-await upload(files);
+if (flag('activate-existing')) {
+  // Ativação de release já enviada: nada é gravado na release. O readback
+  // completo por hash contra o manifest local roda ANTES de qualquer escrita
+  // em página; qualquer divergência (arquivo ausente, truncado ou alterado)
+  // aborta sem tocar o site.
+  console.log(`--activate-existing: verificando a release já enviada ${release} contra o manifest local`);
+  await verifyReadback(files);
+} else await upload(files);
 const remote = await browser(`const walk = async (folder) => {
     const node = 'web/GetFolderByServerRelativePath(decodedurl=' + q(folder) + ')';
     const inner = (await call(node + '/Files?$select=Name')).body.value.length;
