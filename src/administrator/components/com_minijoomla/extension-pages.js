@@ -44,6 +44,16 @@ export const LEGACY_ASSIGNMENT_REASONS = {
 const esc = (value) => escapeHtml(String(value ?? ''));
 const status = '<p class="admin-form-status admin-management-status" role="status" aria-live="polite" data-ext-status></p>';
 
+/*
+ * O recado de um lote precisa SOBREVIVER ao recarregamento da lista. A ação
+ * em lote terminava recarregando a lista sem dizer nada acima da tabela,
+ * então o usuário não tinha como saber se ela funcionou: a única pista era
+ * o estado das linhas mudar, indistinguível do resultado de um filtro.
+ * Como o reload re-renderiza a tela inteira e zera `[data-ext-status]`, a
+ * mensagem é guardada aqui e consumida pela renderização seguinte.
+ */
+let pendingBatchStatus = '';
+
 export const MODULE_INSTANCE_COUNT_DESCRIPTION = 'Conta todas as instâncias salvas, inclusive despublicadas e na lixeira; não indica módulos visíveis no site.';
 
 export function renderModuleInstanceHelp(link) {
@@ -170,6 +180,18 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   const page = (activeKey, pageTitle, crumbs, bodyHtml, toolbarActionsHtml = '') => shell({ activeKey, pageTitle, breadcrumbItems: [home(), ...crumbs], bodyHtml, toolbarActionsHtml, link });
   const body = () => documentRef.body;
   const report = (message) => { if (!isCurrent()) return; const element = body().querySelector?.('[data-ext-status]'); if (element) element.textContent = message; };
+
+  /*
+   * Repõe no `[data-ext-status]` o recado do último lote, agora que a tela
+   * foi re-renderizada. É consumido uma única vez: a mensagem pertence à
+   * ação que a produziu, não a toda navegação seguinte.
+   */
+  function flushBatchStatus() {
+    if (!pendingBatchStatus) return;
+    const message = pendingBatchStatus;
+    pendingBatchStatus = '';
+    if (isCurrent()) report(message);
+  }
   const navigate = (...args) => isCurrent() ? router.navigate(...args) : undefined;
   const reload = (location) => navigate(link(location.path, location.params));
 
@@ -306,8 +328,19 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
    * o recarregamento nunca perde o filtro que o usuário tinha.
    */
   function batchReport(result, location) {
-    if (!result.failed.length) return reload(location);
-    throw Object.assign(new Error(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
+      /*
+       * Sucesso e falha parcial usam as MESMAS palavras do aceite:
+       *   sucesso total  -> "<N> item(ns) atualizado(s)."
+       *   falha parcial  -> "<S> atualizado(s), <F> com falha: <titulos>"
+       * Antes, o sucesso era silencioso (a lista apenas mudava) e a falha
+       * parcial vinha como "processado(s)/falha(s)", que não distinguia o
+       * que mudou do que não mudou.
+       */
+      if (!result.failed.length) {
+        pendingBatchStatus = `${result.succeeded.length} item(ns) atualizado(s).`;
+        return reload(location);
+      }
+      throw Object.assign(new Error(`${result.succeeded.length} atualizado(s), ${result.failed.length} com falha: ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
   }
 
   async function runBatch(run, ids, action, extra, location) {
@@ -318,7 +351,11 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       // Reporta a falha ANTES de recarregar: o reload re-renderiza a tela,
       // `isCurrent()` desta renderização passa a falso e a mensagem seria
       // engolida (o usuário veria a lista atualizada sem saber o motivo).
-      if (isCurrent()) report(error.message);
+        // O recado também é guardado: numa falha TOTAL a lista ainda é
+        // recarregada, então a mensagem precisa sobreviver ao re-render.
+        const message = `${error.message} Nenhum item foi atualizado.`;
+        pendingBatchStatus = message;
+        if (isCurrent()) report(message);
       // Só recarrega quando algo realmente mudou. Numa falha total não há
       // estado novo para mostrar e recarregar apresentaria como bem-sucedida
       // uma ação que não alterou nada.
@@ -369,6 +406,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       bindFilter(location, ['q', 'state', 'position', 'type']);
       bindColumnFilters({ location, link, navigate, scope: body(), domain: 'modules', filters: columnFiltersFor('modules', rows, params) });
       bindSelectAll();
+            flushBatchStatus();
       const run = async (ids, action, extra) => runBatch((batchIds, batchAction, batchExtra) => adminService.moduleInstances.batch(batchIds.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), batchAction, batchExtra), ids, action, extra, location);
       bindActions({
         publish: (id) => run([id], 'publish'), unpublish: (id) => run([id], 'unpublish'), restore: (id) => run([id], 'restore'),
@@ -533,6 +571,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       bindFilter(location, ['q', 'group', 'enabled', 'state', 'title', 'key']);
       bindColumnFilters({ location, link, navigate, scope: body(), domain: 'plugins', filters: columnFiltersFor('plugins', rows, params) });
       bindSelectAll();
+            flushBatchStatus();
       const run = async (ids, action) => {
         if (!ids.length) { report('Selecione ao menos um plugin.'); return; }
               return runBatch((batchIds, batchAction) => adminService.plugins.batch(batchIds.map((id) => ({ id: String(id).startsWith('native:') ? id : Number(id), etag: etags.get(String(id)) })), batchAction), ids, action, undefined, location);

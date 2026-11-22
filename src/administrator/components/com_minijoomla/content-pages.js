@@ -18,6 +18,15 @@ import { bindColumnFilters, columnsForDomain, canonicalKey, parseMulti } from '.
 const esc = (value) => escapeHtml(String(value ?? ''));
 const status = '<p class="admin-form-status admin-management-status" role="status" aria-live="polite" aria-atomic="true" data-ext-status></p>';
 
+/*
+ * A lista se recarrega depois de um lote, e a recarga re-renderiza
+ * `[data-ext-status]` do zero. Sem guardar o recado, a única pista de que a
+ * ação funcionou seria o estado das linhas mudar — indistinguível de um
+ * filtro. Por isso o texto fica em memória até a próxima renderização
+ * consumi-lo uma única vez.
+ */
+let pendingBatchStatus = '';
+
 const ARTICLE_STATE_OPTIONS = [['', '— Estado (exceto lixeira) —'], ['Published', 'Publicados'], ['Draft', 'Despublicados'], ['Archived', 'Arquivados'], ['Trashed', 'Na lixeira'], ['*', 'Todos']];
 const TAXONOMY_STATE_OPTIONS = [['', '— Estado (exceto lixeira) —'], ['Published', 'Publicados'], ['Unpublished', 'Despublicados'], ['Trashed', 'Na lixeira'], ['*', 'Todos']];
 const ARTICLE_ACTIONS = { publish: 'Publicar', unpublish: 'Despublicar', archive: 'Arquivar', feature: 'Destacar', unfeature: 'Remover destaque', duplicate: 'Duplicar', trash: 'Enviar para a lixeira', move: 'Mover para a categoria' };
@@ -120,6 +129,13 @@ export function createContentPages({ adminService, documentRef, router, shell, m
     all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); });
   }
 
+  function flushBatchStatus() {
+    if (!pendingBatchStatus) return;
+    const message = pendingBatchStatus;
+    pendingBatchStatus = '';
+    report(message);
+  }
+
   function bindActions(handlers) {
     body().querySelectorAll?.('[data-ext-action]')?.forEach?.((button) => {
       button.addEventListener?.('click', async (event) => {
@@ -150,8 +166,12 @@ export function createContentPages({ adminService, documentRef, router, shell, m
      * extensão que re-renderizam por outro caminho) continua funcionando.
      */
     async function batchReport(result, location, { redirect } = {}) {
-      if (!result.failed.length) return redirect ? redirect(location) : reload(location);
-        throw Object.assign(new Error(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
+      if (!result.failed.length) {
+        pendingBatchStatus = `${result.succeeded.length} item(ns) atualizado(s).`;
+        return redirect ? redirect(location) : reload(location);
+      }
+      pendingBatchStatus = `${result.succeeded.length} atualizado(s), ${result.failed.length} com falha: ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`;
+        throw Object.assign(new Error(pendingBatchStatus), { partialBatch: true, succeeded: result.succeeded.length });
   }
 
   function bindFilter(location, names) {
@@ -179,6 +199,12 @@ export function createContentPages({ adminService, documentRef, router, shell, m
         // uma ação que não alterou nada.
         if (error.succeeded > 0) {
           try { await reload(location); } catch { /* navegação cancelada: a falha já foi reportada */ }
+        } else if (!error.succeeded) {
+          // Falha total: nada recarrega, então o recado precisa dizer também
+          // que NENHUM item foi alterado — senão "1 com falha" não distingue
+          // "todos falharam" de "alguns passaram".
+          pendingBatchStatus = `${error.message} Nenhum item foi atualizado.`;
+          report(pendingBatchStatus);
         }
       return undefined;
     }
@@ -234,6 +260,7 @@ export function createContentPages({ adminService, documentRef, router, shell, m
       bindFilter(location, ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']);
           bindColumnFilters({ location, link, navigate, scope: body(), domain: 'articles', filters: columnFiltersFor('articles', result, params) });
       bindSelectAll();
+      flushBatchStatus();
       const run = async (ids, action, extra) => runBatch(() => adminService.articles.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action, extra), ids, action, extra, location);
       const rowOf = (id) => result.rows.find((row) => String(row.id) === String(id));
       bindActions({
@@ -268,6 +295,7 @@ export function createContentPages({ adminService, documentRef, router, shell, m
       bindFilter(location, ['q', 'state']);
           bindColumnFilters({ location, link, navigate, scope: body(), domain: cfg.domain, filters: columnFiltersFor(cfg.domain, rows, params) });
       bindSelectAll();
+      flushBatchStatus();
       const run = async (ids, action) => runBatch(() => service.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action), ids, action, undefined, location);
       const rowOf = (id) => rows.find((row) => String(row.id) === String(id));
       bindActions({

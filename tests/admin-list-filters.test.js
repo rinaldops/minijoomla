@@ -520,6 +520,42 @@ async function runRoundTripTests() {
       assert.match(formHtml, /class="[^"]*admin-form-cancel[^"]*" href="#\/articles\?[^"]*alias=beta/, 'Cancelar volta à lista filtrada');
       assert.match(formHtml, /href="#\/articles\?[^"]*alias=beta[^"]*"[^>]*>Artigos<\/a>/, 'o breadcrumb volta à lista filtrada');
 
+      /*
+       * TODO caminho de volta carrega o recorte. O defeito relatado no
+       * reteste da 0.17.14 era o recorte sumir na volta; por isso a prova
+       * parte da lista com filtro de BARRA (`q`) E de COLUNA (`state`,
+       * `title`) ativos ao mesmo tempo — é a combinação que exercita as
+       * duas fontes de estado — e confere cada ponto de saída do
+       * formulário: "Salvar" (submit), "Cancelar" e o breadcrumb.
+       */
+      await app.router.navigate('#/articles?q=Beta&state=Published&title=Beta');
+      assert.match(fake.documentRef.body.innerHTML, /data-colfilter-toggle/, 'a lista combinada expõe os menus de coluna');
+
+      const returnHrefs = async () => {
+        await app.router.navigate('#/articles/2?q=Beta&state=Published&title=Beta');
+        const html = fake.documentRef.body.innerHTML;
+        const cancel = html.match(/class="admin-btn[^"]*admin-form-cancel" href="([^"]+)"/);
+        assert.ok(cancel, 'Cancelar existe no formulário');
+        const crumb = html.match(/href="(#[^"]+)"[^>]*>Artigos<\/a>/);
+        assert.ok(crumb, 'o breadcrumb volta para Artigos');
+        return { cancel: cancel[1], crumb: crumb[1] };
+      };
+      for (const [name, href] of Object.entries(await returnHrefs())) {
+        assert.match(href, /q=Beta/, `${name} mantém a busca`);
+        assert.match(href, /state=Published/, `${name} mantém o filtro de coluna Estado`);
+        assert.match(href, /title=Beta/, `${name} mantém o filtro de coluna Título`);
+        assert.ok(!/[?&]page=/.test(href), `${name} não devolve a página à lista`);
+      }
+
+      // O `href` prova a intenção; a lista também precisa re-renderizar com
+      // o recorte vindo da memória depois de um "Cancelar" real.
+      await app.router.navigate('#/articles/2?q=Beta&state=Published&title=Beta');
+      const beforeBack = fake.documentRef.body.innerHTML;
+      assert.match(beforeBack, /admin-form-cancel/, 'o formulário oferece o caminho de volta');
+      const backHref = beforeBack.match(/class="admin-btn[^"]*admin-form-cancel" href="([^"]+)"/)[1];
+      await app.router.navigate(backHref);
+      assert.match(fake.documentRef.body.innerHTML, /data-colfilter-toggle/, 'a lista de volta re-renderiza com os menus');
+
       // SALVAR: após gravar, a navegação reaplica a memória da lista, então o
       // usuário volta para o MESMO recorte, e não para a lista completa.
       await app.router.navigate('#/articles/2?alias=beta&q=Beta');
@@ -651,18 +687,34 @@ async function runBatchTests() {
     });
   }
 
-  // SUCESSO TOTAL: recarrega a MESMA lista, com o filtro de coluna ainda ativo.
-  await withModuleList(async () => ({ succeeded: [{ id: 1 }], failed: [] }), async ({ navigations, storage }) => {
+  // SUCESSO TOTAL: recarrega a MESMA lista, com o filtro de coluna ainda ativo,
+  // e DEIXA O RECADO VISÍVEL. Sem a mensagem, o usuário só percebia que a ação
+  // funcionou pelo estado das linhas mudar — indistinguível de um filtro.
+  // O recado precisa SOBREVIVER à recarga: a lista é re-renderizada depois de
+  // navegar, e um status gravado só no DOM antigo se perderia no caminho.
+  await withModuleList(async () => ({ succeeded: [{ id: 1 }], failed: [] }), async ({ fake, navigations, storage }) => {
     assert.ok(navigations.length > 0, 'sucesso total recarrega a lista');
     assert.match(String(navigations[navigations.length - 1]), /col_position=sidebar-right/, 'a recarga preserva o filtro de coluna');
     assert.equal(recallListFilters('/moduleInstances', storage).col_position, 'sidebar-right');
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/atualizado/.test(status), `o sucesso total e comunicado com a palavra do aceite: ${status}`);
+    assert.ok(/1 item\(ns\)/.test(status), `a mensagem de sucesso carrega a contagem: ${status}`);
+  });
+
+  // O mesmo desfecho, mas navegando de verdade: a memória do recado é o que
+  // faz a mensagem reaparecer na lista re-renderizada.
+  await withModuleList(async () => ({ succeeded: [{ id: 1 }, { id: 2 }], failed: [] }), async ({ fake }) => {
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/2 item\(ns\) atualizado\(s\)/.test(status), `o recado reaparece na lista recarregada: ${status}`);
   });
 
   // FALHA PARCIAL: reporta a falha E recarrega, porque parte do estado mudou —
   // sem isso os itens que mudaram continuariam exibindo o estado antigo.
+  // A redação separa o que mudou do que não mudou.
   await withModuleList(async () => ({ succeeded: [{ id: 1 }], failed: [{ id: 2, message: 'Negado' }] }), async ({ fake, navigations }) => {
-    const status = fake.element('[data-ext-status]').textContent;
-    assert.ok(/Negado/.test(String(status)), 'a falha parcial é comunicada ao usuário');
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/Negado/.test(status), 'a falha parcial é comunicada ao usuário');
+    assert.ok(/1 atualizado\(s\), 1 com falha/.test(status), `falha parcial separa o que mudou do que falhou: ${status}`);
     assert.ok(navigations.length > 0, 'falha parcial recarrega o que realmente mudou');
     assert.match(String(navigations[navigations.length - 1]), /col_position=sidebar-right/, 'a recarga da falha parcial preserva o filtro');
   });
@@ -670,8 +722,74 @@ async function runBatchTests() {
   // FALHA TOTAL: reporta e NÃO navega — nada mudou, então recarregar seria
   // apresentar como bem-sucedida uma ação que não alterou estado nenhum.
   await withModuleList(async () => ({ succeeded: [], failed: [{ id: 1, message: 'Negado' }, { id: 2, message: 'Negado' }] }), async ({ fake, navigations }) => {
-    assert.ok(/Negado/.test(String(fake.element('[data-ext-status]').textContent)), 'a falha total é comunicada ao usuário');
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/Negado/.test(status), 'a falha total é comunicada ao usuário');
+    assert.ok(/Nenhum item foi atualizado/.test(status), `falha total diz explicitamente que nada mudou: ${status}`);
     assert.equal(navigations.length, 0, 'falha total não navega: nenhum estado novo a apresentar');
+  });
+
+  /*
+   * Artigos passam pelo MESMO contrato de lote, mas por um arquivo
+   * diferente (`content-pages.js`). Sem esta prova, o recado poderia
+   * reaparecer nos módulos e se perder nas listas de conteúdo.
+   */
+  async function withArticleList(batch, run) {
+    const storage = createFakeStorage();
+    await withStorage(storage, async () => {
+      const rows = [
+        { id: 1, title: 'Alfa', alias: 'alfa', state: 'Published' },
+        { id: 2, title: 'Beta', alias: 'beta', state: 'Published' }
+      ];
+      const admin = createFakeAdminService({
+        domains: {
+          articles: rows,
+          categories: [{ id: 10, title: 'Institucional', alias: 'institucional', parentId: null, state: 'Published' }],
+          tags: [{ id: 20, title: 'Destaque', alias: 'destaque', state: 'Published' }]
+        }
+      });
+      // A listagem de artigos não usa `list`: ela consome o recorte paginado de
+      // `articles.query` (camada de serviço) e as opções de categoria.
+      admin.articles.query = async () => ({
+        rows,
+        total: rows.length,
+        totalBase: rows.length,
+        page: 1,
+        limit: 20,
+        facets: { authors: [], languages: [] },
+        columnFacets: {}
+      });
+      admin.categories.treeOptions = async () => [{ value: '10', label: 'Institucional' }];
+      admin.articles.batch = batch;
+      const fake = createFakeDocumentRef();
+      const app = await mountApp(admin, storage, fake.documentRef);
+      fake.setList('[data-ext-select]', [
+        { value: '1', checked: true, dataset: { extId: '1' } },
+        { value: '2', checked: true, dataset: { extId: '2' } }
+      ]);
+      const navigations = [];
+      const original = app.router.navigate.bind(app.router);
+      app.router.navigate = async (href) => { navigations.push(href); return original(href); };
+      try {
+        await app.router.navigate('#/articles?state=Published');
+        fake.element('name:batchAction').value = 'publish';
+        const before = navigations.length;
+        await fake.dispatch('[data-ext-batch]', 'submit');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await run({ fake, navigations: navigations.slice(before) });
+      } finally { app.stop(); }
+    });
+  }
+
+  await withArticleList(async () => ({ succeeded: [{ id: 1 }, { id: 2 }], failed: [] }), async ({ fake, navigations }) => {
+    assert.ok(navigations.length > 0, 'artigos: sucesso total recarrega a lista');
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/2 item\(ns\) atualizado\(s\)/.test(status), `artigos: o recado reaparece na lista recarregada: ${status}`);
+  });
+
+  await withArticleList(async () => ({ succeeded: [], failed: [{ id: 1, message: 'Negado' }, { id: 2, message: 'Negado' }] }), async ({ fake, navigations }) => {
+    const status = String(fake.element('[data-ext-status]').textContent);
+    assert.ok(/Nenhum item foi atualizado/.test(status), `artigos: falha total diz que nada mudou: ${status}`);
+    assert.equal(navigations.length, 0, 'artigos: falha total não navega');
   });
 
   console.log('ok - lote: sucesso recarrega a lista filtrada, falha parcial reporta e recarrega, falha total nao navega');
