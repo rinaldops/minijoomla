@@ -24,12 +24,22 @@
  */
 const LIST_FILTER_PREFIX = 'minijoomla.admin.listFilters:';
 
+/*
+ * Parâmetros que NUNCA entram na memória, mesmo que estejam na URL:
+ * `page` pertence à listagem exibida, não ao recorte de filtros. Se a
+ * memória guardasse a página, voltar de um formulário depois de filtrar
+ * mais restritamente cairia numa página vazia. A regra fica aqui, no
+ * único ponto de gravação, para não depender de cada chamador limpar o
+ * parâmetro — `app.js` grava `location.params` cru, que inclui `page`.
+ */
+const TRANSIENT_PARAMS = new Set(['page']);
+
 export function listFilterKey(path) { return `${LIST_FILTER_PREFIX}${String(path ?? '')}`; }
 
 export function rememberListFilters(path, params, storage = globalThis.sessionStorage) {
   if (!path || !storage) return;
   try {
-    const meaningful = Object.entries(params ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '');
+    const meaningful = Object.entries(params ?? {}).filter(([key, value]) => !TRANSIENT_PARAMS.has(key) && value !== undefined && value !== null && value !== '');
     if (meaningful.length) storage.setItem(listFilterKey(path), JSON.stringify(Object.fromEntries(meaningful)));
     else storage.removeItem(listFilterKey(path));
   } catch { /* sem memória de filtro: comportamento antigo, nunca erro de tela */ }

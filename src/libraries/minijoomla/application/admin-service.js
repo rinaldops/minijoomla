@@ -752,12 +752,17 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
            * O rótulo vira o caminho completo ("Pai › Avisos") SÓ quando
            * existe mais de uma categoria com o mesmo caminho textual —
            * caso contrário mantém a indentação simples e legível do
-           * Joomla real.
+           * Joomla real. Quando nem o caminho desambigua (irmãs de mesmo
+           * título sob o mesmo pai), o alias entra como sufixo, porque é
+           * ele que o usuário vê e que o serviço usa para filtrar.
            */
           .map(({ row, depth }) => {
             const path = paths.get(Number(row.id)) ?? String(row[titleField] ?? '');
             const label = (counts.get(path) ?? 0) > 1 ? path : row[titleField];
-            return { value: row.id, label: `${'— '.repeat(depth)}${label}` };
+            const alias = String(row[aliasField] ?? '').trim();
+            const collides = counts.get(label) > 1 || (label === path && (counts.get(path) ?? 0) > 1);
+            const text = collides && alias && !label.endsWith(`(${alias})`) ? `${label} (${alias})` : label;
+            return { value: row.id, label: `${'— '.repeat(depth)}${text}` };
           });
       },
       async duplicate(id) {

@@ -308,6 +308,10 @@ const ICON_COLUMN_VALUES = {
  * listas de domínio são planas e os campos exibidos são os filtráveis.
  * Um único valor distinto não oferece escolha: o menu é omitido, exceto
  * quando já está ativo (senão não haveria como desfazê-lo).
+ *
+ * `label` é o mesmo rótulo do cabeçalho (`COLUMN_LABELS`) e não um texto
+ * novo: é ele que dá nome acessível ao botão do menu ("Filtrar coluna
+ * Título"), então menu e cabeçalho nunca divergem.
  */
 function columnFilterDefinitions(domain, rows, params = {}) {
   return LIST_COLUMNS[domain].map((column) => {
@@ -316,7 +320,7 @@ function columnFilterDefinitions(domain, rows, params = {}) {
     const labels = ICON_COLUMN_VALUES[column] ?? {};
     const options = values.sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => [value, labels[value] ?? value]);
     const selected = String(params[name] ?? '');
-    return { column, name, value: selected, options, keep: selected !== '' || options.length > 1 };
+    return { column, name, label: COLUMN_LABELS[column] ?? column, value: selected, options, keep: selected !== '' || options.length > 1 };
   }).filter((filter) => filter.keep).map(({ keep, ...filter }) => filter);
 }
 
@@ -580,9 +584,12 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
         return { html: renderDomainListPage(domain, rows, link, { searchTerm: listParams?.q, pageNumber: listParams?.page, params: listParams, now: domain === 'articles' ? clock() : undefined }), management: { domain, rows, siteConfig } };
       }
       const config = ADMIN_DOMAINS[domain];
-      // Voltar do formulário deve reproduzir a lista de origem: usa a query
-      // que a listagem gravou por último (a sidebar e os links de edição já
-      // embutem a mesma memória, então os três caminhos coincidem).
+      // Voltar do formulário deve reproduzir a lista de origem. Os links de
+      // edição/novo já chegam com a query da lista, então ela é regravada
+      // aqui: se o usuário abrir/copiar a URL do formulário diretamente
+      // (sem passar pela listagem), a memória ainda existe e Cancelar e o
+      // breadcrumb voltam para o MESMO recorte em vez da lista limpa.
+      if (Object.keys(location.params ?? {}).length > 0) rememberListFilters(`/${domain}`, location.params);
       const returnParams = recallListFilters(`/${domain}`);
       if (idSegment === 'new') {
         if (['extensions', 'templates'].includes(domain)) return { html: renderNotFoundPage(link) };

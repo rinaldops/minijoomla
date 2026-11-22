@@ -203,6 +203,6 @@ export function renderAdminList({ rows = [], columns, columnLabels = {}, titleFi
  * (`bindColumnFilters`), nunca por submit — o form existe só para
  * agrupar o estado e permitir Enter/Escape sem listener global.
  */
-function wrapColumnFilters(header, columnFormId, inner) {
+export function wrapColumnFilters(header, columnFormId, inner) {
   return `<form class="admin-colfilter-form" data-colfilter-form="${escapeHtml(columnFormId ?? 'admin-list')}" method="get"><div class="visually-hidden" data-colfilter-headers>${header}</div>${inner}</form>`;
 }
