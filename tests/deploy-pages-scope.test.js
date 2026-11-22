@@ -166,6 +166,20 @@ export async function runDeployPagesScopeTests() {
     'o rollback deve ser gerado somente para Administrator.aspx');
   cases.push('admin-only-nao-toca-a-pagina-publica');
 
+  /*
+   * --skip-provision nao pode escrever ESQUEMA. `provision()` regrava sem
+   * condicao os Choices de todos os campos Choice de todas as listas
+   * MiniJoomla com etag '*', porque o `inspect()` so cria campos ausentes e
+   * as opcoes novas de um Choice existente exigem MERGE. A 0.17.15 nao muda
+   * esquema de lista, entao nem o preparo nem a ativacao podem tocar em
+   * `/fields`: e uma escrita destrutiva de configuracao, independente das
+   * paginas.
+   */
+  const fieldWrites = (seen) => seen.filter((expression) => expression.includes('/fields'));
+  assert.deepEqual(fieldWrites(adminOnly.seen), [],
+    '--skip-provision nao pode enderecar /fields: nenhuma escrita de esquema');
+  cases.push('skip-provision-nao-escreve-esquema');
+
   // 2. --pages Administrator.aspx is the explicit long form: same restriction.
   const explicit = await runDeploy(['--pages', ADMIN_PAGE, '--skip-provision', '--activate-existing']);
   assert.equal(explicit.status, 0, `--pages ${ADMIN_PAGE} deve concluir: ${explicit.stderr}`);
@@ -249,6 +263,10 @@ export async function runDeployPagesScopeTests() {
     '--prepare-only nao pode publicar pagina alguma');
   assert.equal(sequence.activate.status, 0,
     `--activate-existing (passo 2) deve concluir apos o passo 1: ${sequence.activate.stderr}`);
+  assert.deepEqual(fieldWrites(sequence.prepare.seen), [],
+    'o preparo com --skip-provision nao pode escrever esquema');
+  assert.deepEqual(fieldWrites(sequence.activate.seen), [],
+    'a ativacao com --skip-provision nao pode escrever esquema');
   assert.deepEqual(sequence.activate.written, [`rollback-${ADMIN_PAGE}.html`],
     'o passo de ativacao deve gerar rollback somente de Administrator.aspx');
   assert.deepEqual(pagesMentioned(sequence.activate.seen), [ADMIN_PAGE],

@@ -788,23 +788,47 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       async query(params = {}) {
         const [rows, articleList] = await Promise.all([rowsOf(), articleRows()]);
         const term = String(params.q ?? '').trim();
+        const dimensions = [
+          { key: 'state', reads: (row) => stateOf(row) },
+          { key: titleField, reads: (row) => row[titleField] },
+          { key: aliasField, reads: (row) => row[aliasField] }
+        ];
         /*
          * Filtro por coluna (menu tipo Excel): cada coluna tem seu próprio
-         * parâmetro e compara o valor da célula por igualdade
-         * case-insensitive — `q` continua sendo a busca textual ampla.
-         * Sem isto, a única forma de filtrar uma coluna seria reusar `q`,
-         * que cruzaria título e alias e misturaria colunas diferentes.
+         * parâmetro e aceita VÁRIOS valores no formato múltiplo — `q`
+         * continua sendo a busca textual ampla. Sem isto, a única forma de
+         * filtrar uma coluna seria reusar `q`, que cruzaria título e alias.
          */
-        const exact = (name, value) => {
-          const wanted = params[name];
-          return wanted === undefined || wanted === null || wanted === '' ? true : lower(value) === lower(wanted);
+        const selectedFor = (name) => parseMulti(params[name] ?? '');
+        const matchesValue = (name, value) => {
+          const selected = selectedFor(name);
+          return !selected.length || selected.some((wanted) => (wanted === '' ? value === '' : lower(value) === lower(wanted)));
         };
-        const visible = treeOrder(rows, titleField).filter(({ row }) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed')
-          && matchesSearch(row, term, [titleField, aliasField])
-          && exact(titleField, row[titleField])
-          && exact(aliasField, row[aliasField]));
+        const hasState = (row) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed');
+        const matchesColumns = (row, skip) => (skip === 'state' || matchesValue('state', stateOf(row)))
+          && (skip === titleField || matchesValue(titleField, row[titleField]))
+          && (skip === aliasField || matchesValue(aliasField, row[aliasField]));
+        const matchesTerm = (row) => matchesSearch(row, term, [titleField, aliasField]);
+        const visible = treeOrder(rows, titleField).filter(({ row }) => hasState(row) && matchesTerm(row) && matchesColumns(row, null));
         const fresh = await snapshots(base, visible.map(({ row }) => row));
-        return visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
+        /*
+         * Facetas agregadas ANTES da paginação, sobre o conjunto completo:
+         * a árvore inteira é devolvida (não há página), mas as contagens
+         * precisam sair do conjunto não filtrado pela própria coluna.
+         */
+        const columnFacets = buildColumnFacets(rows, dimensions, params, { matches: (row) => hasState(row) && matchesTerm(row) });
+        const totalBase = rows.filter((row) => hasState(row) && matchesTerm(row)).length;
+        const result = visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
+        /*
+         * A taxonomia devolve a árvore inteira (sem página) e expõe as
+         * facetas como propriedade NÃO enumerável para preservar a
+         * compatibilidade de `query()` com quem já itera o array de
+         * linhas diretamente; `total`/`totalBase` seguem o mesmo caminho.
+         */
+        Object.defineProperty(result, 'columnFacets', { value: columnFacets, enumerable: false });
+        Object.defineProperty(result, 'total', { value: visible.length, enumerable: false });
+        Object.defineProperty(result, 'totalBase', { value: totalBase, enumerable: false });
+        return result;
       },
       /** Opções de pai indentadas, sem o item e seus descendentes (impede ciclos) nem itens na lixeira. */
       async treeOptions({ excludeId, current } = {}) {
