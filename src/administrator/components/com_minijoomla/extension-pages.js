@@ -187,9 +187,11 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       event?.preventDefault?.();
       if (!isCurrent()) return;
       const params = Object.fromEntries(names.map((name) => [name, form.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
-            // Trocar um filtro não pode jogar fora a ordenação escolhida: ela é
-            // parte do estado da lista que o usuário montou.
-            for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
+      // Trocar um filtro não pode jogar fora a ordenação escolhida nem os
+      // filtros de coluna (`col_<campo>`), que o usuário montou pelo menu
+      // do cabeçalho e não têm campo correspondente na barra.
+      for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
+      for (const [key, value] of Object.entries(location.params ?? {})) if (key.startsWith('col_') && value) params[key] = value;
       await navigate(link(location.path, params));
     });
   }
@@ -198,9 +200,96 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     return Array.from(body().querySelectorAll?.('[data-ext-select]') ?? []).filter((input) => input.checked).map((input) => input.value);
   }
 
+  /*
+   * Valores distintos de uma coluna, na ordem em que aparecem na tela.
+   * Alimenta os menus de filtro das colunas cujas opções não vêm de um
+   * catálogo fixo (título, elemento).
+   */
+  /*
+   * Os menus de filtro por coluna (`[data-colfilter]`) navegam para
+   * `col_<nome>=valor` — o prefixo mantém o filtro de coluna separado do
+   * filtro equivalente da barra (`state`, `position`, `type`…), que pode
+   * conviver na mesma URL. As listagens de extensões, porém, sempre leram
+   * os nomes sem prefixo; sem esta sobreposição o menu abria, navegava e
+   * não filtrava nada. Aqui `col_<nome>` tem precedência sobre `<nome>`.
+   */
+  function listParams(location) {
+    const raw = location.params ?? {};
+    const params = { ...raw };
+    for (const [key, value] of Object.entries(raw)) {
+      if (key.startsWith('col_') && value !== undefined && value !== '') params[key.slice(4)] = value;
+    }
+    return params;
+  }
+
+  function uniqueValues(rows, pick) {
+    const seen = new Map();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const value = String(pick(row) ?? '').trim();
+      if (value && !seen.has(value)) seen.set(value, value);
+    }
+    return [...seen.entries()];
+  }
+
   function bindSelectAll() {
     const all = body().querySelector?.('[data-ext-select-all]');
     all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); });
+  }
+
+  /*
+   * Menus de filtro por coluna (`[data-colfilter]`): mesmo contrato de
+   * teclado usado em app.js/content-pages.js — Enter/Espaço/clique abrem,
+   * setas/Home/End navegam, Enter/Espaço escolhem, Escape fecha e devolve
+   * o foco ao botão, e um clique fora fecha. Trocar um filtro preserva a
+   * ordenação escolhida e descarta a página, que pertence à listagem
+   * anterior.
+   */
+  function bindColumnFilters(location) {
+    const scope = body().ownerDocument ?? body();
+    const containers = Array.from(body().querySelectorAll?.('[data-colfilter]') ?? []);
+    const closeAll = (except) => containers.forEach((container) => {
+      if (container === except) return;
+      container.querySelector?.('[data-colfilter-menu]')?.setAttribute?.('hidden', '');
+      container.querySelector?.('[data-colfilter-toggle]')?.setAttribute?.('aria-expanded', 'false');
+    });
+    containers.forEach((container) => {
+      const toggle = container.querySelector?.('[data-colfilter-toggle]');
+      const menu = container.querySelector?.('[data-colfilter-menu]');
+      const items = () => Array.from(menu?.querySelectorAll?.('[data-colfilter-option]') ?? []);
+      const setOpen = (open) => {
+        menu?.toggleAttribute?.('hidden', !open);
+        toggle?.setAttribute?.('aria-expanded', open ? 'true' : 'false');
+        if (open) closeAll(container);
+      };
+      toggle?.addEventListener?.('click', (event) => {
+        event?.preventDefault?.();
+        const wasOpen = !menu?.hasAttribute?.('hidden');
+        setOpen(!wasOpen);
+        if (!wasOpen) items()[0]?.focus?.();
+      });
+      menu?.addEventListener?.('keydown', (event) => {
+        const options = items();
+        const current = options.indexOf(scope.activeElement ?? options.find((option) => option.tabIndex === 0));
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault?.();
+          const index = event.key === 'ArrowDown' ? current + 1 : event.key === 'ArrowUp' ? current - 1 : event.key === 'Home' ? 0 : options.length - 1;
+          options[Math.max(0, Math.min(options.length - 1, index))]?.focus?.();
+          return;
+        }
+        if (event.key === 'Escape') { event.preventDefault?.(); setOpen(false); toggle?.focus?.(); return; }
+        if (event.key === 'Tab') { setOpen(false); return; }
+        if (['Enter', ' '].includes(event.key)) { event.preventDefault?.(); options[current]?.click?.(); }
+      });
+      items().forEach((option) => option.addEventListener?.('click', (event) => {
+        event?.preventDefault?.();
+        const value = option.dataset?.colfilterValue ?? '';
+        const next = { ...(location.params ?? {}), [container.dataset.colfilterName]: value || undefined, page: undefined };
+        setOpen(false);
+        navigate(link(location.path, next));
+      }));
+    });
+    scope?.addEventListener?.('click', (event) => { if (!containers.some((container) => container.contains?.(event.target))) closeAll(); });
+    scope?.addEventListener?.('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
   }
 
   function bindActions(handlers) {
@@ -217,41 +306,41 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   }
 
   /*
-     * G2 — lote com FALHA PARCIAL: antes, o relatório era escrito e a lista
-     * não recarregava, então os itens que realmente mudaram continuavam
-     * aparecendo com o estado antigo (filtro/página "mentindo" sobre o estado
-     * real). Agora o erro carrega `partialBatch` com o resumo do lote e
-     * `runBatch` decide:
-     *   - FALHA TOTAL (nada mudou): só reporta o motivo. Recarregar aqui
-     *     seria mentir ao contrário — apresentar como estado novo uma ação
-     *     que não alterou nada — e ainda descartaria o foco;
-     *   - FALHA PARCIAL (algo mudou): reporta o motivo E recarrega a MESMA
-     *     lista com os MESMOS filtros e a MESMA página, para o que mudou
-     *     aparecer mudado e o que falhou continuar visível;
-     *   - SUCESSO: recarrega como sempre (com filtros e página).
-     * `reload` usa `location.params` (a query já resolvida pela memória), então
-     * o recarregamento nunca perde o filtro que o usuário tinha.
-     */
-    function batchReport(result, location) {
-      if (!result.failed.length) return reload(location);
-      throw Object.assign(new Error(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
-    }
+   * G2 — lote com FALHA PARCIAL: antes, o relatório era escrito e a lista
+   * não recarregava, então os itens que realmente mudaram continuavam
+   * aparecendo com o estado antigo (filtro/página "mentindo" sobre o estado
+   * real). Agora o erro carrega `partialBatch` com o resumo do lote e
+   * `runBatch` decide:
+   *   - FALHA TOTAL (nada mudou): só reporta o motivo. Recarregar aqui
+   *     seria mentir ao contrário — apresentar como estado novo uma ação
+   *     que não alterou nada — e ainda descartaria o foco;
+   *   - FALHA PARCIAL (algo mudou): reporta o motivo E recarrega a MESMA
+   *     lista com os MESMOS filtros e a MESMA página, para o que mudou
+   *     aparecer mudado e o que falhou continuar visível;
+   *   - SUCESSO: recarrega como sempre (com filtros e página).
+   * `reload` usa `location.params` (a query já resolvida pela memória), então
+   * o recarregamento nunca perde o filtro que o usuário tinha.
+   */
+  function batchReport(result, location) {
+    if (!result.failed.length) return reload(location);
+    throw Object.assign(new Error(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
+  }
 
-    async function runBatch(run, ids, action, extra, location) {
-      try {
-        return await batchReport(await run(ids, action, extra), location);
-      } catch (error) {
-        if (!error?.partialBatch) throw error;
-        // Reporta a falha ANTES de recarregar: o reload re-renderiza a tela,
-        // `isCurrent()` desta renderização passa a falso e a mensagem seria
-        // engolida (o usuário veria a lista atualizada sem saber o motivo).
-        if (isCurrent()) report(error.message);
-        // Só recarrega quando algo realmente mudou. Numa falha total não há
-        // estado novo para mostrar e recarregar apresentaria como bem-sucedida
-        // uma ação que não alterou nada.
-        if (error.succeeded > 0) {
-          try { await reload(location); } catch { /* navegação cancelada: a falha já foi reportada */ }
-        }
+  async function runBatch(run, ids, action, extra, location) {
+    try {
+      return await batchReport(await run(ids, action, extra), location);
+    } catch (error) {
+      if (!error?.partialBatch) throw error;
+      // Reporta a falha ANTES de recarregar: o reload re-renderiza a tela,
+      // `isCurrent()` desta renderização passa a falso e a mensagem seria
+      // engolida (o usuário veria a lista atualizada sem saber o motivo).
+      if (isCurrent()) report(error.message);
+      // Só recarrega quando algo realmente mudou. Numa falha total não há
+      // estado novo para mostrar e recarregar apresentaria como bem-sucedida
+      // uma ação que não alterou nada.
+      if (error.succeeded > 0) {
+        try { await reload(location); } catch { /* navegação cancelada: a falha já foi reportada */ }
+      }
       return undefined;
     }
   }
@@ -259,14 +348,18 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   // ---------- Módulos (com_modules) ----------
 
   async function moduleListPage(location) {
-    const params = location.params ?? {};
+    const params = listParams(location);
     const [rows, catalog, positions] = await Promise.all([adminService.moduleInstances.list(), adminService.moduleInstances.catalog(), adminService.moduleInstances.positions()]);
     const types = new Map(catalog.map((type) => [type.key, type]));
     const term = String(params.q ?? '').trim().toLowerCase();
     const filtered = rows.filter((row) => {
       const state = moduleState(row);
       const stateOk = params.state === '*' ? true : params.state ? state === params.state : state !== 'trashed';
+      // `state` e `position` são compartilhados pelo menu da coluna e pela
+      // barra de filtros; `title` só existe no menu, porque a busca livre
+      // (`q`) cruza título e nota e não isola a coluna.
       return stateOk && (!params.position || row.position === params.position) && (!params.type || row.extensionKey === params.type)
+        && (!params.title || String(row.title) === String(params.title))
         && (!term || `${row.title} ${row.note ?? ''}`.toLowerCase().includes(term));
     }).sort((a, b) => String(a.position).localeCompare(String(b.position)) || (Number(a.ordering) || 0) - (Number(b.ordering) || 0) || Number(a.id) - Number(b.id));
     const paged = paginate(filtered, params.page);
@@ -279,11 +372,23 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       { name: 'type', label: 'Tipo de módulo', value: params.type, options: [['', '— Tipo de módulo —'], ...catalog.map((type) => [type.key, type.title])] }
     ]);
     const batch = `<form class="admin-batch" data-ext-batch aria-label="Ações em lote"><label for="admin-batch-action">Ações em lote</label><select id="admin-batch-action" name="batchAction">${options([['', '— Selecione —'], ...Object.entries(BATCH_LABELS)], '')}</select><label for="admin-batch-position">Posição de destino</label><select id="admin-batch-position" name="batchPosition">${options([['', '— Posição —'], ...positions.all.map((position) => [position, position])], '')}</select><button type="submit" class="admin-btn">Aplicar aos selecionados</button></form>`;
-    const table = renderModulesTable(snapshots, { link, types, positions });
+    const table = renderModulesTable(snapshots, {
+      link,
+      types,
+      positions,
+      columnFormId: 'admin-moduleInstances',
+      columnFilters: [
+        { column: 'state', name: 'col_state', label: 'Estado', value: params.col_state, options: [['published', 'Publicado'], ['unpublished', 'Despublicado'], ['trashed', 'Na lixeira']] },
+        { column: 'title', name: 'col_title', label: 'Título', value: params.col_title, options: uniqueValues(snapshots, (row) => row.title) },
+        { column: 'type', name: 'col_type', label: 'Tipo de módulo', value: params.col_type, options: catalog.map((type) => [type.key, type.title]) },
+        { column: 'position', name: 'col_position', label: 'Posição', value: params.col_position, options: positions.all.map((position) => [position, position]) }
+      ]
+    });
     const toolbar = `<a class="admin-btn admin-btn-success" href="${esc(link('/moduleInstances/select'))}">${plusIcon()}Novo</a><a class="admin-btn admin-btn-ghost" href="${esc(link('/templates/positions'))}">Pré-visualizar posições</a>`;
-    const html = page('moduleInstances', 'Módulos do site', [{ label: 'Módulos do site' }], `${renderModuleInstanceHelp(link)}${status}${filters}${batch}${table}${pagination(paged, (number) => link('/moduleInstances', { ...params, page: String(number) }))}`, toolbar);
+    const html = page('moduleInstances', 'Módulos do site', [{ label: 'Módulos do site' }], `${renderModuleInstanceHelp(link)}${status}${filters}${batch}${table}${pagination(paged, (number) => link('/moduleInstances', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
       bindFilter(location, ['q', 'state', 'position', 'type']);
+      bindColumnFilters(location);
       bindSelectAll();
       const run = async (ids, action, extra) => runBatch((batchIds, batchAction, batchExtra) => adminService.moduleInstances.batch(batchIds.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), batchAction, batchExtra), ids, action, extra, location);
       bindActions({
@@ -416,12 +521,18 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   // ---------- Plugins (com_plugins) ----------
 
   async function pluginListPage(location) {
-    const params = location.params ?? {};
+    const params = listParams(location);
     const rows = await (adminService.plugins.catalog ?? adminService.plugins.list)();
     const groups = [...new Set([...PLUGIN_GROUPS, ...adminService.plugins.groups(rows)])];
     const term = String(params.q ?? '').trim().toLowerCase();
     const filtered = rows.filter((row) => (!params.group || row.group === params.group)
       && (!['true', 'false'].includes(params.enabled) || Boolean(row.enabled) === (params.enabled === 'true'))
+      // Filtros do menu de coluna: `state` e `key` só existem lá, porque o
+      // `enabled` da barra aceita "Habilitados/Desabilitados" em bloco e a
+      // busca livre cruza título e elemento.
+      && (!params.state || (params.state === 'enabled') === Boolean(row.enabled))
+      && (!params.title || String(row.title) === String(params.title))
+      && (!params.key || String(row.key) === String(params.key))
       && (!term || `${row.title} ${row.key}`.toLowerCase().includes(term)));
     const paged = paginate(filtered, params.page);
     const snapshots = (await Promise.all(paged.pageRows.map((row) => (row.virtual ? row : adminService.plugins.get(row.id).then((fresh) => fresh && row.native ? { ...fresh, description: fresh.description || row.description } : fresh))))).filter(Boolean);
@@ -432,11 +543,21 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       { name: 'enabled', label: 'Estado', value: params.enabled, options: [['', '— Estado —'], ['true', 'Habilitados'], ['false', 'Desabilitados']] }
     ]);
     const batch = `<div class="admin-batch" role="group" aria-label="Ações em lote"><button type="button" class="admin-btn admin-btn-success" data-ext-action="batch-enable">Habilitar selecionados</button><button type="button" class="admin-btn admin-btn-danger" data-ext-action="batch-disable">Desabilitar selecionados</button></div>`;
-    const table = renderPluginsTable(snapshots, { link });
+    const table = renderPluginsTable(snapshots, {
+      link,
+      columnFormId: 'admin-plugins',
+      columnFilters: [
+        { column: 'state', name: 'col_state', label: 'Estado', value: params.col_state, options: [['enabled', 'Habilitado'], ['disabled', 'Desabilitado']] },
+        { column: 'title', name: 'col_title', label: 'Nome do plugin', value: params.col_title, options: uniqueValues(snapshots, (row) => row.title) },
+        { column: 'group', name: 'col_group', label: 'Grupo', value: params.col_group, options: groups.map((group) => [group, group]) },
+        { column: 'key', name: 'col_key', label: 'Elemento', value: params.col_key, options: uniqueValues(snapshots, (row) => row.key) }
+      ]
+    });
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/installer'))}">${plusIcon()}Instalar</a>`;
-    const html = page('plugins', 'Plugins', [{ label: 'Plugins' }], `${status}${filters}${batch}${table}${pagination(paged, (number) => link('/plugins', { ...params, page: String(number) }))}`, toolbar);
+    const html = page('plugins', 'Plugins', [{ label: 'Plugins' }], `${status}${filters}${batch}${table}${pagination(paged, (number) => link('/plugins', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
-      bindFilter(location, ['q', 'group', 'enabled']);
+      bindFilter(location, ['q', 'group', 'enabled', 'state', 'title', 'key']);
+      bindColumnFilters(location);
       bindSelectAll();
       const run = async (ids, action) => {
         if (!ids.length) { report('Selecione ao menos um plugin.'); return; }
