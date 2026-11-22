@@ -20,6 +20,7 @@
 import { escapeHtml, safeUrl } from '../../../libraries/minijoomla/security/sanitize.js';
 import { dateWindowStatus } from '../../../libraries/minijoomla/core/date-window.js';
 import { checkIcon, banIcon, archiveIcon, starIcon, starOutlineIcon, editIcon, plusIcon, clockIcon, closeIcon, warningIcon, trashIcon } from './icons.js';
+import { renderColumnFilterButton } from './column-filter.js';
 
 const STATUS_STATE_ICONS = {
   Published: { className: 'is-active', label: 'Publicado', icon: checkIcon() },
@@ -139,22 +140,19 @@ function renderSearchBar(searchHref, searchValue, filters = []) {
  * nome da coluna ou ser um alias, ex. `categoryId` para a coluna
  * `categoryTitle`).
  */
+/*
+ * Botão de filtro por coluna no cabeçalho (mesmo modelo do "filtro tipo
+ * Excel" do Joomla real: cada cabeçalho abre a lista de valores distintos
+ * daquela coluna e o filtro vale só para ela). Aqui é só apresentação
+ * pura; todo o comportamento (abrir/fechar, busca, tri-state, aplicar por
+ * navegação) vive em `column-filter.js` (`bindColumnFilters`), o ligador
+ * único — antes cada tela tinha a sua própria cópia divergente.
+ *
+ * `columnFilters`: `[{ key, column, label, values: [valorAtual], options,
+ * multiIsExact, sortActions }]` — `key` é a chave canônica da URL.
+ */
 export function renderColumnFilter(filter, index) {
-  const active = String(filter.value ?? '') !== '';
-  const selectedLabel = active
-    ? (filter.options.find(([value]) => String(value) === String(filter.value))?.[1] ?? String(filter.value))
-    : 'Todos';
-  const menuId = `admin-colfilter-menu-${index}-${String(filter.name).replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const options = filter.options.map(([value, label]) => {
-    const isSelected = String(value) === String(filter.value ?? '');
-    return `<li role="none"><button type="button" role="menuitemradio" class="admin-colfilter-option${isSelected ? ' is-selected' : ''}" data-colfilter-option data-colfilter-value="${escapeHtml(value)}" aria-checked="${isSelected ? 'true' : 'false'}">${escapeHtml(label)}</button></li>`;
-  }).join('');
-  return `<span class="admin-colfilter${active ? ' is-active' : ''}" data-colfilter data-colfilter-column="${escapeHtml(filter.column)}" data-colfilter-name="${escapeHtml(filter.name)}" data-colfilter-value="${escapeHtml(filter.value ?? '')}">`
-    + `<button type="button" class="admin-colfilter-toggle" data-colfilter-toggle aria-haspopup="true" aria-expanded="false" aria-controls="${menuId}" aria-label="${escapeHtml(`Filtrar coluna ${filter.label}${active ? ` (filtro atual: ${selectedLabel})` : ''}`)}">`
-    + `<span class="admin-colfilter-label" aria-hidden="true">${escapeHtml(active ? selectedLabel : 'Filtrar')}</span><span class="admin-colfilter-caret" aria-hidden="true">▾</span></button>`
-    + `<ul class="admin-colfilter-menu" id="${menuId}" data-colfilter-menu role="menu" aria-label="${escapeHtml(`Filtros da coluna ${filter.label}`)}" hidden>`
-    + `<li role="none"><button type="button" role="menuitemradio" class="admin-colfilter-option${active ? '' : ' is-selected'}" data-colfilter-option data-colfilter-value="" aria-checked="${active ? 'false' : 'true'}">Todos</button></li>`
-    + `${options}</ul></span>`;
+  return renderColumnFilterButton(filter, index);
 }
 
 function renderPagination(pagination) {
@@ -172,14 +170,16 @@ export function renderAdminList({ rows = [], columns, columnLabels = {}, titleFi
   const activeColumns = Array.isArray(columns) && columns.length ? columns : [titleField];
   const newLink = newHref ? `<p class="admin-list-actions"><a class="admin-new-link admin-btn admin-btn-success" href="${safeUrl(newHref)}">${plusIcon()}Novo</a></p>` : '';
   const searchBar = renderSearchBar(searchHref, searchValue, searchFilters);
-  const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
-  const header = activeColumns.map((column, index) => {
+  const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
+    const headerCells = activeColumns.map((column, index) => {
     const filter = filterFor(column);
-    return `<th scope="col">${escapeHtml(columnLabels[column] ?? column)}${filter ? renderColumnFilter(filter, index) : ''}</th>`;
+      return `<th scope="col" class="admin-th${filter ? ' admin-th-filterable' : ''}"><span class="admin-th-label">${escapeHtml(columnLabels[column] ?? column)}</span>${filter ? renderColumnFilter(filter, index) : ''}</th>`;
   }).join('');
+    const headRow = `<tr>${headerCells}<th scope="col" class="admin-th"><span class="admin-th-label">Ação</span></th></tr>`;
   if (!items.length) {
     const empty = `<p class="admin-empty" role="status">${escapeHtml(emptyLabel)}</p>`;
-    return `${newLink}${searchBar}${columnFilters.length ? wrapColumnFilters(header, columnFormId, empty) : empty}`;
+      const emptyTable = `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><thead>${headRow}</thead></table></div>`;
+      return `${newLink}${searchBar}${emptyTable}${empty}`;
   }
   const body = items.map((row) => {
     const href = safeUrl(editHref(row.id));
@@ -190,19 +190,8 @@ export function renderAdminList({ rows = [], columns, columnLabels = {}, titleFi
       : `<td>${renderCell(row, column, domain, now)}</td>`).join('');
     return `<tr>${cells}<td class="admin-col-action"><a class="admin-btn admin-btn-ghost" href="${href}" aria-label="${editLabel}">${editIcon()}Editar</a>${rowActions(row)}</td></tr>`;
   }).join('');
-  const table = `<div class="admin-table-wrap"><table class="admin-list"><thead><tr>${header}<th scope="col">Ação</th></tr></thead><tbody>${body}</tbody></table></div>${renderPagination(pagination)}`;
-  return `${newLink}${searchBar}${columnFilters.length ? wrapColumnFilters(header, columnFormId, table) : table}`;
+    const table = `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><thead>${headRow}</thead><tbody>${body}</tbody></table></div>${renderPagination(pagination)}`;
+      return `${newLink}${searchBar}${table}`;
 }
 
-/*
- * A lista vazia ainda precisa dos controles de filtro no cabeçalho —
- * senão filtrar por um valor sem resultado deixaria o usuário sem como
- * voltar a "Todos" pela coluna. Por isso a tabela (ou o estado vazio) é
- * sempre envolvida num `<form data-colfilter-form>` inerte: os botões
- * do menu são `type="button"` e a navegação real é feita em JS
- * (`bindColumnFilters`), nunca por submit — o form existe só para
- * agrupar o estado e permitir Enter/Escape sem listener global.
- */
-export function wrapColumnFilters(header, columnFormId, inner) {
-  return `<form class="admin-colfilter-form" data-colfilter-form="${escapeHtml(columnFormId ?? 'admin-list')}" method="get"><div class="visually-hidden" data-colfilter-headers>${header}</div>${inner}</form>`;
-}
+export { filterIcon, filterActiveIcon } from './icons.js';

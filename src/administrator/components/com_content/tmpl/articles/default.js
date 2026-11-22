@@ -37,20 +37,19 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
    * rótulo, para que categorias homônimas em ramos distintos não se
    * confundam.
    */
-  const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
+  const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
     /*
-     * `columnClass` repassa para o `<th>` a MESMA classe de coluna usada na
-     * célula (`admin-col-author`, `admin-col-count`, …). Sem isso as regras
-     * de largura mínima/`white-space` do CSS atingiam só o `td`: em tabela
-     * de layout automático o navegador ignora a largura da célula e espreme
-     * o cabeçalho, que era o defeito visual do "Au/tor" e da coluna de
-     * contagem estrangulada.
+     * Cabeçalho no padrão único das listagens: `th.admin-th` com o rótulo
+     * num `<span class="admin-th-label">` e, quando a coluna é filtrável, o
+     * botão de filtro do lado. O rótulo dentro do span é o que permite a
+     * largura mínima sem quebrar "Au/tor": o texto inteiro fica num filho
+     * `white-space: nowrap`, enquanto o `th` curto acomoda o botão.
      */
-    const header = (key, label, extraKey, extraLabel, columnClass) => {
+    const header = (key, label, extraKey, extraLabel, columnClass, columnName = key) => {
     const active = sort === key || sort === extraKey;
-    const filter = filterFor(key);
-      const classes = [`admin-col-${key}`, columnClass].filter(Boolean).join(' ');
-      return `<th scope="col"${classes ? ` class="${esc(classes)}"` : ''}${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}${filter ? renderColumnFilter(filter, key) : ''}</th>`;
+      const filter = filterFor(columnName);
+      const classes = ['admin-th', `admin-col-${key}`, filter ? 'admin-th-filterable' : '', columnClass].filter(Boolean).join(' ');
+      return `<th scope="col" class="${esc(classes)}"${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}><span class="admin-th-label">${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}</span>${filter ? renderColumnFilter(filter, columnName) : ''}</th>`;
   };
   const rows = result.rows.map((row) => {
     const title = String(row.title ?? '').trim() || `Artigo ${row.id}`;
@@ -69,6 +68,6 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
       + `<td class="admin-col-author">${author ? esc(author) : '<span class="admin-list-note" aria-hidden="true">—</span><span class="visually-hidden">Sem autor</span>'}${row.authorAlias ? `<div class="admin-list-note">Alias: ${esc(row.authorAlias)}</div>` : ''}</td>`
       + `<td class="admin-col-nowrap">${dateText(row.publishUp) || '—'}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-  const headers = [header('featured', 'Destaque'), header('state', 'Estado'), header('title', 'Título'), header('alias', 'Alias'), header('category', 'Categoria'), header('author', 'Autor'), header('publishUp', 'Data'), header('id', 'ID')].join('');
-      return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${headers}</tr></thead><tbody>${rows}</tbody></table>${result.rows.length ? '' : emptyNotice}</div>`;
+  const headers = [header('featured', 'Destaque'), header('state', 'Estado'), header('title', 'Título'), header('alias', 'Alias'), header('category', 'Categoria', undefined, undefined, undefined, 'categoryId'), header('author', 'Autor'), header('publishUp', 'Data'), header('id', 'ID')].join('');
+        return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${headers}</tr></thead><tbody>${rows}</tbody></table>${result.rows.length ? '' : emptyNotice}</div>`;
 }

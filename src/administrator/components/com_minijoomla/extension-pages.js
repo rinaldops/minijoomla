@@ -27,6 +27,7 @@ import { KIND_LABELS, renderInstalledExtensionsTable, renderInstallForm } from '
 import { renderAdminForm } from './render-form.js';
 import { SITE_CONFIG_FIELDS } from './field-schemas.js';
 import { plusIcon, saveIcon, closeIcon, checkIcon, banIcon, trashIcon, moduleIcon, pluginIcon, configIcon, desktopIcon } from './icons.js';
+import { bindColumnFilters, columnsForDomain, parseMulti } from './column-filter.js';
 
 const PAGE_SIZE = 20;
 export const STATE_LABELS = { published: 'Publicado', unpublished: 'Despublicado', trashed: 'Na lixeira' };
@@ -223,74 +224,56 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     return params;
   }
 
-  function uniqueValues(rows, pick) {
+  /*
+     * Valores distintos de uma coluna na forma que `renderColumnFilterPanel`
+     * consome: objetos `{ value, label, count }`. Pares `[valor, rótulo]` são
+     * o formato da barra de filtros, não do painel: entregá-los aqui faria o
+     * painel renderizar uma linha por valor com `value`/`label` indefinidos.
+     */
+    function uniqueValues(rows, pick) {
     const seen = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
       const value = String(pick(row) ?? '').trim();
-      if (value && !seen.has(value)) seen.set(value, value);
+        if (!value) continue;
+        const current = seen.get(value);
+        if (current) current.count += 1;
+        else seen.set(value, { value, label: value, count: 1 });
     }
-    return [...seen.entries()];
+      return [...seen.values()];
+  }
+
+  /*
+   * Monta os menus de filtro por coluna a partir do catálogo canônico
+   * (`column-filter.js`), que é a única definição de colunas, rótulos e
+   * aliases. As opções saem do conjunto COMPLETO de registros (não só da
+   * página corrente), senão um valor que só aparece na página 3 sumiria
+   * do menu. `value` é lido com `parseMulti`, aceitando tanto o valor
+   * literal quanto a lista multi-valor `~m:a,b`.
+   */
+  function columnFiltersFor(domain, rows, params = {}) {
+    return columnsForDomain(domain).map((entry) => ({
+      key: entry.key,
+      column: entry.column,
+      label: entry.label,
+        /*
+         * O valor ativo é procurado na chave canônica E nos nomes legados da
+         * coluna (`col_title`): uma URL antiga continua filtrando, e o botão
+         * precisa marcar-se como ativo em qualquer grafia. Comparar só
+         * `params[entry.key]` fazia o filtro funcionar com a interface
+         * afirmando que não havia filtro nenhum.
+         */
+        values: parseMulti(
+          params[entry.key]
+          ?? entry.aliases.map((alias) => params[alias]).find((value) => value !== undefined && value !== null && value !== '')
+          ?? ''
+        ),
+      options: uniqueValues(rows, (row) => row[entry.key])
+    }));
   }
 
   function bindSelectAll() {
     const all = body().querySelector?.('[data-ext-select-all]');
     all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); });
-  }
-
-  /*
-   * Menus de filtro por coluna (`[data-colfilter]`): mesmo contrato de
-   * teclado usado em app.js/content-pages.js — Enter/Espaço/clique abrem,
-   * setas/Home/End navegam, Enter/Espaço escolhem, Escape fecha e devolve
-   * o foco ao botão, e um clique fora fecha. Trocar um filtro preserva a
-   * ordenação escolhida e descarta a página, que pertence à listagem
-   * anterior.
-   */
-  function bindColumnFilters(location) {
-    const scope = body().ownerDocument ?? body();
-    const containers = Array.from(body().querySelectorAll?.('[data-colfilter]') ?? []);
-    const closeAll = (except) => containers.forEach((container) => {
-      if (container === except) return;
-      container.querySelector?.('[data-colfilter-menu]')?.setAttribute?.('hidden', '');
-      container.querySelector?.('[data-colfilter-toggle]')?.setAttribute?.('aria-expanded', 'false');
-    });
-    containers.forEach((container) => {
-      const toggle = container.querySelector?.('[data-colfilter-toggle]');
-      const menu = container.querySelector?.('[data-colfilter-menu]');
-      const items = () => Array.from(menu?.querySelectorAll?.('[data-colfilter-option]') ?? []);
-      const setOpen = (open) => {
-        menu?.toggleAttribute?.('hidden', !open);
-        toggle?.setAttribute?.('aria-expanded', open ? 'true' : 'false');
-        if (open) closeAll(container);
-      };
-      toggle?.addEventListener?.('click', (event) => {
-        event?.preventDefault?.();
-        const wasOpen = !menu?.hasAttribute?.('hidden');
-        setOpen(!wasOpen);
-        if (!wasOpen) items()[0]?.focus?.();
-      });
-      menu?.addEventListener?.('keydown', (event) => {
-        const options = items();
-        const current = options.indexOf(scope.activeElement ?? options.find((option) => option.tabIndex === 0));
-        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-          event.preventDefault?.();
-          const index = event.key === 'ArrowDown' ? current + 1 : event.key === 'ArrowUp' ? current - 1 : event.key === 'Home' ? 0 : options.length - 1;
-          options[Math.max(0, Math.min(options.length - 1, index))]?.focus?.();
-          return;
-        }
-        if (event.key === 'Escape') { event.preventDefault?.(); setOpen(false); toggle?.focus?.(); return; }
-        if (event.key === 'Tab') { setOpen(false); return; }
-        if (['Enter', ' '].includes(event.key)) { event.preventDefault?.(); options[current]?.click?.(); }
-      });
-      items().forEach((option) => option.addEventListener?.('click', (event) => {
-        event?.preventDefault?.();
-        const value = option.dataset?.colfilterValue ?? '';
-        const next = { ...(location.params ?? {}), [container.dataset.colfilterName]: value || undefined, page: undefined };
-        setOpen(false);
-        navigate(link(location.path, next));
-      }));
-    });
-    scope?.addEventListener?.('click', (event) => { if (!containers.some((container) => container.contains?.(event.target))) closeAll(); });
-    scope?.addEventListener?.('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
   }
 
   function bindActions(handlers) {
@@ -378,18 +361,13 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       types,
       positions,
       columnFormId: 'admin-moduleInstances',
-      columnFilters: [
-        { column: 'state', name: 'col_state', label: 'Estado', value: params.col_state, options: [['published', 'Publicado'], ['unpublished', 'Despublicado'], ['trashed', 'Na lixeira']] },
-        { column: 'title', name: 'col_title', label: 'Título', value: params.col_title, options: uniqueValues(snapshots, (row) => row.title) },
-        { column: 'type', name: 'col_type', label: 'Tipo de módulo', value: params.col_type, options: catalog.map((type) => [type.key, type.title]) },
-        { column: 'position', name: 'col_position', label: 'Posição', value: params.col_position, options: positions.all.map((position) => [position, position]) }
-      ]
+            columnFilters: columnFiltersFor('modules', rows, params)
     });
     const toolbar = `<a class="admin-btn admin-btn-success" href="${esc(link('/moduleInstances/select'))}">${plusIcon()}Novo</a><a class="admin-btn admin-btn-ghost" href="${esc(link('/templates/positions'))}">Pré-visualizar posições</a>`;
     const html = page('moduleInstances', 'Módulos do site', [{ label: 'Módulos do site' }], `${renderModuleInstanceHelp(link)}${status}${filters}${batch}${table}${pagination(paged, (number) => link('/moduleInstances', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
       bindFilter(location, ['q', 'state', 'position', 'type']);
-      bindColumnFilters(location);
+      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'modules', filters: columnFiltersFor('modules', rows, params) });
       bindSelectAll();
       const run = async (ids, action, extra) => runBatch((batchIds, batchAction, batchExtra) => adminService.moduleInstances.batch(batchIds.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), batchAction, batchExtra), ids, action, extra, location);
       bindActions({
@@ -547,18 +525,13 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     const table = renderPluginsTable(snapshots, {
       link,
       columnFormId: 'admin-plugins',
-      columnFilters: [
-        { column: 'state', name: 'col_state', label: 'Estado', value: params.col_state, options: [['enabled', 'Habilitado'], ['disabled', 'Desabilitado']] },
-        { column: 'title', name: 'col_title', label: 'Nome do plugin', value: params.col_title, options: uniqueValues(snapshots, (row) => row.title) },
-        { column: 'group', name: 'col_group', label: 'Grupo', value: params.col_group, options: groups.map((group) => [group, group]) },
-        { column: 'key', name: 'col_key', label: 'Elemento', value: params.col_key, options: uniqueValues(snapshots, (row) => row.key) }
-      ]
+            columnFilters: columnFiltersFor('plugins', rows, params)
     });
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/installer'))}">${plusIcon()}Instalar</a>`;
     const html = page('plugins', 'Plugins', [{ label: 'Plugins' }], `${status}${filters}${batch}${table}${pagination(paged, (number) => link('/plugins', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
       bindFilter(location, ['q', 'group', 'enabled', 'state', 'title', 'key']);
-      bindColumnFilters(location);
+      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'plugins', filters: columnFiltersFor('plugins', rows, params) });
       bindSelectAll();
       const run = async (ids, action) => {
         if (!ids.length) { report('Selecione ao menos um plugin.'); return; }
@@ -607,20 +580,23 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       .filter((style) => !params.col_style || String(style.title) === String(params.col_style));
     const filters = filterBar('admin-styles-filter', [{ name: 'template', label: 'Template', value: params.template, options: [['', '— Template —'], ...catalog.map((template) => [template.key, template.title])] }]);
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/templates'))}">Templates registrados</a>`;
+        // Estilo e Template têm menus INDEPENDENTES, no mesmo padrão das
+        // demais listas: cada um filtra só a sua coluna e os dois podem
+        // ficar ativos ao mesmo tempo. O rótulo do Template vem do
+        // catálogo (o valor filtrado é a chave), senão o menu mostraria
+        // a chave crua.
+        const columnFilters = columnFiltersFor('styles', styles, params).map((filter) => filter.key === 'template'
+          ? { ...filter, label: 'Template', options: catalog.map((template) => [template.key, template.title]) }
+          : { ...filter, label: 'Estilo' });
     const table = renderTemplateStylesTable(filtered, {
       link,
       columnFormId: 'admin-styles',
-      // Rótulo do Template pelo título do catálogo (o valor filtrado é a
-      // chave); Estilo usa os títulos distintos presentes na lista.
-      columnFilters: [
-        { column: 'style', name: 'col_style', label: 'Estilo', value: params.col_style, options: uniqueValues(styles, (style) => style.title) },
-        { column: 'template', name: 'col_template', label: 'Template', value: params.col_template, options: uniqueValues(styles, (style) => style.template).map(([key, label]) => [key, templateTitle.get(String(key)) ?? label]) }
-      ]
+          columnFilters
     });
     const html = page('templateStyles', 'Templates: Estilos (Site)', [{ label: 'Estilos de template' }], `${status}${filters}${table}`, toolbar);
     const bind = () => {
       bindFilter(location, ['template']);
-      bindColumnFilters(location);
+          bindColumnFilters({ location, link, navigate, scope: body(), domain: 'styles', filters: columnFilters });
       bindActions({
         default: async (id) => { await adminService.templateStyles.setDefault(id, { etag }); await reload(location); },
         duplicate: async (id) => { const created = await adminService.templateStyles.duplicate(id, { etag }); await navigate(link(`/templates/styles/${encodeURIComponent(created)}`)); },

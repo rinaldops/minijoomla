@@ -20,8 +20,26 @@ const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublishe
  */
 export function renderCategoriesTable(rows, { link, columnFilters = [], returnParams = {} } = {}) {
   const items = Array.isArray(rows) ? rows : [];
-  if (!items.length) return '<p class="admin-empty" role="status">Nenhum registro em "Categorias" encontrado.</p>';
-  const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
+  const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
+  /*
+   * Cabeçalho no padrão único: `th.admin-th` + `<span class="admin-th-label">`.
+   * O rótulo COMPLETO continua para o leitor de tela (`visually-hidden`) e
+   * como `title`; o visível é curto porque o texto longo original ("Artigos
+   * (publicados, despublicados, arquivados, lixeira)") quebrava letra a
+   * letra numa coluna estreita — achado real de inspeção visual.
+   */
+  const header = (column, label, fullLabel, extraClass = '') => {
+    const filter = filterFor(column);
+    const classes = ['admin-th', `admin-col-${column}`, filter ? 'admin-th-filterable' : '', extraClass].filter(Boolean).join(' ');
+    return `<th scope="col" class="${esc(classes)}"${fullLabel ? ` title="${esc(fullLabel)}"` : ''}><span class="admin-th-label">${esc(label)}${fullLabel ? `<span class="visually-hidden"> (${esc(fullLabel)})</span>` : ''}</span>${filter ? renderColumnFilter(filter, column) : ''}</th>`;
+  };
+  const head = `${selectAllCell}${header('state', 'Estado')}${header('title', 'Título')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'publicados, despublicados, arquivados, lixeira', 'admin-col-count')}${header('id', 'ID')}`;
+  /*
+   * Estado vazio AINDA renderiza o cabeçalho: sem ele, um filtro que não
+   * casa com nada deixava o usuário preso, sem como trocar o valor do
+   * menu de coluna sem recarregar a página pelo navegador.
+   */
+  if (!items.length) return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Categorias</caption><thead><tr>${head}</tr></thead></table><p class="admin-empty" role="status">Nenhum registro em "Categorias" encontrado.</p></div>`;
   const tableRows = items.map((row) => {
     const title = String(row.title ?? '').trim() || `Categoria ${row.id}`;
     const state = row.state || 'Published';
@@ -40,17 +58,5 @@ export function renderCategoriesTable(rows, { link, columnFilters = [], returnPa
     }).join(' ');
     return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/categories/${row.id}`, returnParams))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-alias">${esc(row.alias)}</td><td class="admin-col-count">${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-      /*
-       * Rótulo completo da coluna de contagens continua disponível para o
-       * leitor de tela (`<span class="visually-hidden">`) e como `title`; o
-       * cabeçalho visível é curto porque o texto longo original ("Artigos
-       * (publicados, despublicados, arquivados, lixeira)") quebrava letra a
-       * letra numa coluna estreita — achado real de inspeção visual.
-             *
-             * `header()` sempre emite `admin-col-<coluna>` no `<th>`; sem isso as
-             * regras de largura mínima do CSS valiam só para o `td` e o cabeçalho
-             * da coluna de contagem continuava estrangulado.
-       */
-      const header = (column, label, fullLabel, extraClass = '') => `<th scope="col" class="${esc(`admin-col-${column}${extraClass ? ` ${extraClass}` : ''}`)}">${esc(label)}${fullLabel ? `<span class="visually-hidden"> (${esc(fullLabel)})</span>` : ''}${filterFor(column) ? renderColumnFilter(filterFor(column), column) : ''}</th>`;
-            return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Categorias</caption><thead><tr>${selectAllCell}${header('state', 'Estado')}${header('title', 'Título')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'publicados, despublicados, arquivados, lixeira', 'admin-col-count')}${header('id', 'ID')}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Categorias</caption><thead><tr>${head}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }

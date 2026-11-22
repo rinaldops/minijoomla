@@ -52,6 +52,7 @@ import { ADMIN_CAPABILITIES, managementFilters, filterManagementRows, renderCapa
 import { BUILTIN_MODULE_KEYS } from '../../../libraries/minijoomla/application/extension-input.js';
 import { createExtensionPages, EXTENSION_OVERVIEW_ITEMS, MODULE_INSTANCE_COUNT_DESCRIPTION, renderModuleInstanceHelp } from './extension-pages.js';
 import { rememberListFilters, recallListFilters } from './list-memory.js';
+import { columnsForDomain, parseMulti, canonicalizeParams, bindColumnFilters } from './column-filter.js';
 import { dashboardIcon, articleIcon, categoryIcon, tagIcon, menuIcon, moduleIcon, pluginIcon, configIcon, searchIcon, backIcon, plusIcon, trashIcon, desktopIcon, imageIcon } from './icons.js';
 
 const DOMAIN_KEYS = Object.keys(ADMIN_DOMAINS);
@@ -239,8 +240,16 @@ const PAGE_SIZE = 20;
  * import circular.
  */
 function effectiveListParams(path, params, { fromSidebar = false } = {}) {
-  const explicit = params ?? {};
-  const hasExplicit = Object.entries(explicit).some(([, value]) => value !== undefined && value !== null && value !== '');
+  const domain = path.replace(/^\//, '');
+  /*
+   * A query é normalizada para a chave canônica ANTES de ser usada e
+   * memorizada. Sem isso um link legado (`col_alias=primeiro`) continuava
+   * circulando com o nome antigo, e "voltar" do formulário reemitia
+   * `col_alias` enquanto a listagem usava `alias` — o mesmo recorte com
+   * dois nomes, que é como o filtro se perdia na volta.
+   */
+  const explicit = canonicalizeParams(domain, params ?? {});
+  const hasExplicit = Object.keys(explicit).length > 0;
   if (hasExplicit) { rememberListFilters(path, explicit); return explicit; }
   const remembered = recallListFilters(path);
   const resolved = fromSidebar ? remembered : {};
@@ -278,11 +287,16 @@ const columnFilterParam = (column) => `${COLUMN_FILTER_PREFIX}${column}`;
 /*
  * Extrai de `params` só os filtros de coluna ativos, para o estado da
  * lista (`listState`) devolvido ao abrir/editar/voltar de um registro.
+ *
+ * A chave gravada é a CANÔNICA do domínio (column-filter.js), nunca o
+ * alias legado `col_<campo>`: o estado precisa voltar à URL na forma
+ * que o serviço lê hoje, senão o filtro escolhido no menu antigo não
+ * sobrevive à ida e volta do registro. O alias continua sendo aceito na
+ * leitura, para links já gravados por versões anteriores.
  */
 function columnFilterParams(domain, params = {}) {
-  return Object.fromEntries(LIST_COLUMNS[domain]
-    .map((column) => [columnFilterParam(column), params[columnFilterParam(column)]])
-    .filter(([, value]) => value !== undefined && value !== null && value !== ''));
+  const entries = columnsForDomain(domain).map((entry) => [entry.key, (params[entry.key] ?? params[entry.column] ?? params[columnFilterParam(entry.column)] ?? '') || undefined]);
+  return Object.fromEntries(entries.filter(([, value]) => value !== undefined && value !== ''));
 }
 
 /*
@@ -300,28 +314,39 @@ const ICON_COLUMN_VALUES = {
 };
 
 /*
- * Monta um menu de filtro por coluna para cada coluna pedida em
- * `LIST_COLUMNS[domain]`, com os valores distintos REALMENTE presentes
- * nas linhas exibidas. Diferente do menu de content-pages.js (que
- * também pode filtrar por um campo que não é a própria coluna, como
- * Categoria por id), aqui cada menu casa 1:1 com a coluna, porque estas
- * listas de domínio são planas e os campos exibidos são os filtráveis.
- * Um único valor distinto não oferece escolha: o menu é omitido, exceto
- * quando já está ativo (senão não haveria como desfazê-lo).
+ * Monta um menu de filtro por coluna para cada coluna canônica do
+ * domínio (column-filter.js — a ÚNICA definição de colunas e rótulos).
+ * Diferente do que acontecia antes, o menu não é mais omitido quando há
+ * um só valor distinto: a lista de valores continua saindo do conjunto
+ * ANTES dos filtros de coluna (`managementRows`), mas a coluna é sempre
+ * oferecida — esconder o botão deixava a coluna sem controle e ainda
+ * mudava o cabeçalho conforme o conteúdo.
  *
- * `label` é o mesmo rótulo do cabeçalho (`COLUMN_LABELS`) e não um texto
- * novo: é ele que dá nome acessível ao botão do menu ("Filtrar coluna
- * Título"), então menu e cabeçalho nunca divergem.
+ * `label` é o mesmo rótulo do cabeçalho (`COLUMN_LABELS` quando houver,
+ * senão o do catálogo) e não um texto novo: é ele que dá nome acessível
+ * ao botão ("Filtrar coluna Título"), então menu e cabeçalho nunca
+ * divergem.
  */
 function columnFilterDefinitions(domain, rows, params = {}) {
-  return LIST_COLUMNS[domain].map((column) => {
-    const name = columnFilterParam(column);
-    const values = [...new Set(rows.map((row) => row[column]).filter((value) => value !== undefined && value !== null && value !== '').map((value) => String(value)))];
-    const labels = ICON_COLUMN_VALUES[column] ?? {};
+  return columnsForDomain(domain).map((entry) => {
+    const values = [...new Set(rows.map((row) => row[entry.key]).filter((value) => value !== undefined && value !== null && value !== '').map((value) => String(value)))];
+    const labels = ICON_COLUMN_VALUES[entry.key] ?? {};
     const options = values.sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => [value, labels[value] ?? value]);
-    const selected = String(params[name] ?? '');
-    return { column, name, label: COLUMN_LABELS[column] ?? column, value: selected, options, keep: selected !== '' || options.length > 1 };
-  }).filter((filter) => filter.keep).map(({ keep, ...filter }) => filter);
+    /*
+     * O valor ativo é lido tanto pela chave canônica quanto pelos nomes
+     * legados da coluna (`col_title`): a URL antiga continua valendo, e o
+     * botão precisa marcar-se como ativo em qualquer uma das grafias —
+     * senão o filtro funciona mas a interface diz que não há filtro.
+     */
+    const raw = params[entry.key] ?? entry.aliases.map((alias) => params[alias]).find((value) => value !== undefined && value !== null && value !== '') ?? '';
+    return {
+      key: entry.key,
+      column: entry.column,
+      label: COLUMN_LABELS[entry.column] ?? entry.label,
+      values: parseMulti(raw),
+      options
+    };
+  });
 }
 
 /*
@@ -333,79 +358,15 @@ function columnFilterDefinitions(domain, rows, params = {}) {
  * para o menu (que lista o que está na tela) continuar coerente.
  */
 function filterColumnValues(domain, rows, params = {}) {
-  return LIST_COLUMNS[domain].reduce((current, column) => {
-    const selected = params[columnFilterParam(column)];
-    if (selected === undefined || selected === null || selected === '') return current;
-    const label = (row) => domain === 'extensions' && column === 'type' ? extensionTypeLabel(row[column]) : row[column];
-    return current.filter((row) => String(label(row) ?? '') === String(selected));
+  return columnsForDomain(domain).reduce((current, entry) => {
+    const raw = params[entry.key] ?? params[entry.column] ?? '';
+    const selected = parseMulti(raw).map(String);
+    if (!selected.length) return current;
+    const reads = (row) => domain === 'extensions' && entry.key === 'type'
+      ? [String(row[entry.key] ?? ''), extensionTypeLabel(row[entry.key])]
+      : [String(row[entry.key] ?? '')];
+    return current.filter((row) => reads(row).some((value) => selected.some((wanted) => wanted === '' ? value === '' : value === wanted)));
   }, rows);
-}
-
-/*
- * Liga os menus de filtro por coluna das listagens de domínio
- * (render-list.js: `renderColumnFilter`). Mesmo contrato de teclado dos
- * menus de content-pages.js, porque para o usuário é o mesmo controle:
- * Enter/Espaço/clique abre; Escape fecha e devolve o foco ao botão;
- * ↑/↓/Home/End percorrem; Enter/Espaço escolhem; clicar fora fecha
- * todos. A escolha NAVEGA (a URL passa a descrever a tela, "voltar"
- * funciona e recarregar mantém o filtro), preservando os outros
- * filtros, a busca e a ordenação, e voltando à página 1 — um filtro
- * novo muda o conjunto de resultados.
- *
- * `link` é injetado (não capturado do escopo do módulo) porque app.js
- * não tem um `link` global: cada página resolve o seu via router.
- */
-function bindColumnFilters(location, link, navigate, scope) {
-  const containers = Array.from(scope?.querySelectorAll?.('[data-colfilter]') ?? []);
-  if (!containers.length) return;
-  const closeAll = (except) => containers.forEach((container) => {
-    if (container === except) return;
-    container.querySelector?.('[data-colfilter-menu]')?.setAttribute('hidden', '');
-    container.querySelector?.('[data-colfilter-toggle]')?.setAttribute('aria-expanded', 'false');
-    container.classList.remove('is-open');
-  });
-  containers.forEach((container) => {
-    const toggle = container.querySelector?.('[data-colfilter-toggle]');
-    const menu = container.querySelector?.('[data-colfilter-menu]');
-    if (!toggle || !menu) return;
-    const items = () => Array.from(menu.querySelectorAll?.('[data-colfilter-option]') ?? []);
-    const focusItem = (index) => { const options = items(); if (!options.length) return; const target = options[(index + options.length) % options.length]; options.forEach((option) => { option.tabIndex = option === target ? 0 : -1; }); target.focus?.(); };
-    const setOpen = (open) => {
-      if (open) closeAll(container);
-      menu.toggleAttribute?.('hidden', !open);
-      menu.hidden = !open;
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      container.classList.toggle?.('is-open', open);
-      if (open) focusItem(Math.max(0, items().findIndex((option) => option.getAttribute?.('aria-checked') === 'true')));
-    };
-    toggle.addEventListener?.('click', (event) => { event?.preventDefault?.(); setOpen(Boolean(menu.hidden)); });
-    toggle.addEventListener?.('keydown', (event) => {
-      if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) return;
-      event.preventDefault?.();
-      const wasOpen = !menu.hidden; setOpen(true); if (!wasOpen) focusItem(0);
-    });
-    menu.addEventListener?.('keydown', (event) => {
-      const options = items();
-      const current = options.indexOf(scope.activeElement ?? options.find((option) => option.tabIndex === 0));
-      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-        event.preventDefault?.();
-        focusItem(event.key === 'ArrowDown' ? current + 1 : event.key === 'ArrowUp' ? current - 1 : event.key === 'Home' ? 0 : options.length - 1);
-        return;
-      }
-      if (event.key === 'Escape') { event.preventDefault?.(); setOpen(false); toggle.focus?.(); return; }
-      if (event.key === 'Tab') { setOpen(false); return; }
-      if (['Enter', ' '].includes(event.key)) { event.preventDefault?.(); options[current]?.click?.(); }
-    });
-    items().forEach((option) => option.addEventListener?.('click', (event) => {
-      event?.preventDefault?.();
-      const value = option.dataset?.colfilterValue ?? '';
-      const next = { ...(location.params ?? {}), [container.dataset.colfilterName]: value || undefined, page: undefined };
-      setOpen(false);
-      navigate(link(location.path, next));
-    }));
-  });
-  scope?.addEventListener?.('click', (event) => { if (!containers.some((container) => container.contains?.(event.target))) closeAll(); });
-  scope?.addEventListener?.('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
 }
 
 function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, params = {}, now } = {}) {
@@ -429,8 +390,17 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
    * página, que pertence à listagem seguinte e não ao registro aberto.
    * Sem isto, abrir um registro e cancelar devolvia a lista ao padrão,
    * que é o defeito relatado.
+   *
+   * O estado é CANONICALIZADO: a query da 0.17.14 (`col_alias`) continua
+   * sendo lida, mas todo link emitido pelo painel carrega a chave que o
+   * serviço lê (`alias`). Sem isso o mesmo recorte viajava como `col_alias`
+   * para uma tela e `alias` para outra, e o filtro se perdia na volta.
    */
-  const listState = { ...filterParams, ...columnFilterParams(domain, params), q: searchTerm, sort: params.sort, dir: params.dir, limit: params.limit };
+  const listState = canonicalizeParams(domain, {
+    ...filterParams,
+    ...columnFilterParams(domain, params),
+    q: searchTerm, sort: params.sort, dir: params.dir, limit: params.limit
+  });
   const columnFilters = columnFilterDefinitions(domain, managementRows, params);
   const body = renderAdminList({
     domain, now,
@@ -589,7 +559,10 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
       // aqui: se o usuário abrir/copiar a URL do formulário diretamente
       // (sem passar pela listagem), a memória ainda existe e Cancelar e o
       // breadcrumb voltam para o MESMO recorte em vez da lista limpa.
-      if (Object.keys(location.params ?? {}).length > 0) rememberListFilters(`/${domain}`, location.params);
+      // A memória guarda a CHAVE CANÔNICA: ler um link antigo com `col_alias`
+      // não pode fazer o formulário devolver a lista com o nome legado, senão
+      // o mesmo filtro viaja com dois nomes e a volta perde o recorte.
+      if (Object.keys(location.params ?? {}).length > 0) rememberListFilters(`/${domain}`, canonicalizeParams(domain, location.params));
       const returnParams = recallListFilters(`/${domain}`);
       if (idSegment === 'new') {
         if (['extensions', 'templates'].includes(domain)) return { html: renderNotFoundPage(link) };
@@ -1003,8 +976,13 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     // ligados aqui porque estas páginas não têm `bind()` próprio — os
     // módulos de páginas de conteúdo/extensão ligam os seus no `bind()`.
     if (domainMatch && DOMAIN_KEYS.includes(domainMatch[1]) && domainMatch[2] === undefined) {
+      const domain = domainMatch[1];
       const navigate = (href) => { if (navigationId === latestNavigation) router.navigate(href); };
-      bindColumnFilters(location, (path, params) => router.link(path, params), navigate, documentRef);
+      const link = (path, params) => router.link(path, params);
+      bindColumnFilters({
+        location, link, navigate, scope: documentRef, domain,
+        filters: columnFilterDefinitions(domain, management?.rows ?? [], canonicalizeParams(domain, location.params ?? {}))
+      });
     }
   }});
 

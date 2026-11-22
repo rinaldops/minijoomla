@@ -17,8 +17,24 @@ const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublishe
  */
 export function renderTagsTable(rows, { link, columnFilters = [], returnParams = {} } = {}) {
   const items = Array.isArray(rows) ? rows : [];
-  if (!items.length) return '<p class="admin-empty" role="status">Nenhum registro em "Tags" encontrado.</p>';
-  const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
+  const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
+  /*
+   * Mesma assinatura do cabeçalho de Categorias — `(column, label, fullLabel,
+   * extraClass)` — para que as duas listagens de taxonomia não divergissem:
+   * a ordem anterior era `(column, label, extraClass, fullLabel)` e a
+   * chamada passava `'admin-col-count'` no lugar do rótulo acessível, de
+   * modo que o `th` ficava sem classe de coluna e a coluna de contagem
+   * continuava estrangulada. O rótulo completo ("Artigos com a tag")
+   * permanece acessível por leitor de tela; o visível é curto para não
+   * quebrar letra a letra.
+   */
+  const header = (column, label, fullLabel = '', extraClass = '') => {
+    const filter = filterFor(column);
+    const classes = ['admin-th', `admin-col-${column}`, filter ? 'admin-th-filterable' : '', extraClass].filter(Boolean).join(' ');
+    return `<th scope="col" class="${esc(classes)}"${fullLabel ? ` title="${esc(fullLabel)}"` : ''}><span class="admin-th-label">${esc(label)}${fullLabel ? `<span class="visually-hidden"> (${esc(fullLabel)})</span>` : ''}</span>${filter ? renderColumnFilter(filter, column) : ''}</th>`;
+  };
+  const head = `${selectAllCell}${header('state', 'Estado')}${header('name', 'Nome')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'Artigos com a tag', 'admin-col-count')}${header('id', 'ID')}`;
+  if (!items.length) return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead></table><p class="admin-empty" role="status">Nenhum registro em "Tags" encontrado.</p></div>`;
   const tableRows = items.map((row) => {
     const title = String(row.name ?? '').trim() || `Tag ${row.id}`;
     const state = row.state || 'Published';
@@ -30,16 +46,5 @@ export function renderTagsTable(rows, { link, columnFilters = [], returnParams =
     const counts = `<a class="admin-badge${total ? '' : ' is-muted'}" href="${esc(link('/articles', { tag: row.name }))}" aria-label="${esc(`${total} artigo(s) com a tag ${row.name}`)}">${esc(total)}</a>`;
     return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/tags/${row.id}`, returnParams))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-alias">${esc(row.alias)}</td><td class="admin-col-count">${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-      /*
-             * Mesma assinatura do cabeçalho de Categorias — `(column, label,
-             * fullLabel, extraClass)` — para que as duas listagens de taxonomia
-             * não divergissem: a ordem anterior era `(column, label, extraClass,
-             * fullLabel)` e a chamada passava `'admin-col-count'` no lugar do
-             * rótulo acessível, de modo que o `th` ficava sem classe de coluna e
-             * a coluna de contagem continuava estrangulada. O rótulo completo
-             * ("Artigos com a tag") permanece acessível por leitor de tela; o
-             * visível é curto para não quebrar letra a letra.
-             */
-            const header = (column, label, fullLabel = '', extraClass = '') => `<th scope="col" class="${esc(`admin-col-${column}${extraClass ? ` ${extraClass}` : ''}`)}">${fullLabel ? `<span class="visually-hidden">${esc(fullLabel)}</span><span aria-hidden="true">${esc(label)}</span>` : esc(label)}${filterFor(column) ? renderColumnFilter(filterFor(column), column) : ''}</th>`;
-            return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Tags</caption><thead><tr>${selectAllCell}${header('state', 'Estado')}${header('name', 'Nome')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'Artigos com a tag', 'admin-col-count')}${header('id', 'ID')}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }

@@ -13,6 +13,7 @@ import { renderCategoriesTable } from '../com_categories/tmpl/categories/default
 import { renderTagsTable } from '../com_tags/tmpl/tags/default.js';
 import { renderMediaFiles, formatMediaSize as formatSize } from '../com_media/tmpl/media/default.js';
 import { plusIcon } from './icons.js';
+import { bindColumnFilters, columnsForDomain, canonicalKey, parseMulti } from './column-filter.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const status = '<p class="admin-form-status admin-management-status" role="status" aria-live="polite" aria-atomic="true" data-ext-status></p>';
@@ -25,109 +26,42 @@ const TRASH_ACTIONS = { restore: 'Restaurar da lixeira', delete: 'Excluir defini
 const PAGE_LIMITS = [10, 20, 50, 100];
 
 /*
- * Nomes de parâmetro do menu de coluna. Ficam em `col_<campo>` para não
- * colidir com os filtros de gerenciamento já existentes (`state`,
- * `categoryId`, `featured`, `author`…), que continuam valendo com o
- * mesmo significado de antes.
+ * Filtros de GERENCIAMENTO (barra do topo) de cada listagem. Fazem parte
+ * do estado da lista tanto quanto os filtros de coluna: sem eles, voltar
+ * de um formulário trazia a lista sem o filtro de estado/categoria que o
+ * usuário tinha aplicado.
  */
-const colParam = (field) => `col_${field}`;
+const MANAGEMENT_PARAMS = {
+  articles: ['categoryId', 'author', 'featured'],
+  categories: [],
+  tags: []
+};
 
 /*
- * Um menu por coluna, com os valores distintos REAIS das linhas já
- * carregadas. `field` é o campo usado para filtrar, `column` é a coluna
- * da tabela e `name` o parâmetro de URL — os três podem diferir: a
- * coluna Categoria tem `column: 'category'`, `name: 'col_categoryId'` e
- * `field: 'categoryId'`, porque o filtro é por ID CANÔNICO e nunca pelo
- * título (G1: duas categorias homônimas em ramos distintos têm o mesmo
- * título e o filtro por título as confundia).
- * `internal: true` marca filtros que já têm um `<select>` no
- * `filterBar` (a barra de filtros do topo): o menu de coluna existe
- * pelo princípio do pedido (filtro independente por coluna), mas os
- * valores distintos para o menu continuam vindo das linhas, e o valor
- * corrente é lido da URL para que os dois controles nunca discordem.
+ * Colunas filtráveis de cada listagem de conteúdo, na forma que os
+ * renderizadores de tabela esperam: `{ key, column, label, values,
+ * options, multiIsExact }` — `key` é a chave canônica da URL (ver
+ * column-filter.js). As opções vêm das FACETAS calculadas pelo serviço
+ * (conjunto completo, antes da paginação), não das linhas desta página:
+ * filtrar por um valor que só existe na página 3 seria impossível se a
+ * lista de valores saísse da página 1.
  */
-function columnFilterDefinitions(specs, rows, params = {}) {
-  return specs.map((spec) => {
-    const name = spec.name ?? colParam(spec.field ?? spec.column);
-    const distinct = [...new Set(rows.map((row) => spec.valueOf ? spec.valueOf(row) : row[spec.field ?? spec.column]).map((value) => (value === undefined || value === null) ? '' : String(value)).filter((value) => value !== ''))];
-    const options = spec.options ? spec.options(distinct) : distinct.sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => [value, value]);
-    const selected = String(params[name] ?? '');
-    // Um único valor distinto não oferece filtragem: escondê-lo evita um
-    // menu que não faz nada. Se ele está ativo (mesmo com um só valor),
-    // mostramos, senão o usuário não teria como desfazer o filtro.
-    return { column: spec.column, name, label: spec.label, value: selected, options, keep: selected !== '' || options.length > 1 };
-  }).filter((filter) => filter.keep).map(({ keep, ...filter }) => filter);
-}
-
-/**
- * Liga os menus de filtro por coluna renderizados por
- * `renderColumnFilter` (render-list.js). Contrato de teclado, igual ao
- * de um menu real:
- *   - Enter/Espaço/clique no botão abre; Escape fecha e devolve o foco
- *     ao botão (nunca deixa o foco perdido no vazio);
- *   - setas ↑/↓ percorrem as opções, Home/End vão à primeira/última;
- *   - Enter/Espaço escolhem a opção focada; a escolha navega para a
- *     mesma lista com o filtro aplicado, PRESERVANDO os outros filtros,
- *     a busca e a ordenação, e VOLTANDO para a página 1 (um filtro novo
- *     muda o conjunto de resultados; ficar numa página que talvez não
- *     exista mais mostraria lista vazia sem explicação);
- *   - clique fora fecha todos os menus abertos;
- *   - qualquer navegação durante um `await` é ignorada (`isCurrent`).
- * O filtro é aplicado por NAVEGAÇÃO (link de router), não por
- * re-render local: assim a URL sempre descreve o que está na tela, o
- * botão "voltar" funciona e recarregar a página mantém o filtro.
- */
-function bindColumnFilters(location, navigate, scope) {
-  const containers = Array.from(scope?.querySelectorAll?.('[data-colfilter]') ?? []);
-  if (!containers.length) return;
-  const closeAll = (except) => containers.forEach((container) => {
-    if (container === except) return;
-    container.querySelector?.('[data-colfilter-menu]')?.setAttribute('hidden', '');
-    container.querySelector?.('[data-colfilter-toggle]')?.setAttribute('aria-expanded', 'false');
-    container.classList.remove('is-open');
-  });
-  containers.forEach((container) => {
-    const toggle = container.querySelector?.('[data-colfilter-toggle]');
-    const menu = container.querySelector?.('[data-colfilter-menu]');
-    if (!toggle || !menu) return;
-    const items = () => Array.from(menu.querySelectorAll?.('[data-colfilter-option]') ?? []);
-    const focusItem = (index) => { const options = items(); if (!options.length) return; const target = options[(index + options.length) % options.length]; options.forEach((option) => { option.tabIndex = option === target ? 0 : -1; }); target.focus?.(); };
-    const setOpen = (open) => {
-      if (open) closeAll(container);
-      menu.toggleAttribute?.('hidden', !open);
-      menu.hidden = !open;
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      container.classList.toggle?.('is-open', open);
-      if (open) focusItem(Math.max(0, items().findIndex((option) => option.getAttribute?.('aria-checked') === 'true')));
+function columnFiltersFor(domain, source, params = {}) {
+  const facets = source?.columnFacets ?? {};
+  return columnsForDomain(domain).map((entry) => {
+    const values = parseMulti(params[entry.key] ?? '');
+    const options = Array.isArray(facets[entry.key])
+      ? facets[entry.key].map((facet) => [facet.value, facet.label, facet.count, facet.empty])
+      : [];
+    return {
+      key: entry.key,
+      column: entry.column,
+      label: entry.label,
+      values,
+      options,
+      multiIsExact: Boolean(entry.multiIsExact)
     };
-    toggle.addEventListener?.('click', (event) => { event?.preventDefault?.(); setOpen(menu.hidden !== false && menu.hasAttribute?.('hidden') !== false ? true : Boolean(menu.hidden)); });
-    toggle.addEventListener?.('keydown', (event) => {
-      if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) return;
-      event.preventDefault?.();
-      const open = !menu.hidden; setOpen(true); if (!open) focusItem(0);
-    });
-    menu.addEventListener?.('keydown', (event) => {
-      const options = items();
-      const current = options.indexOf(scope.activeElement ?? options.find((option) => option.tabIndex === 0));
-      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-        event.preventDefault?.();
-        focusItem(event.key === 'ArrowDown' ? current + 1 : event.key === 'ArrowUp' ? current - 1 : event.key === 'Home' ? 0 : options.length - 1);
-        return;
-      }
-      if (event.key === 'Escape') { event.preventDefault?.(); setOpen(false); toggle.focus?.(); return; }
-      if (event.key === 'Tab') { setOpen(false); return; }
-      if (['Enter', ' '].includes(event.key)) { event.preventDefault?.(); options[current]?.click?.(); }
-    });
-    items().forEach((option) => option.addEventListener?.('click', (event) => {
-      event?.preventDefault?.();
-      const value = option.dataset?.colfilterValue ?? '';
-      const next = { ...(location.params ?? {}), [container.dataset.colfilterName]: value || undefined, page: undefined };
-      setOpen(false);
-      navigate(link(location.path, next));
-    }));
   });
-  scope?.addEventListener?.('click', (event) => { if (!containers.some((container) => container.contains?.(event.target))) closeAll(); });
-  scope?.addEventListener?.('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
 }
 
 export function createContentPages({ adminService, documentRef, router, shell, mediaService, clock = () => new Date(), isCurrent = () => true }) {
@@ -141,37 +75,35 @@ export function createContentPages({ adminService, documentRef, router, shell, m
    * página 7 de uma lista que o filtro encolheu mostraria vazio).
    * Sem isto, "cancelar" voltava para a lista limpa, que é o defeito
    * relatado.
+      *
+      * As chaves de coluna vêm do catálogo canônico (`columnsForDomain`)
+      * mais os filtros de gerenciamento da barra do topo; a lista é fixa e
+      * completa porque o destino do link é montado ANTES de a lista ser
+      * recarregada — não há `params` da página nova para copiar.
    */
-  const listState = (params = {}, extras = {}) => Object.fromEntries(Object.entries({
-    q: params.q, sort: params.sort, dir: params.dir, limit: params.limit, ...extras
-  }).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+     const listState = (params = {}, extras = {}, domain = 'articles') => {
+      const keys = [
+        'q', 'sort', 'dir', 'limit',
+        ...columnsForDomain(domain).map((entry) => entry.key),
+        ...MANAGEMENT_PARAMS[domain]
+      ];
+      const state = {};
+      keys.forEach((key) => {
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== '') state[key] = value;
+      });
+      // Aliases `col_*` legados precisam sobreviver à LEITURA, mas o link
+            // emitido usa a chave canônica: sem isso o mesmo recorte viajava com
+            // `col_alias` para o formulário e `alias` para a lista, e voltar
+            // perdia o filtro.
+      Object.keys(params).forEach((key) => {
+        const value = params[key];
+              const canonical = canonicalKey(domain, key);
+              if (value !== undefined && value !== null && value !== '' && !(canonical in state)) state[canonical] = value;
+      });
+      return Object.fromEntries(Object.entries({ ...state, ...extras }).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+    };
 
-  /*
-   * Colunas filtráveis de cada listagem de conteúdo. `internal: true`
-   * indica que a coluna já tem controle equivalente na barra de filtros
-   * (Estado, Categoria, Autor, Destaque); o menu de coluna é adicional e
-   * mantém o mesmo parâmetro de URL, para os dois nunca divergirem.
-   */
-  function columnFiltersFor(domain, source, params = {}) {
-    const rows = source?.rows ?? source ?? [];
-    if (domain === 'articles') {
-      return columnFilterDefinitions([
-        { column: 'state', label: 'Estado', valueOf: (row) => row.state, options: () => [['Published', 'Publicado'], ['Draft', 'Despublicado'], ['Archived', 'Arquivado'], ['Trashed', 'Na lixeira']] },
-        { column: 'title', label: 'Título', field: 'title' },
-        { column: 'alias', label: 'Alias', field: 'alias' },
-        { column: 'category', label: 'Categoria', name: 'categoryId', field: 'categoryId', options: (values) => values.map((id) => [id, rows.find((row) => String(row.categoryId) === id)?.categoryPath || rows.find((row) => String(row.categoryId) === id)?.categoryTitle || id]).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')) },
-        { column: 'author', label: 'Autor', field: 'author' },
-        { column: 'featured', label: 'Destaque', field: 'featured', options: () => [['1', 'Em destaque'], ['0', 'Sem destaque']] },
-        { column: 'id', label: 'ID', field: 'id' }
-      ], rows, params);
-    }
-    const titleField = domain === 'categories' ? 'title' : 'name';
-    return columnFilterDefinitions([
-      { column: 'title', label: domain === 'categories' ? 'Título' : 'Nome', field: titleField },
-      { column: 'alias', label: 'Alias', field: 'alias' },
-      { column: 'id', label: 'ID', field: 'id' }
-    ], rows, params);
-  }
   const home = () => ({ label: 'Painel de controle', href: link('/') });
   const page = (activeKey, pageTitle, crumbs, bodyHtml, toolbarActionsHtml = '') => shell({ activeKey, pageTitle, breadcrumbItems: [home(), ...crumbs], bodyHtml, toolbarActionsHtml, link });
   const body = () => documentRef.body;
@@ -294,13 +226,13 @@ export function createContentPages({ adminService, documentRef, router, shell, m
       { name: 'language', label: 'Idioma', value: params.language, options: [['', '— Idioma —'], ...result.facets.languages.map((language) => [language, language])] },
       { name: 'limit', label: 'Itens por página', value: params.limit || String(result.limit), options: PAGE_LIMITS.map((limit) => [String(limit), `${limit} por página`]) }
     ]);
-    const table = renderArticlesTable(result, { link, params, now, columnFilters: columnFiltersFor('articles', result, params), returnParams: listState(params) });
+    const table = renderArticlesTable(result, { link, params, now, columnFilters: columnFiltersFor('articles', result, params), returnParams: listState(params, {}, 'articles') });
     const actions = { ...ARTICLE_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) };
     const html = page('articles', 'Artigos', [{ label: 'Artigos' }], `${status}${filters}${batchForm(actions, categoryOptions)}${table}${pagination(result, (number) => link('/articles', { ...params, page: String(number) }))}`,
-          `<a class="admin-btn admin-btn-success" href="${esc(link('/articles/new', listState(params)))}">${plusIcon()}Novo</a>`);
+              `<a class="admin-btn admin-btn-success" href="${esc(link('/articles/new', listState(params, {}, 'articles')))}">${plusIcon()}Novo</a>`);
     const bind = () => {
       bindFilter(location, ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']);
-          bindColumnFilters(location, navigate, body());
+          bindColumnFilters({ location, link, navigate, scope: body(), domain: 'articles', filters: columnFiltersFor('articles', result, params) });
       bindSelectAll();
       const run = async (ids, action, extra) => runBatch(() => adminService.articles.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action, extra), ids, action, extra, location);
       const rowOf = (id) => result.rows.find((row) => String(row.id) === String(id));
@@ -328,20 +260,20 @@ export function createContentPages({ adminService, documentRef, router, shell, m
       { name: 'state', label: 'Estado', value: params.state, options: TAXONOMY_STATE_OPTIONS }
     ]);
     const table = cfg.domain === 'categories'
-          ? renderCategoriesTable(rows, { link, columnFilters: columnFiltersFor('categories', rows, params), returnParams: listState(params) })
-          : renderTagsTable(rows, { link, columnFilters: columnFiltersFor('tags', rows, params), returnParams: listState(params) });
+          ? renderCategoriesTable(rows, { link, columnFilters: columnFiltersFor('categories', rows, params), returnParams: listState(params, {}, 'categories') })
+          : renderTagsTable(rows, { link, columnFilters: columnFiltersFor('tags', rows, params), returnParams: listState(params, {}, 'tags') });
     const html = page(cfg.domain, cfg.label, [{ label: cfg.label }], `${status}${filters}${batchForm({ ...TAXONOMY_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) })}${table}`,
-          `<a class="admin-btn admin-btn-success" href="${esc(link(`/${cfg.domain}/new`, listState(params)))}">${plusIcon()}Novo</a>`);
+              `<a class="admin-btn admin-btn-success" href="${esc(link(`/${cfg.domain}/new`, listState(params, {}, cfg.domain)))}">${plusIcon()}Novo</a>`);
     const bind = () => {
       bindFilter(location, ['q', 'state']);
-          bindColumnFilters(location, navigate, body());
+          bindColumnFilters({ location, link, navigate, scope: body(), domain: cfg.domain, filters: columnFiltersFor(cfg.domain, rows, params) });
       bindSelectAll();
       const run = async (ids, action) => runBatch(() => service.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action), ids, action, undefined, location);
       const rowOf = (id) => rows.find((row) => String(row.id) === String(id));
       bindActions({
         'toggle-state': (id) => run([id], (rowOf(id)?.state || 'Published') === 'Published' ? 'unpublish' : 'publish'),
         restore: (id) => run([id], 'restore'),
-            duplicate: async (id) => { const created = await service.duplicate(Number(id)); await navigate(link(`/${cfg.domain}/${created.id}`, listState(params))); }
+            duplicate: async (id) => { const created = await service.duplicate(Number(id)); await navigate(link(`/${cfg.domain}/${created.id}`, listState(params, {}, cfg.domain))); }
       });
       bindBatch(location, run);
     };
