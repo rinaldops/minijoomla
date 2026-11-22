@@ -14,7 +14,8 @@ import {
   URL_LENGTH_LIMIT,
   urlFitsLimit,
   renderColumnFilterPanel,
-  bindColumnFilters
+  bindColumnFilters,
+  placePanel
 } from '../src/administrator/components/com_minijoomla/column-filter.js';
 import { Router } from '../src/libraries/minijoomla/core/router.js';
 
@@ -55,7 +56,14 @@ function assertSelectorsPresent(html, context, { except = [] } = {}) {
 
 export async function runColumnFilterCoreTests() {
   // --- linhas da tabela canônica -----------------------------------------
-  assert.ok(columnsForDomain('articles').length >= 7, 'Artigos precisam de todas as colunas filtráveis');
+  // O contrato de Artigos é fechado: as oito colunas filtráveis, na ordem em
+  // que a listagem as oferece. Um `>= 7` deixaria passar a perda silenciosa de
+  // uma coluna (foi assim que `author` e `publishUp` sumiram sem quebrar o teste).
+  assert.deepEqual(
+    columnsForDomain('articles').map((entry) => entry.key),
+    ['state', 'title', 'alias', 'categoryId', 'author', 'publishUp', 'featured', 'id'],
+    'Artigos precisam de todas as colunas filtráveis, na ordem canônica'
+  );
   for (const [domain, columns] of Object.entries(CANONICAL_COLUMNS)) {
     for (const entry of columns) {
       assert.equal(canonicalKey(domain, entry.key), entry.key, `${domain}/${entry.key}: a chave canônica resolve nela mesma`);
@@ -151,22 +159,33 @@ export async function runColumnFilterCoreTests() {
     { column: 'author', key: 'author', reads: (row) => row.author },
     { column: 'publishUp', key: 'publishUp', reads: (row) => row.publishUp }
   ];
+  // O MESMO predicado da listagem (Adendo 3, 3.2): aplicado com a coluna da
+  // vez excluída. Sem ele as facetas só agregam e a contagem de uma coluna
+  // não fecha com o total da lista.
+  const passesFor = (params) => (row, skipKey) => dimensions.every((dimension) => {
+    if (dimension.key === skipKey) return true;
+    const active = parseMulti(params[dimension.key]);
+    if (!active.length) return true;
+    const raw = row[dimension.key];
+    const value = raw === null || raw === undefined || raw === '' ? EMPTY_VALUE : String(raw);
+    return active.includes(value);
+  });
 
   // Sem filtro: contagem cheia, vazio por último.
-  const all = buildColumnFacets(rows, dimensions, {});
+  const all = buildColumnFacets(rows, dimensions, {}, { passes: passesFor({}) });
   assert.deepEqual(all.state.map((option) => option.value), ['Archived', 'Published', 'Trashed']);
   assert.equal(all.state.find((option) => option.value === 'Published').count, 3);
   assert.equal(all.author[all.author.length - 1].value, EMPTY_VALUE, '(Vazias) vai por último');
 
   // O filtro de AUTOR não restringe a própria lista de autores, mas
   // restringe a de estados.
-  const byAuthor = buildColumnFacets(rows, dimensions, { author: 'Ana' });
+  const byAuthor = buildColumnFacets(rows, dimensions, { author: 'Ana' }, { passes: passesFor({ author: 'Ana' }) });
   assert.deepEqual(byAuthor.state.map((option) => option.value), ['Published']);
   assert.equal(byAuthor.author.length, 3, 'a coluna do próprio filtro continua oferecendo todas as opções, inclusive (Vazias)');
 
   // Valor selecionado com contagem 0 continua na lista (senão a seleção
   // desapareceria ao navegar).
-  const stale = buildColumnFacets(rows, dimensions, { state: 'Published', author: 'Bruno' });
+  const stale = buildColumnFacets(rows, dimensions, { state: 'Published', author: 'Bruno' }, { passes: passesFor({ state: 'Published', author: 'Bruno' }) });
   // A faceta de `state` IGNORA o filtro de `state` (senão não haveria como
   // trocar de valor), mas respeita o filtro de `author`: só sobra a linha 4
   // (Published) e a linha 3 (Trashed) entre as de Bruno.
@@ -203,4 +222,84 @@ export async function runColumnFilterCoreTests() {
   assert.ok(panelHtml.includes('aria-modal="false"'), 'o painel é não modal');
   assert.ok(panelHtml.includes('role="dialog"'));
   assert.ok(panelHtml.includes('value="Published" checked'), 'a seleção atual vem marcada');
+}
+
+/*
+ * Posicionamento do painel (adendo 3, secao 3.4). O contrato e tabelado em
+ * T1..T5 e vale a pena provar cada linha: o painel ja apareceu fora da tela
+ * quando o botao estava perto da borda direita ou quando a pagina estava
+ * rolada. Todas as medidas de entrada estao em coordenadas de JANELA; o
+ * retorno e convertido para coordenadas da CAMADA no final.
+ */
+export async function runPanelPlacementTests() {
+  const VIEWPORT = { left: 0, top: 0, width: 1920, height: 1080 };
+  const PANEL = { width: 288, height: 420 };
+  const BUTTON = { width: 24, height: 24 };
+
+  const cases = [
+    {
+      name: 'T1 cabecalho no topo: abre acima',
+      container: { left: 0, top: 150 },
+      button: { left: 900, top: 700 },
+      viewport: VIEWPORT,
+      expected: { openAbove: true, left: 900, top: 126, maxHeight: 688 }
+    },
+    {
+      name: 'T2 pagina rolada para cima: abre abaixo',
+      container: { left: 0, top: -600 },
+      button: { left: 900, top: 300 },
+      viewport: VIEWPORT,
+      expected: { openAbove: false, left: 900, top: 928, maxHeight: 744 }
+    },
+    {
+      name: 'T3 botao colado na borda direita: encosta no limite',
+      container: { left: 0, top: 150 },
+      button: { left: 1880, top: 300 },
+      viewport: VIEWPORT,
+      expected: { openAbove: false, left: 1616, top: 178, maxHeight: 744 }
+    },
+    {
+      name: 'T4 nenhum lado cabe: ocupa o lado com mais espaco',
+      container: { left: 0, top: 0 },
+      button: { left: 900, top: 280 },
+      viewport: { left: 0, top: 0, width: 1920, height: 600 },
+      expected: { openAbove: false, left: 900, top: 308, maxHeight: 284 }
+    },
+    {
+      name: 'T5 raiz deslocada: converte para coordenadas da camada',
+      container: { left: 300, top: 150 },
+      button: { left: 1700, top: 300 },
+      viewport: VIEWPORT,
+      expected: { openAbove: false, left: 1136, top: 178, maxHeight: 744 }
+    }
+  ];
+
+  for (const current of cases) {
+    const result = placePanel(
+      { ...current.button, ...BUTTON },
+      PANEL,
+      current.container,
+      current.viewport
+    );
+    assert.equal(result.openAbove, current.expected.openAbove, `${current.name}: lado de abertura`);
+    assert.equal(result.left, current.expected.left, `${current.name}: left`);
+    assert.equal(result.top, current.expected.top, `${current.name}: top`);
+    assert.equal(result.maxHeight, current.expected.maxHeight, `${current.name}: maxHeight`);
+    // A largura nunca passa da janela menos as duas margens.
+    assert.ok(result.width <= current.viewport.width - 16, `${current.name}: largura dentro da janela`);
+    // O topo convertido, somado ao deslocamento da camada, volta ao espaco
+    // de janela esperado: prova de que a conversao foi feita, e nao apenas
+    // de que os numeros batem por coincidencia.
+    const topInWindow = result.top + current.container.top;
+    // A altura realmente ocupada e `min(panel.height, maxHeight)`: em T1 sobra
+    // espaco (688 > 420) e o painel usa apenas 420, mas em T4 ele e cortado.
+    // Comparar com `maxHeight` daria um falso negativo, porque `maxHeight` e o
+    // ESPACO disponivel, nao a altura ocupada.
+    const usedHeight = Math.min(PANEL.height, result.maxHeight);
+    if (result.openAbove) {
+      assert.equal(topInWindow + usedHeight, current.button.top - 4, `${current.name}: painel acima termina no offset do botao`);
+    } else {
+      assert.equal(topInWindow, current.button.top + BUTTON.height + 4, `${current.name}: painel abaixo comeca no offset do botao`);
+    }
+  }
 }

@@ -26,7 +26,7 @@ function createFakeAdminService(seed = {}) {
     const store = new Map(rows.map((row) => [row.id, { etag: '"1"', ...row }]));
     domains[domain] = {
       list: async () => [...store.values()],
-      get: async (id) => store.get(id) ?? null,
+      get: async (id) => store.get(id) ?? store.get(Number(id)) ?? null,
       create: async (input) => { const id = nextId++; const record = { id, etag: '"1"', ...input }; store.set(id, record); return record; },
       update: async (id, input, { etag }) => { const current = store.get(id); if (!current || etag !== current.etag) { const error = new Error('conflito'); error.code = 'concurrency-conflict'; throw error; } const updated = { ...current, ...input, etag: '"2"' }; store.set(id, updated); return updated; },
       remove: async (id, { etag }) => { const current = store.get(id); if (!current || etag !== current.etag) { const error = new Error('conflito'); error.code = 'concurrency-conflict'; throw error; } store.delete(id); }
@@ -47,6 +47,16 @@ function createFakeAdminService(seed = {}) {
     groups: (rows) => [...new Set((rows ?? []).map((row) => row.group).filter(Boolean))]
   };
   if (domains.moduleInstances) service.moduleInstances = { ...domains.moduleInstances, ...(seed.moduleInstances ?? {}) };
+  // `com_templates` tem superfície própria: a tela de edição chama
+  // `templateStyles.save` (não `update`), e a listagem chama `setDefault`/
+  // `duplicate`. Sem `save` o botão de gravar falha em silêncio e a navegação
+  // de volta nunca acontece — foi exatamente o que o teste pegou.
+  if (domains.templateStyles) service.templateStyles = {
+    ...domains.templateStyles,
+    save: (id, input, options) => domains.templateStyles.update(id, input, options),
+    setDefault: async (id) => domains.templateStyles.get(id),
+    duplicate: async (id) => domains.templateStyles.create({ ...(await domains.templateStyles.get(id)) })
+  };
   return service;
 }
 
@@ -159,6 +169,12 @@ function createFakeDocumentRef({ elements = {} } = {}) {
         // tests/admin-app.test.js). Sem isso `readAdminFormValues` não lê
         // nenhum campo e o salvamento enviaria um payload vazio.
         if (selector === '[data-admin-form]') return formElement;
+        // Os formulários de edição do painel são resolvidos pelo seletor
+        // exato do módulo (`[data-ext-form="module"]` etc.). O binding do
+        // `submit` acontece DENTRO da navegação, então o nó precisa existir
+        // ANTES: criá-lo aqui (memorizado por endereço) é o que permite ao
+        // teste capturar o listener de gravação depois.
+        if (/^\[data-ext-form=/.test(selector)) return element(selector);
         const name = selector.match(/^\[name="(.+)"\]$/);
         if (name) return element(`name:${name[1]}`);
         // Qualquer outro seletor (botão de excluir, área de status)
@@ -204,6 +220,11 @@ function createFakeDocumentRef({ elements = {} } = {}) {
     // Registra os filhos de `parent|selector` para `querySelector`/`All`.
     setChildren: (parentSelector, selector, items) => registry.set(`${parentSelector}|${selector}`, items),
     setWireOnRender: (fn) => { wireOnRender = fn; },
+    // Listeners já registrados num endereço. Necessário porque o binding de
+    // `submit` das telas de edição acontece DENTRO da navegação: o teste não
+    // tem como interceptar `addEventListener` depois, só ler o que já foi
+    // gravado no registry pela própria página.
+    listenersFor: (key, event) => (listenersByElement.get(key) ?? []).filter((entry) => entry.event === event).map((entry) => entry.handler),
     // HTML que o ligador escreveu na camada flutuante (o painel aberto).
     // A chave é a mesma que `documentRef.querySelector` resolve — o fake é
     // chaveado por seletor, então usar outro nome leria uma camada vazia.
@@ -334,6 +355,30 @@ function wireColumnFilters(fake, html) {
     list.push({ event, handler });
     listenersByElement.set('document', list);
   };
+  /*
+   * Frente C2: a barra de filtros ativos é HTML puro dentro do `<body>`, e o
+   * ligador a alcança por `closest('[data-activefilters]')` a partir do
+   * elemento clicado. O fake genérico não materializa árvore, então o clique
+   * do teste morreria em `closest` nulo e o teste "provaria" só que o
+   * markup existe. Aqui cada botão da barra recebe um `closest` que resolve
+   * o ancestral de verdade a partir do HTML renderizado.
+   */
+  const bar = /<div class="admin-activefilters"[^>]*data-activefilters[^>]*>/.exec(html);
+  if (bar) {
+    const barNode = fake.element('activefilters');
+    const bindBarButton = (address, ownSelector, attribute, value) => {
+      const node = fake.element(address);
+      node.closest = (selector) => {
+        if (selector === '[data-activefilters]') return barNode;
+        if (selector === ownSelector) return node;
+        return null;
+      };
+      node.getAttribute = (name) => (name === attribute ? value : null);
+      return node;
+    };
+    for (const match of html.matchAll(/data-activefilter-remove="([^"]*)"/g)) bindBarButton(`attr:data-activefilter-remove=${match[1]}`, '[data-activefilter-remove]', 'data-activefilter-remove', match[1]);
+    if (/data-activefilter-clearall/.test(html)) bindBarButton('attr:data-activefilter-clearall=', '[data-activefilter-clearall]', 'data-activefilter-clearall', '');
+  }
   return { toggles, specByKey };
 }
 
@@ -389,6 +434,29 @@ function wirePanelControls(fake, panelHtml, key) {
   fake.element('panelcancel').hidden = true;
   fake.element('panelerror').hidden = true;
   return { dialog, boxes };
+}
+
+/*
+ * Captura o handler de `submit` de um formulário REAL do painel.
+ *
+ * O fake de documento não materializa a árvore, então o `submit` de um
+ * formulário de edição não pode ser disparado por propagação: o módulo da
+ * página o registra direto no elemento (`form.addEventListener('submit')`)
+ * e não há uma raiz que o delegue. Aqui o elemento é criado com o MESMO
+ * endereço que o `querySelector` do módulo resolve (`formElement =
+ * element('[data-admin-form]')`), então o listener registrado fica neste
+ * registry e pode ser chamado com um evento sintético. É o único jeito de
+ * exercitar o caminho de gravação de verdade em vez de só inspecionar o
+ * href do botão de cancelar.
+ */
+function captureFormSubmit(fake, selector = '[data-admin-form]') {
+  const node = fake.element(selector);
+  fake.submitForm = async (options = {}) => {
+    const listeners = fake.listenersFor(selector, 'submit');
+    if (!listeners.length) throw new Error(`nenhum listener de submit registrado em ${selector}`);
+    for (const handler of listeners) await handler({ preventDefault: () => {}, target: node, ...options });
+  };
+  return node;
 }
 
 function withStorage(storage, run) {
@@ -911,7 +979,7 @@ async function runExtensionColumnTests() {
        * coluna é o defeito; agora a tabela canônica é a única fonte.
        */
       const typePanel = renderColumnFilterPanel({ domain: 'extensions', key: 'type', column: 'type', label: 'Tipo', options: ['plugin', 'component', 'module'] });
-      const typeLabels = [...typePanel.matchAll(/data-colfilter-value="([^"]*)"><input[^>]*>\s*<span class="admin-colfilter-option-label">([^<]*)</g)]
+      const typeLabels = [...typePanel.matchAll(/data-colfilter-value="([^"]*)"><input[^>]*>\s*<span class="admin-colfilter-option-label"[^>]*>([^<]*)</g)]
         .map(([, value, label]) => [value, label.trim()]);
       assert.deepEqual(typeLabels, [['component', 'Componente'], ['module', 'Módulo'], ['plugin', 'Plugin']], 'a coluna Tipo mostra o rótulo humano, na ordem da tabela canônica, e guarda o valor cru');
     } finally { app.stop(); }
@@ -1253,9 +1321,16 @@ async function runCategoryTreeTests() {
   assert.ok(Array.isArray(categoryFacet) && categoryFacet.length, 'a listagem de artigos publica a faceta de categoria');
 
   const byValue = new Map(categoryFacet.map((item) => [String(item.value), item]));
-  // Rótulo humano: o caminho completo, não o id.
+  /*
+   * Rótulo humano: o caminho completo, não o id. Duas irmãs homônimas na
+   * mesma árvore ('Avisos' 11 e 'Avisos' 12) produziriam o MESMO caminho —
+   * indistinguíveis no menu — então só os rótulos repetidos ganham o
+   * desempate pelo alias e, por fim, pelo `#id`. Os demais ficam com o
+   * caminho puro.
+   */
   assert.equal(byValue.get('10')?.label, 'Institucional', 'a raiz traz só o próprio título');
-  assert.equal(byValue.get('11')?.label, 'Institucional › Avisos', 'o filho traz o caminho inteiro, não o id');
+  assert.equal(byValue.get('11')?.label, 'Institucional › Avisos (avisos) · #11', 'a irmã homônima traz o caminho e o desempate');
+  assert.equal(byValue.get('12')?.label, 'Institucional › Avisos (avisos-b) · #12', 'a outra irmã homônima traz o próprio desempate');
   assert.equal(byValue.get('15')?.label, 'Institucional › Avisos › Extra', 'o neto encadeia os três níveis');
   assert.equal(byValue.get('14')?.label, 'Solto', 'a raiz solta não herda caminho de ninguém');
 
@@ -1372,6 +1447,509 @@ async function runMemoryScopeTests() {
   console.log('ok - escopo da memoria de filtros isola site e usuario');
 }
 
+/*
+ * Frente C1 — botão de filtro só com ícone dentro do cabeçalho.
+ *
+ * Antes o botão mostrava "Filtrar Estado: Publicado, Despublicado": o texto
+ * crescia com o filtro e empurrava a largura da coluna, desalinhando
+ * cabeçalho e dados. A prova aqui é de markup: o botão não pode conter
+ * texto visível, precisa continuar acessível por `aria-label`, e o `<th>`
+ * não pode receber `display:flex` (é o invólucro `<div class="admin-th">`
+ * que faz o flex).
+ */
+async function runHeaderButtonTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const chain = articleChainRepository();
+    const admin = createAdminService(chain.repository);
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/articles?state=Published');
+      const html = fake.documentRef.body.innerHTML;
+
+      const toggle = /<button[^>]*data-colfilter-toggle[^>]*data-colfilter-column="state"[^>]*>[\s\S]*?<\/button>/.exec(html);
+      assert.ok(toggle, 'a coluna Estado tem botão de filtro no cabeçalho');
+      const button = toggle[0];
+      const inner = button.replace(/^<button[^>]*>/, '').replace(/<\/button>$/, '');
+      assert.equal(inner.replace(/<[^>]*>/g, '').trim(), '', 'o botão do cabeçalho não tem texto visível — só ícone');
+      assert.ok(inner.includes('<svg') || inner.includes('▾'), 'o botão traz um ícone desenhado (seta ou funil)');
+      assert.match(button, /aria-label="Filtrar coluna Estado \(filtro ativo: 1 valores\)"/, 'com filtro ativo, o aria-label diz quantos valores estão aplicados');
+      assert.match(button, /class="admin-colfilter-toggle is-active"/, 'o estado ativo é marcado por classe, não por texto');
+
+      // Sem filtro o rótulo é o simples, e o botão fica inativo.
+      await app.router.navigate('#/articles');
+      const clean = fake.documentRef.body.innerHTML;
+      const plain = /<button[^>]*data-colfilter-toggle[^>]*data-colfilter-column="state"[^>]*>/.exec(clean);
+      assert.match(plain[0], /aria-label="Filtrar coluna Estado"/, 'sem filtro o aria-label não cita valores');
+      assert.ok(!/admin-colfilter-toggle is-active/.test(plain[0]), 'sem filtro o botão não fica ativo');
+
+      // O flex vive no invólucro (ou em CSS), nunca inline no <th>.
+      assert.match(clean, /<th[^>]*class="[^"]*admin-th[^"]*"/, 'o cabeçalho da coluna carrega a classe admin-th');
+      assert.match(clean, /<span class="admin-th-label">/, 'o rótulo da coluna fica num span próprio, à esquerda do botão');
+      assert.ok(!/<th[^>]*style="[^"]*display:\s*flex/.test(clean), 'nenhum <th> recebe display:flex inline');
+
+      console.log('ok - cabecalho C1: botao so com icone, aria-label com contagem e flex no involucro');
+    } finally {
+      app.dispose?.();
+    }
+  });
+}
+
+/*
+ * Frente C3 — a barra superior não repete o que já tem coluna.
+ *
+ * Em `extensions` o `<select>` de Tipo duplicava o menu da coluna Tipo: dois
+ * controles para o mesmo parâmetro, que podiam discordar entre si. Tipo sai
+ * da barra e passa a viver só no cabeçalho. Estado/Habilitado, que NÃO tem
+ * coluna correspondente na tabela, continua na URL e vai para o painel "Mais
+ * filtros" — senão o recorte aplicado ficaria sem nenhuma forma de desfazer.
+ *
+ * Em Artigos não há duplicação a remover: a barra superior nunca teve
+ * `<select>` de Estado/Categoria/Destaque/Autor — esses sempre foram
+ * parâmetros de URL consumidos pelo menu da própria coluna. O teste cobre as
+ * duas situações para que a regra não seja confundida com "toda lista perde
+ * os selects".
+ */
+async function runToolbarDeduplicationTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const chain = articleChainRepository();
+    const admin = createAdminService(chain.repository);
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/extensions');
+      const html = fake.documentRef.body.innerHTML;
+      const bar = (/<form class="admin-searchbar"[\s\S]*?<\/form>/.exec(html) ?? [''])[0];
+      const barExtras = (/<div class="admin-morefilters"[\s\S]*?<\/div>/.exec(html) ?? [''])[0];
+      assert.ok(bar.includes('name="q"'), 'o campo de busca continua na barra superior');
+      assert.ok(!/<select[^>]*name="type"/.test(bar), 'o select de Tipo saiu da barra — virou filtro da coluna Tipo');
+      assert.ok(!/<select[^>]*name="type"/.test(barExtras), 'e não reapareceu como filtro extra: ele tem coluna');
+
+      // O filtro de gerenciamento sem coluna continua acessível, fora da barra.
+      assert.match(html, /<button[^>]*data-morefilters-toggle/, 'filtros sem coluna ficam atrás do botão "Mais filtros"');
+      assert.match(barExtras, /name="enabled"/, 'Habilitado, que não tem coluna, fica no painel "Mais filtros"');
+
+      // Em Artigos a barra também larga o que virou coluna; o que não tem
+      // coluna (Tag, Idioma, itens por página) fica no painel "Mais filtros".
+      await app.router.navigate('#/articles');
+      const articlesHtml = fake.documentRef.body.innerHTML;
+      const articlesBar = (/<form class="admin-searchbar"[\s\S]*?<\/form>/.exec(articlesHtml) ?? [''])[0];
+      const articlesPanel = (/<div class="admin-morefilters"[^>]*data-morefilters[^>]*>[\s\S]*?(?=<nav|<\/body|<div class="admin-table-wrap")/.exec(articlesHtml) ?? [''])[0];
+      assert.ok(articlesBar.includes('name="q"'), 'a busca de Artigos continua na barra');
+      for (const name of ['state', 'categoryId', 'featured', 'author']) {
+        assert.ok(!new RegExp(`<select[^>]*name="${name}"`).test(articlesBar), `Artigos: a barra não repete ${name} — o controle é a coluna`);
+        assert.ok(!new RegExp(`<select[^>]*name="${name}"`).test(articlesPanel), `Artigos: ${name} também não reaparece no painel — ele TEM coluna`);
+      }
+      assert.match(articlesHtml, /admin-th-filterable/, 'a coluna de Artigos é que oferece o menu de filtro');
+      assert.match(articlesHtml, /<button[^>]*data-morefilters-toggle/, 'os filtros sem coluna ficam atrás do botão "Mais filtros"');
+      assert.match(articlesPanel, /name="tag"/, 'Tag, que não tem coluna, continua acessível no painel');
+      assert.match(articlesPanel, /name="language"/, 'Idioma, que não tem coluna, continua acessível no painel');
+      // Regressão: `limit` é controle de paginação e não tem coluna. Passá-lo
+      // como "extra" do catálogo o marcava como coluna e o sumia da tela.
+      assert.match(articlesPanel, /name="limit"/, 'Itens por página continua acessível no painel, sem virar coluna');
+
+      console.log('ok - barra C3: select duplicado sai, filtro sem coluna vai para "Mais filtros" e a coluna é o controle único');
+    } finally {
+      app.dispose?.();
+    }
+  });
+}
+
+/*
+ * Frente C2 — barra de filtros ativos.
+ *
+ * A barra é a única forma de ver o que está recortando a lista agora que o
+ * valor saiu de dentro do botão. Ela precisa: não existir sem filtro; listar
+ * cada filtro com "<Coluna>: <valores>"; marcar cada chip com um "×"; trazer
+ * "Limpar todos"; e remover SÓ o filtro do chip clicado. O clique é real,
+ * despachado no documento, porque `bindColumnFilters` registra um listener
+ * delegado — e até esta rodada os botões da barra não tinham handler algum.
+ */
+async function runActiveFilterBarTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const chain = articleChainRepository();
+    const admin = createAdminService(chain.repository);
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    const navigations = [];
+    const original = app.router.navigate.bind(app.router);
+    app.router.navigate = async (href) => { navigations.push(String(href)); return original(href); };
+    try {
+      // Sem filtro não há barra.
+      await app.router.navigate('#/articles');
+      assert.ok(!/data-activefilters/.test(fake.documentRef.body.innerHTML), 'sem filtro ativo, a barra não é renderizada');
+
+      await app.router.navigate('#/articles?state=Published');
+      const html = fake.documentRef.body.innerHTML;
+      assert.match(html, /<div class="admin-activefilters" data-activefilters/, 'com filtro ativo a barra aparece');
+      assert.match(html, /class="admin-activefilters-label">Filtros ativos:</, 'a barra tem o rótulo "Filtros ativos:"');
+      assert.match(html, /class="admin-activefilter-text"[^>]*>Estado: Publicado</, 'o chip mostra "<Coluna>: <valor>" com o rótulo humano');
+      assert.match(html, /data-activefilter-remove="state"/, 'o chip tem botão de remover próprio');
+      assert.match(html, /aria-label="Remover filtro Estado"/, 'o botão de remover é acessível');
+      assert.match(html, /data-activefilter-clearall/, 'a barra traz "Limpar todos"');
+
+      // Mais de dois valores: só dois visíveis + "+N".
+      await app.router.navigate('#/articles?state=' + encodeURIComponent('~m:Draft,Archived'));
+      const many = fake.documentRef.body.innerHTML;
+      assert.match(many, /Estado: Despublicado, Arquivado/, 'dois valores aparecem por extenso');
+
+      // O "×" remove somente o filtro do próprio chip.
+      await app.router.navigate('#/articles?state=Published&q=alfa');
+      navigations.length = 0;
+      await fake.dispatch('document', 'click', { target: fake.element('attr:data-activefilter-remove=state') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(navigations.length, 1, 'clicar no "×" navega uma vez');
+      const removed = decodeURIComponent(String(navigations[0]));
+      assert.ok(!/[?&]state=/.test(removed), 'o filtro do chip sai da URL');
+      assert.ok(/[?&]q=alfa/.test(removed), 'a busca é preservada ao remover um filtro de coluna');
+
+      // "Limpar todos" tira os filtros e preserva q/sort/dir/limit.
+      await app.router.navigate('#/articles?state=Published&sort=title&dir=asc&limit=10&q=alfa');
+      navigations.length = 0;
+      await fake.dispatch('document', 'click', { target: fake.element('attr:data-activefilter-clearall=') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(navigations.length, 1, '"Limpar todos" navega uma vez');
+      const cleared = decodeURIComponent(String(navigations[0]));
+      assert.ok(!/[?&]state=/.test(cleared), '"Limpar todos" remove os filtros');
+      ['q=alfa', 'sort=title', 'dir=asc', 'limit=10'].forEach((pair) => assert.ok(cleared.includes(pair), `"Limpar todos" preserva ${pair}`));
+      assert.ok(!/[?&]page=/.test(cleared), '"Limpar todos" volta para a primeira página');
+
+      console.log('ok - barra C2: aparece com filtro, formata valores, remove um chip e limpa todos preservando a busca');
+    } finally {
+      app.dispose?.();
+    }
+  });
+}
+
+/*
+ * Frente D — colunas numéricas de Categorias e a legenda de situações.
+ *
+ * A listagem de Categorias ganhou quatro indicadores lado a lado (uma
+ * situação cada). Cada um é um link para os Artigos daquela categoria
+ * naquela situação, com `aria-label` completo — porque "12" sozinho não diz
+ * nada a quem usa leitor de tela. Uma legenda abaixo da tabela explica as
+ * quatro cores. A prova é de markup e de link: o destino precisa carregar
+ * a categoria E a situação.
+ */
+async function runCategoryCountsTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const repository = {
+      findMany: async () => ({ items: [], hasNextPage: false, etag: '"x"' }),
+      findById: async () => null, create: async () => ({ id: '1' }), update: async () => ({}), remove: async () => {}
+    };
+    const admin = createAdminService({ categories: repository, articles: repository });
+    const rows = [{
+      id: '10', title: 'Agenda', alias: 'agenda', depth: 0, etag: '"c10"',
+      counts: { Published: 12, Draft: 3, Archived: 1, Trashed: 2 }
+    }];
+    // `createAdminService` devolve um objeto congelado; a listagem precisa do
+    // service com `categories.query` substituído, então a cópia é rasa.
+    const adminService = {
+      ...admin,
+      categories: {
+        ...(admin.categories ?? {}),
+        query: async () => Object.assign(rows.slice(), { columnFacets: {}, total: 1, totalBase: 1 })
+      }
+    };
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(adminService, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/categories');
+      const html = fake.documentRef.body.innerHTML;
+
+      assert.match(html, /admin-count admin-count-published/, 'a contagem de publicados tem marcador próprio');
+      assert.match(html, /admin-count admin-count-draft/, 'a contagem de despublicados tem marcador próprio');
+      assert.match(html, /admin-count admin-count-archived/, 'a contagem de arquivados tem marcador próprio');
+      assert.match(html, /admin-count admin-count-trashed/, 'a contagem de lixeira tem marcador próprio');
+
+      // Cada indicador é um link para os artigos daquela categoria+ situação.
+      const link = /<a class="admin-count admin-count-published" href="([^"]*)"/.exec(html);
+      assert.ok(link, 'o indicador de publicados é um link');
+      const href = decodeURIComponent(link[1]).replace(/\u0026/g, '&');
+      assert.ok(/categoryId=10/.test(href) || /categoryId=%2210%22/.test(href) || /categoryId=10/.test(decodeURIComponent(href)), 'o link carrega a categoria da linha');
+
+      // aria-label completo, com número, situação e categoria.
+      const aria = /aria-label="([^"]*publicados[^"]*)"/.exec(html);
+      assert.ok(aria, 'o indicador de publicados tem aria-label');
+      assert.match(aria[1], /12/, 'o aria-label traz a contagem');
+      assert.match(aria[1], /Agenda/, 'o aria-label nomeia a categoria');
+
+      // A legenda das quatro situações abaixo da tabela.
+      assert.match(html, /admin-count-legend/, 'a tabela de categorias traz a legenda das situações');
+      ['Publicados', 'Despublicados', 'Arquivados', 'Na lixeira'].forEach((word) => assert.ok(html.includes(word), `a legenda nomeia "${word}"`));
+
+      console.log('ok - categorias D: quatro contagens com link e aria-label, mais a legenda de situacoes');
+    } finally {
+      app.dispose?.();
+    }
+  });
+}
+
+/*
+ * Regressão dos dois defeitos que derrubavam a listagem inteira e o rótulo
+ * de categoria, achados na revisão 0.17.15:
+ *
+ *   (1) `columnFiltersFor` entregava cada LINHA ao predicado de listagem
+ *       (`moduleFiltered(rows, params)`), que espera a lista. O resultado era
+ *       `rows.filter is not a function` dentro do `render()` de
+ *       `extension-pages.js` — a exceção era engolida e a página saía como
+ *       "Falha no carregamento", sem tabela e sem nenhum menu de coluna.
+ *   (2) `buildColumnFacets` lia os mapas de rótulo/profundidade só como `Map`.
+ *       O de rótulos é objeto simples, então `labelMap?.get?.(value)` devolvia
+ *       `undefined` e o menu de Categoria mostrava o ID cru.
+ */
+async function runFacetWiringRegressionTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const admin = createFakeAdminService({
+      domains: {
+        moduleInstances: [
+          { id: 1, title: 'Mod A', extensionKey: 'mod_a', position: 'sidebar-right', ordering: 1, enabled: true, scopeKind: 'All' },
+          { id: 2, title: 'Mod B', extensionKey: 'mod_b', position: 'sidebar-left', ordering: 2, enabled: true, scopeKind: 'All' }
+        ]
+      }
+    });
+    admin.moduleInstances.catalog = async () => [{ key: 'mod_a', title: 'Tipo A' }, { key: 'mod_b', title: 'Tipo B' }];
+    admin.moduleInstances.positions = async () => ({ template: 'cassiopeia', positions: ['sidebar-right', 'sidebar-left'], all: ['sidebar-right', 'sidebar-left'] });
+    admin.moduleInstances.batch = async (items, action) => ({ succeeded: items.map((item) => item.id), failed: [], action });
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/moduleInstances');
+      const html = fake.documentRef.body.innerHTML;
+      // Com o predicado quebrado a página virava o cartão de falha; a prova de
+      // que a listagem renderizou é não ter o cartão E ter as linhas reais.
+      assert.ok(!/Falha no carregamento/.test(html), 'a lista de módulos não cai no cartão de falha');
+      assert.ok(/Mod A/.test(html) && /Mod B/.test(html), 'as duas linhas de módulo aparecem na tabela');
+      // O predicado é o da listagem, aplicado não à linha isolada: sem filtro
+      // ativo os valores do menu são os de todas as linhas.
+      const values = [...html.matchAll(/data-colfilter-column="position"[^>]*data-colfilter-values="([^"]*)"/g)].map((match) => match[1]);
+      assert.ok(values.length > 0, 'a coluna Position publica os próprios valores');
+      // E o filtro por coluna continua restringindo de verdade.
+      await app.router.navigate('#/moduleInstances?col_position=sidebar-left');
+      const filtered = fake.documentRef.body.innerHTML;
+      assert.ok(!/Falha no carregamento/.test(filtered), 'a lista filtrada também não cai no cartão de falha');
+      assert.ok(/Mod B/.test(filtered) && !/Mod A/.test(filtered), 'o filtro de Position ainda restringe as linhas');
+    } finally { app.stop(); }
+  });
+
+  // (2) O rótulo de categoria chega ao menu como caminho humano, não como ID.
+  const facets = buildColumnFacets(
+    [{ categoryId: '10' }, { categoryId: '11' }],
+    [{ key: 'categoryId', reads: (row) => row.categoryId }],
+    {},
+    { labels: { categoryId: { 10: 'Institucional', 11: 'Institucional › Avisos' } }, depths: { categoryId: new Map([['10', 0], ['11', 1]]) } }
+  );
+  const labels = new Map(facets.categoryId.map((item) => [String(item.value), item.label]));
+  assert.equal(labels.get('10'), 'Institucional', 'o objeto de rótulos é lido (não só `Map`)');
+  assert.equal(labels.get('11'), 'Institucional › Avisos', 'o caminho do filho chega ao menu');
+  const depths = new Map(facets.categoryId.map((item) => [String(item.value), item.depth]));
+  assert.equal(depths.get('11'), 1, 'a profundidade do `Map` continua sendo lida');
+
+  console.log('ok - regressao: predicado de listagem aplicado a linha e mapas de rotulo/profundidade');
+}
+
+/*
+ * (3) Navegação de ida e volta das telas de edição (revisão, achado 6).
+ *
+ * Abrir um módulo/plugin/estilo levava a query da listagem; salvar ou
+ * CANCELAR voltava para a rota crua, sem filtro, busca, ordenação nem
+ * página. O usuário perdia o recorte ao gravar uma linha — o caso mais
+ * comum do dia a dia.
+ */
+async function runEditRoundTripTests() {
+  // Espera até o microtask/promise de navegação concluir, sem depender de
+  // tempo fixo: o handler de save faz um await de rede antes de navegar.
+  const settle = async (attempts = 40) => { for (let i = 0; i < attempts; i += 1) await new Promise((resolve) => setTimeout(resolve, 0)); };
+
+  const cases = [
+    {
+      route: '#/moduleInstances/1?col_position=sidebar-right&q=Mod&sort=title&dir=desc&page=2',
+      listPath: 'moduleInstances',
+      label: 'Módulo salvo.',
+      domain: 'moduleInstances',
+      seed: { moduleInstances: [{ id: 1, title: 'Mod A', extensionKey: 'mod_a', position: 'sidebar-right', ordering: 1, enabled: true, scopeKind: 'All' }] },
+      probes: ['col_position=', 'q=Mod', 'sort=title', 'dir=desc', 'page=2'],
+      prepare: (admin) => {
+        admin.moduleInstances.catalog = async () => [{ key: 'mod_a', title: 'Tipo A' }];
+        admin.moduleInstances.positions = async () => ({ template: 'cassiopeia', positions: ['sidebar-right'], all: ['sidebar-right'] });
+        admin.moduleInstances.batch = async (items, action) => ({ succeeded: items.map((item) => item.id), failed: [], action });
+      },
+      crumb: 'Módulos do site',
+      formSelector: '[data-ext-form="module"]'
+    },
+    {
+      route: '#/plugins/1?col_enabled=enabled&q=Cache&page=3',
+      listPath: 'plugins',
+      label: 'Plugin salvo.',
+      domain: 'plugins',
+      seed: { plugins: [{ id: 1, title: 'Cache', enabled: true, ordering: 1, group: 'system', element: 'cache', definitions: [] }] },
+      probes: ['col_enabled=', 'q=Cache', 'page=3'],
+      prepare: () => {},
+      crumb: 'Plugins',
+      formSelector: '[data-ext-form="plugin"]'
+    },
+    {
+      route: '#/templates/styles/1?col_style=atum&page=4',
+      listPath: 'templates/styles',
+      label: 'Estilo salvo.',
+      domain: 'templateStyles',
+      seed: { templateStyles: [{ id: 1, title: 'Atum - Padrão', template: 'atum', style: 'atum', definitions: [] }] },
+      probes: ['col_style=', 'page=4'],
+      prepare: () => {},
+      crumb: 'Estilos de template',
+      formSelector: '[data-ext-form="style"]'
+    }
+  ];
+
+  for (const testCase of cases) {
+    const storage = createFakeStorage();
+    // eslint-disable-next-line no-await-in-loop
+    await withStorage(storage, async () => {
+      const admin = createFakeAdminService({ domains: { [testCase.domain]: testCase.seed[testCase.domain] } });
+      testCase.prepare(admin);
+      const fake = createFakeDocumentRef();
+      fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+      const app = await mountApp(admin, storage, fake.documentRef);
+      try {
+        await app.router.navigate(testCase.route);
+        const html = fake.documentRef.body.innerHTML;
+
+        // (a) O "Cancelar" do formulário volta COM o recorte.
+        const cancel = /admin-form-cancel" href="([^"]*)"/.exec(html);
+        assert.ok(cancel, `${testCase.listPath}: o formulário tem link de cancelar`);
+        const cancelHref = cancel[1].replace(/&amp;/g, '&');
+        for (const probe of testCase.probes) assert.ok(cancelHref.includes(probe), `${testCase.listPath}: cancelar preserva "${probe}"`);
+
+        // (b) A migalha de volta carrega o mesmo recorte.
+        const crumb = new RegExp(`href="([^"]*)"[^>]*>${testCase.crumb}`).exec(html);
+        assert.ok(crumb, `${testCase.listPath}: a migalha de volta existe`);
+        assert.ok(crumb[1].includes('page='), `${testCase.listPath}: a migalha preserva a página`);
+
+        // (c) Salvar navega de volta para a LISTAGEM com o recorte. Este é o
+        // caminho que o defeito realmente quebrava: o href do botão de
+        // cancelar podia estar certo e a navegação de gravação errada.
+        const seen = [];
+        const originalNavigate = app.router.navigate.bind(app.router);
+        app.router.navigate = async (href) => { seen.push(String(href)); return originalNavigate(href); };
+        captureFormSubmit(fake, testCase.formSelector);
+        await fake.submitForm();
+        await settle();
+        const back = seen.find((href) => href.includes(testCase.listPath) && !/\/\d+(\?|$)/.test(href));
+        assert.ok(back, `${testCase.listPath}: salvar navega de volta para a listagem (vistos: ${seen.join(' | ') || 'nenhum'})`);
+        for (const probe of testCase.saveProbes ?? testCase.probes) assert.ok(back.includes(probe), `${testCase.listPath}: salvar volta com "${probe}"`);
+        assert.ok(!/\/\d+(\?|$)/.test(back), `${testCase.listPath}: salvar não volta para a tela de edição`);
+      } finally { app.stop(); }
+    });
+  }
+
+  console.log('ok - ida e volta da edicao: cancelar, migalha e salvar preservam o recorte da lista');
+}
+
+/*
+ * (4) Teclado no painel (Adendo 3, 3.5) — revisão, achado 7.
+ *
+ * Na árvore de Categorias o Espaço numa caixa-mãe tem de marcar também os
+ * descendentes: o `change` é o que o ligador escuta para cascatear e para
+ * recalcular o tri-estado dos pais. Quando o handler do Espaço só chamava
+ * `syncTristate()`, o DOM marcava uma caixa e o resto do painel continuava
+ * mostrando o estado antigo — o usuário via a mãe marcada e os filhos
+ * desmarcados, e o filtro aplicado não era o que estava na tela.
+ */
+async function runPanelKeyboardTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const admin = {
+      ...createAdminService(categoryTreeRepository()),
+      overview: async () => ({ articles: 4, categories: 4, tags: 0, menu: 0, extensions: 0, moduleInstances: 0 })
+    };
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/articles');
+      // O painel nasce fechado: é o clique REAL no botão do cabeçalho que
+      // registra os listeners de teclado no diálogo. Materializar o painel à
+      // mão (como fazem os testes de conteúdo) provaria só o markup, não o
+      // comportamento que o achado 7 apontava.
+      await fake.dispatch('document', 'click', { target: fake.element('toggle:categoryId') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const panelHtml = fake.layerHtml('.admin-colfilter-layer');
+      assert.match(panelHtml, /data-colfilter-panel/, 'o botão da coluna Categoria materializa o painel');
+      const { boxes } = wirePanelControls(fake, panelHtml, 'categoryId');
+      assert.ok(boxes.length >= 4, 'o painel do artigo traz as categorias usadas');
+
+      // O painel escuta `keydown` no diálogo e decide pelo `activeElement` —
+      // é assim que o teclado chega a ele no navegador.
+      const press = async (key, active) => {
+        fake.documentRef.activeElement = active;
+        const listeners = fake.listenersFor('panel:open', 'keydown');
+        assert.ok(listeners.length, 'o painel registra um handler de teclado');
+        for (const handler of listeners) {
+          let defaultPrevented = false;
+          await handler({ key, preventDefault: () => { defaultPrevented = true; }, target: active });
+          if (defaultPrevented) return true;
+        }
+        return false;
+      };
+
+      const changes = new Map();
+      const focused = [];
+      for (const box of boxes) {
+        const seen = [];
+        box.dispatchEvent = (event) => { seen.push(event.type); changes.set(box.value, seen); };
+        box.focus = () => { focused.push(box.value); fake.documentRef.activeElement = box; };
+      }
+
+      const boxFor = (value) => boxes.find((box) => box.value === value);
+      assert.ok(boxFor('10'), 'a categoria 10 tem caixa no painel');
+
+      // --- Espaço numa caixa da árvore -------------------------------
+      boxFor('10').checked = false;
+      const handled = await press(' ', boxFor('10'));
+      assert.equal(handled, true, 'o Espaço no painel é tratado pelo ligador');
+      assert.equal(boxFor('10').checked, true, 'o Espaço marca a caixa em foco');
+      /*
+       * A prova que o achado 7 exigia: a caixa AVISA o painel. O ligador
+       * escuta `change` para cascatear os filhos e recalcular o tri-estado
+       * dos pais. Quando o handler do Espaço só chamava `syncTristate()`, o
+       * DOM marcava uma caixa e os descendentes ficavam com o estado antigo.
+       */
+      assert.ok((changes.get('10') ?? []).includes('change'), 'o Espaço dispara `change` para o resto do painel acompanhar');
+
+      // Espaço de novo desmarca (o handler alterna, não fixa em `true`).
+      await press(' ', boxFor('10'));
+      assert.equal(boxFor('10').checked, false, 'o Espaço alterna em vez de só marcar');
+
+      // Espaço fora das caixas não é engolido: o painel tem o campo de
+      // busca, e capturar o espaço ali impediria de digitar um termo com
+      // espaço ("Sao Paulo").
+      const searchBox = fake.element('panelsearch');
+      assert.equal(await press(' ', searchBox), false, 'o Espaço fora das caixas não é capturado pelo painel');
+
+      // --- Setas pulam o que a busca escondeu ------------------------
+      boxFor('15').closest = () => ({ hidden: true });
+      focused.length = 0;
+      const all = fake.element('panelall');
+      all.focus = () => { focused.push('(all)'); fake.documentRef.activeElement = all; };
+      await press('ArrowDown', all);
+      assert.ok(focused.length > 0, 'a seta move o foco para algum alvo');
+      for (const value of focused) assert.notEqual(value, '15', 'a caixa escondida pela busca é pulada pelas setas');
+    } finally { app.stop(); }
+  });
+
+  console.log('ok - teclado do painel: espaco dispara change na arvore e as setas pulam o que esta escondido');
+}
+
 export async function runAdminListFiltersTests() {
   await runListMemoryTests();
   await runMemoryScopeTests();
@@ -1384,5 +1962,12 @@ export async function runAdminListFiltersTests() {
   await runArticleChainTests();
   await runHomonymCategoryTests();
   await runCategoryTreeTests();
+  await runHeaderButtonTests();
+  await runToolbarDeduplicationTests();
+  await runActiveFilterBarTests();
+  await runCategoryCountsTests();
+  await runFacetWiringRegressionTests();
+  await runEditRoundTripTests();
+  await runPanelKeyboardTests();
   console.log('ok - filtros administrativos persistentes e por coluna');
 }
