@@ -586,7 +586,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
      * menu de filtro da coluna Categoria.
      */
     const categoryPaths = new Map(categoryList.map((row) => [row.id, categoryPathLabel(categoryList, row.id, 'title')]));
-    const categoryScope = params.categoryId ? new Set([Number(params.categoryId), ...descendantIds(categoryList, params.categoryId)]) : null;
+    const categoryScope = categoryScopeFor(categoryList, params.categoryId);
     const term = String(params.q ?? '').trim();
     /*
      * Filtros por COLUNA (menu tipo Excel). Cada chave aceita um valor
@@ -615,7 +615,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
        * coluna, mas precisa entrar aqui para que a contagem das facetas
        * e o total da página concordem com a lista renderizada.
        */
-      if (params.state === '*' ? false : params.state ? stateOf(row) !== params.state : stateOf(row) === 'Trashed') return false;
+      if (!stateVisible(row, params.state)) return false;
       if (skip !== 'state') {
         const selected = columnValues('state');
         if (selected.length && !selected.some((wanted) => (wanted === '*' ? true : stateOf(row) === wanted))) return false;
@@ -628,6 +628,10 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       if (skip !== 'author') {
         const selected = columnValues('author');
         if (selected.length && !anyOf(selected, row.author)) return false;
+      }
+      if (skip !== 'publishUp') {
+        const selected = columnValues('publishUp');
+        if (selected.length && !selected.some((wanted) => (wanted === '' ? publishMonth(row.publishUp) === '' : publishMonth(row.publishUp) === wanted))) return false;
       }
       if (params.language && row.language !== params.language) return false;
       if (params.tag && !tagNames(row.tags).some((name) => lower(name) === lower(params.tag))) return false;
@@ -804,7 +808,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
           const selected = selectedFor(name);
           return !selected.length || selected.some((wanted) => (wanted === '' ? value === '' : lower(value) === lower(wanted)));
         };
-        const hasState = (row) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed');
+        const hasState = (row) => stateVisible(row, params.state);
         const matchesColumns = (row, skip) => (skip === 'state' || matchesValue('state', stateOf(row)))
           && (skip === titleField || matchesValue(titleField, row[titleField]))
           && (skip === aliasField || matchesValue(aliasField, row[aliasField]));

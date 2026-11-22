@@ -60,7 +60,7 @@ function columnFiltersFor(domain, source, params = {}) {
   return columnsForDomain(domain).map((entry) => {
     const values = parseMulti(params[entry.key] ?? '');
     const options = Array.isArray(facets[entry.key])
-      ? facets[entry.key].map((facet) => [facet.value, facet.label, facet.count, facet.empty])
+      ? facets[entry.key].map((facet) => ({ value: facet.value, label: facet.label, count: facet.count, empty: facet.empty, depth: facet.depth }))
       : [];
     return {
       key: entry.key,

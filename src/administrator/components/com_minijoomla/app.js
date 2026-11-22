@@ -329,9 +329,15 @@ const ICON_COLUMN_VALUES = {
  */
 function columnFilterDefinitions(domain, rows, params = {}) {
   return columnsForDomain(domain).map((entry) => {
-    const values = [...new Set(rows.map((row) => row[entry.key]).filter((value) => value !== undefined && value !== null && value !== '').map((value) => String(value)))];
+    const counts = new Map();
+    for (const row of rows) {
+      const value = row[entry.key];
+      if (value === undefined || value === null || value === '') continue;
+      const text = String(value);
+      counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
     const labels = ICON_COLUMN_VALUES[entry.key] ?? {};
-    const options = values.sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => [value, labels[value] ?? value]);
+    const options = [...counts.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => ({ value, label: labels[value] ?? value, count: counts.get(value) }));
     /*
      * O valor ativo é lido tanto pela chave canônica quanto pelos nomes
      * legados da coluna (`col_title`): a URL antiga continua valendo, e o

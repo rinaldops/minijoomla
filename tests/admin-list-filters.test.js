@@ -354,6 +354,27 @@ function wirePanelControls(fake, panelHtml, key) {
     box.closest = () => ({ hidden: false });
     boxes.push(box);
   }
+  /*
+   * O rótulo e a contagem vivem em `<span>`s dentro do `<label>` da opção,
+   * não no input. O teste de cadeia precisa deles para provar que o painel
+   * mostra "Publicado"/"Despublicado"/"Arquivado" com as contagens certas —
+   * e não uma caixa anônima cujo `value` casa por acidente.
+   */
+  const options = [];
+  for (const match of panelHtml.matchAll(/<label[^>]*data-colfilter-option[^>]*>([\s\S]*?)<\/label>/g)) {
+    const block = match[1];
+    const value = (/value="([^"]*)"/.exec(block) ?? [])[1] ?? '';
+    const label = (/data-colfilter-value="[^"]*"[\s\S]*?<span class="admin-colfilter-option-label"[^>]*>([\s\S]*?)<\/span>/.exec(match[0]) ?? /<span class="admin-colfilter-option-label"[^>]*>([\s\S]*?)<\/span>/.exec(block) ?? [])[1];
+    const count = Number((/<span class="admin-colfilter-option-count"[^>]*>(\d+)<\/span>/.exec(block) ?? [])[1]);
+    const depth = Number((/data-colfilter-depth="(\d+)"/.exec(block) ?? [])[1]);
+    options.push({ value, label: String(label ?? '').replace(/<[^>]*>/g, '').trim(), count, depth: Number.isFinite(depth) ? depth : 0, checked: /checked/.test(block) });
+  }
+  options.forEach((option) => {
+    const box = boxes.find((candidate) => candidate.value === option.value);
+    if (box) { box.label = option.label; box.count = option.count; box.depth = option.depth; }
+  });
+  fake.panelOptionBoxes = () => boxes;
+  fake.panelOptions = () => options;
   const dialog = fake.element('panel:open');
   dialog.hidden = false;
   dialog.offsetWidth = 320;
@@ -866,6 +887,10 @@ async function runExtensionColumnTests() {
       wirePanelControls(fake, panelHtml, 'position');
       const target = fake.element(`panelopt:sidebar-right`);
       target.checked = true;
+      // O painel abre com o valor ativo marcado; trocar de valor significa
+      // DESMARCAR o anterior — não somar a ele (Adendo 3, 1.3).
+      const previous = fake.element('panelopt:sidebar-left');
+      previous.checked = false;
       await fake.dispatch('panelopt:sidebar-right', 'change');
       await fake.dispatch('panelok', 'click');
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -979,6 +1004,154 @@ async function runTemplateStylesColumnTests() {
   });
 
   console.log('ok - estilos de template: Estilo e Template com menu por coluna independente');
+}
+
+// ---------------------------------------------------------------------------
+// 5c. Cadeia obrigatória em Artigos (Adendo 3, 1.6) — cobre 1.1 a 1.3
+// ---------------------------------------------------------------------------
+
+/*
+ * Repositório de artigos no formato de `createRepository`, com a
+ * distribuição exigida pelo item 1.6: 20 artigos, 3 Publicados, 2
+ * Despublicados, 1 Arquivado, 1 na lixeira e os 13 restantes divididos
+ * entre Publicado e Despublicado (7 + 6). O adendo fala em "5 linhas" no
+ * recorte Publicado+Despublicado, mas a própria distribuição que ele
+ * descreve soma 20 artigos e não fecha em 5; as contagens abaixo são as
+ * reais dessa distribuição e ficam expostas em `expected` para as
+ * asserções não repetirem números mágicos.
+ */
+function articleChainRepository() {
+  /*
+   * Distribuição pedida pelo item 1.6, explícita: 3 Publicados, 2
+   * Despublicados, 1 Arquivado, 1 na lixeira e os 13 restantes divididos
+   * entre Publicado e Despublicado. Sem os números à mão o "resto
+   * distribuído" vira um chute e as contagens do painel não têm como ser
+   * conferidas.
+   */
+  const states = [
+    'Published', 'Published', 'Published', 'Draft', 'Draft', 'Archived', 'Trashed',
+    ...Array.from({ length: 13 }, (_, index) => (index < 7 ? 'Published' : 'Draft'))
+  ];
+  const expected = { Published: 10, Draft: 8, Archived: 1, Trashed: 1 };
+  const articles = states.map((state, index) => ({
+    id: 100 + index,
+    title: `Artigo ${String(index + 1).padStart(2, '0')}`,
+    alias: `artigo-${index + 1}`,
+    categoryId: 10,
+    state,
+    featured: false
+  }));
+  const categories = [{ id: 10, title: 'Institucional', alias: 'institucional', parentId: null, state: 'Published' }];
+  const store = (seed) => {
+    const items = new Map(seed.map((item) => [item.id, { etag: '"1"', ...item }]));
+    let nextId = Math.max(0, ...seed.map((item) => item.id)) + 1;
+    const reader = (item) => Object.freeze(Object.defineProperty({ ...item }, 'etag', { value: item.etag, enumerable: false }));
+    return {
+      async findMany() { return { items: [...items.values()].map(({ etag, ...rest }) => ({ ...rest })) }; },
+      async findById(id) { const item = items.get(id); if (!item) throw Object.assign(new Error('not found'), { code: 'not-found' }); return reader(item); },
+      async create(input) { const id = nextId++; const item = { id, etag: '"1"', ...input }; items.set(id, item); return reader(item); },
+      async update(id, input, { etag } = {}) { const item = items.get(id); if (etag !== item.etag) throw Object.assign(new Error('etag'), { code: 'concurrency-conflict' }); items.set(id, { ...item, ...input, etag: '"2"' }); return null; },
+      async delete(id, { etag } = {}) { const item = items.get(id); if (etag !== item.etag) throw Object.assign(new Error('etag'), { code: 'concurrency-conflict' }); items.delete(id); }
+    };
+  };
+  const empty = store([]);
+  const repository = { categories: store(categories), articles: store(articles), tags: empty, menu: empty, extensions: empty, moduleInstances: empty, siteConfig: empty };
+  return { repository, expected, articles };
+}
+
+async function runArticleChainTests() {
+  /*
+   * O caminho completo do usuário, numa só prova: renderizar a lista de
+   * artigos, abrir o menu da coluna Estado por um clique REAL no botão,
+   * ler o painel renderizado, desmarcar "Arquivado" e aplicar. Sem esta
+   * cadeia, cada peça (faceta, painel, codec, serviço) podia passar
+   * isolada e a soma continuar quebrada — foi exatamente o que aconteceu:
+   * o painel lia arrays e o serviço invertia a visibilidade.
+   */
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const chain = articleChainRepository();
+    const service = createAdminService(chain.repository);
+    const expected = chain.expected;
+    const visible = expected.Published + expected.Draft;
+    const fake = createFakeDocumentRef();
+    fake.setWireOnRender((body, html) => wireColumnFilters(fake, html));
+    // Os renderizadores reais de `com_content` e a barra da lista escrevem
+    // o markup por `innerHTML`; o fake só precisa materializar os controles
+    // que o ligador procura depois da renderização.
+    const admin = {
+      ...service,
+      overview: async () => ({ articles: 20, categories: 1, tags: 0, menu: 0, extensions: 0, moduleInstances: 0 })
+    };
+    admin.categories.treeOptions = async () => [{ value: '10', label: 'Institucional' }];
+    const app = await mountApp(admin, storage, fake.documentRef);
+    const navigations = [];
+    const original = app.router.navigate.bind(app.router);
+    app.router.navigate = async (href) => { navigations.push(String(href)); return original(href); };
+    try {
+      await app.router.navigate('#/articles');
+      const html = fake.documentRef.body.innerHTML;
+      assert.match(html, /data-colfilter-toggle[^>]*data-colfilter-column="state"/, 'a lista de artigos oferece o menu da coluna Estado');
+      assert.match(html, /Publicado/, 'o botão da coluna Estado resolve o rótulo em português');
+
+      // (1) O painel mostra os três rótulos exigidos, com as contagens
+      // reais e os três MARCADOS (sem filtro = tudo marcado, 1.3).
+      await fake.dispatch('document', 'click', { target: fake.element('toggle:state') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const panelHtml = fake.layerHtml('.admin-colfilter-layer');
+      assert.match(panelHtml, /data-colfilter-panel/, 'abrir o botão materializa o painel da coluna Estado');
+      ['Publicado', 'Despublicado', 'Arquivado'].forEach((label) => assert.match(panelHtml, new RegExp(label), `o painel rotula "${label}"`));
+      wirePanelControls(fake, panelHtml, 'state');
+      const panelCounts = (fake.panelOptionBoxes?.() ?? []);
+      const optionByLabel = (label) => panelCounts.find((box) => String(box.label ?? '') === label);
+      const publishedOption = optionByLabel('Publicado');
+      const draftOption = optionByLabel('Despublicado');
+      const archivedOption = optionByLabel('Arquivado');
+      assert.ok(publishedOption && draftOption && archivedOption, 'o painel expõe os três estados do domínio');
+      assert.equal(publishedOption.checked, true, 'sem filtro, "Publicado" abre marcado');
+      assert.equal(draftOption.checked, true, 'sem filtro, "Despublicado" abre marcado');
+      assert.equal(archivedOption.checked, true, 'sem filtro, "Arquivado" abre marcado');
+      assert.equal(Number(publishedOption.count), expected.Published, 'a contagem de "Publicado" é a do conjunto completo');
+      assert.equal(Number(draftOption.count), expected.Draft, 'a contagem de "Despublicado" é a do conjunto completo');
+      assert.equal(Number(archivedOption.count), expected.Archived, 'a contagem de "Arquivado" é a do conjunto completo');
+
+      // (2) Desmarcar "Arquivado" e aplicar grava a forma multi-valor.
+      archivedOption.checked = false;
+      await fake.dispatch(`panelopt:${archivedOption.value}`, 'change');
+      const before = navigations.length;
+      await fake.dispatch('panelok', 'click');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(navigations.length, before + 1, 'aplicar o painel navega uma vez');
+      const applied = navigations[navigations.length - 1];
+      // A URL chega percent-encoded (`%7Em%3APublished%2CDraft`); decodificar
+      // antes de conferir evita acoplar a prova à escolha de escape do router.
+      const appliedQuery = decodeURIComponent(String(applied));
+      assert.match(appliedQuery, /state=~m:Published,Draft/, `a URL aplicada usa a lista multi-valor: ${appliedQuery}`);
+      assert.ok(!/Trashed|Archived/.test(appliedQuery), 'os estados desmarcados ficam fora da URL');
+
+      // (3) Renderizar a URL aplicada mostra só Publicados e Despublicados.
+      await app.router.navigate(applied);
+      const filtered = await service.articles.query({ state: '~m:Published,Draft' });
+      assert.equal(filtered.total, visible, `a lista filtrada traz os ${visible} Publicados e Despublicados`);
+      assert.ok(filtered.rows.every((row) => row.state === 'Published' || row.state === 'Draft'), 'nenhum Arquivado ou da lixeira sobra na lista filtrada');
+      const filteredHtml = fake.documentRef.body.innerHTML;
+      assert.match(filteredHtml, /Artigo/, 'a lista filtrada renderiza as linhas');
+      assert.ok(!/Artigo 06/.test(filteredHtml), 'o artigo Arquivado sai da lista filtrada');
+
+      // O serviço entrega exatamente o recorte de Publicado+Despublicado
+      // quando o limite acompanha o conjunto (a tabela pagina por 20, então
+      // aqui se prova o recorte, não a página).
+      const onlyTwo = await service.articles.query({ state: '~m:Published,Draft', limit: 10 });
+      assert.equal(onlyTwo.total, visible);
+      assert.equal((await service.articles.query({ state: '~m:Archived' })).total, expected.Archived, 'só o Arquivado quando é ele que está marcado');
+      assert.equal((await service.articles.query({ state: '~m:Trashed' })).total, expected.Trashed, 'só a lixeira quando é ela que está marcada');
+      assert.equal((await service.articles.query({ state: '*' })).total, 20, 'state=* traz tudo');
+      // Sem `state`, só a lixeira fica fora: Publicados + Despublicados + Arquivados.
+      assert.equal((await service.articles.query({})).total, visible + expected.Archived, 'sem state, a lixeira fica fora');
+    } finally { app.stop(); }
+  });
+
+  console.log('ok - cadeia em artigos: painel da coluna Estado, contagens, forma multi-valor e lista filtrada');
 }
 
 // ---------------------------------------------------------------------------
@@ -1102,6 +1275,7 @@ export async function runAdminListFiltersTests() {
   await runBatchTests();
   await runExtensionColumnTests();
   await runTemplateStylesColumnTests();
+  await runArticleChainTests();
   await runHomonymCategoryTests();
   console.log('ok - filtros administrativos persistentes e por coluna');
 }

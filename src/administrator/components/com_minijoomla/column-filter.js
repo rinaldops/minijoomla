@@ -232,9 +232,33 @@ export function renderColumnFilterPanel(filter, index = 0) {
         + `<span class="admin-colfilter-sort-check" aria-hidden="true">${isCurrent ? '✓' : ''}</span>${escapeHtml(action.label)}</button>`;
     }).join('')}</div><div class="admin-colfilter-divider" role="separator"></div>`
     : '';
+  /*
+   * "Limpar filtro" depende da URL, não das caixas (Adendo 3, 1.4): com a
+   * 1.3 uma coluna sem filtro abre com TUDO marcado, então habilita-lo
+   * pelo estado das caixas o deixaria sempre disponível. O único critério
+   * válido é "existe um filtro ativo para esta coluna".
+   */
   const clearDisabled = selected.size === 0;
   const empty = options.length === 0;
-  const rows = options.map((option) => renderValueRow(filter, option.value, option.label ?? option.value, option.count ?? 0, selected.has(option.value), { tree: filter.tree, depth: option.depth ?? 0 })).join('');
+  /*
+   * Sem parâmetro para a coluna, a lista abre com TUDO marcado — como o
+   * AutoFiltro do Excel, onde "sem filtro" significa "todos os valores".
+   * Antes, sem filtro nenhuma caixa vinha marcada e o OK nascia
+   * desabilitado, sugerindo que não havia nada para confirmar.
+   */
+  const checked = (option) => {
+    if (selected.size) return selected.has(option.value);
+    if (filter.unfiltered === false) return false;
+    /*
+     * Sem parâmetro, a lista mostra o conjunto ATIVO de verdade — não
+     * necessariamente todos os valores (Adendo 3, 3.1/1.3): em Artigos o
+     * padrão é Publicado+Despublicado+Arquivado, com "Na lixeira" fora.
+     */
+    if (defaultSet) return defaultSet.includes(String(option.value));
+    return true;
+  };
+  const rows = options.map((option) => renderValueRow(filter, option.value, option.label ?? option.value, option.count ?? 0, checked(option), { tree: filter.tree, depth: option.depth ?? 0 })).join('');
+  const anyChecked = options.some((option) => checked(option));
   return `<div class="admin-colfilter-panel" id="${panelId}" data-colfilter-panel role="dialog" aria-modal="false" aria-labelledby="${panelId}-title" hidden>`
     + `<h2 class="admin-colfilter-title" id="${panelId}-title">${escapeHtml(label)}</h2>${sortRow}`
     + `<button type="button" class="admin-colfilter-clear" data-colfilter-clear${clearDisabled ? ' disabled aria-disabled="true"' : ''}>Limpar filtro de "${escapeHtml(label)}"</button>`
@@ -243,7 +267,7 @@ export function renderColumnFilterPanel(filter, index = 0) {
     + `<label class="admin-colfilter-option admin-colfilter-all"><input type="checkbox" data-colfilter-all><span class="admin-colfilter-option-label" data-colfilter-all-label>(Selecionar tudo)</span></label>`
     + `<div class="admin-colfilter-values" data-colfilter-values>${rows}</div></div>`
     + `<div class="admin-colfilter-footer"><button type="button" class="admin-btn admin-btn-ghost" data-colfilter-cancel>Cancelar</button>`
-    + `<button type="button" class="admin-btn admin-btn-primary" data-colfilter-ok${selected.size ? '' : ' disabled'}>OK</button></div>`
+    + `<button type="button" class="admin-btn admin-btn-primary" data-colfilter-ok${anyChecked ? '' : ' disabled'}>OK</button></div>`
     + `<p class="admin-colfilter-error" data-colfilter-error role="alert" hidden>${escapeHtml(URL_TOO_LONG_MESSAGE)}</p>`
     + `${empty ? '<p class="admin-colfilter-empty" role="status">Nenhum valor disponível.</p>' : ''}</div>`;
 }
@@ -292,6 +316,14 @@ export function placePanel(buttonRect, panelSize, containerRect, viewport) {
  */
 const OPEN_PANELS = new WeakMap();
 
+/*
+ * Uma ligação ativa por DOCUMENTO. Sem isto, cada render soma um ouvinte
+ * de `click` no documento (os chamadores ignoram o `dispose` devolvido) e
+ * o painel deixa de fechar: o ouvinte antigo fecha e o novo reabre no
+ * mesmo clique.
+ */
+const ACTIVE_BINDINGS = new WeakMap();
+
 function closeOpenPanel(scope) {
   const state = OPEN_PANELS.get(scope);
   if (!state) return;
@@ -301,6 +333,7 @@ function closeOpenPanel(scope) {
 export function bindColumnFilters({ location = { path: '/', params: {} }, link, navigate, scope, domain, filters = [] } = {}) {
   const doc = scope?.ownerDocument ?? scope;
   if (!doc?.querySelectorAll) return;
+  ACTIVE_BINDINGS.get(doc)?.();
   const containers = Array.from(doc.querySelectorAll('[data-colfilter-toggle]'));
   if (!containers.length) return;
 
@@ -319,7 +352,13 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
 
   const listeners = [];
   const on = (target, type, handler, options) => { target?.addEventListener?.(type, handler, options); listeners.push(() => target?.removeEventListener?.(type, handler, options)); };
-  const dispose = () => { while (listeners.length) listeners.pop()(); };
+    const dispose = () => {
+      while (listeners.length) listeners.pop()();
+      closeOpenPanel(scope);
+      if (layer) layer.innerHTML = '';
+      if (ACTIVE_BINDINGS.get(doc) === dispose) ACTIVE_BINDINGS.delete(doc);
+    };
+    ACTIVE_BINDINGS.set(doc, dispose);
 
   const applyFilter = (key, values, { multiIsExact = false, extra = {} } = {}) => {
     const raw = serializeMulti(values, { multiIsExact });
@@ -348,6 +387,7 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
     const selected = parseMulti((location.params?.[key] ?? ''));
     const filter = {
       ...spec,
+          domain,
       key,
       column: spec.column ?? key,
       label: spec.label ?? key,
