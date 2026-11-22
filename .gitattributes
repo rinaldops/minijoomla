@@ -7,3 +7,25 @@ src/media/vendor/tinymce/** -text
 src/libraries/vendor/parse-xml/** -text
 src/media/sampledata/joomla-blog/** -text
 scripts/documentation-frozen-build/** -text whitespace=cr-at-eol
+
+# O stage empacota os bytes de src/ tal como estao no disco, e o readback do
+# deploy compara SHA-256 dos bytes carregados. A release publicada 0.17.13
+# atesta CRLF nesses caminhos no proprio manifest; sem -text o Git converte
+# para LF no add/checkout e o pacote deixa de reproduzir os bytes publicados.
+# -text preserva o EOL original; whitespace=cr-at-eol evita que o \r final seja
+# lido como espaco em branco por `git diff --check`.
+LICENSE.md -text whitespace=cr-at-eol
+src/index.js -text whitespace=cr-at-eol
+src/libraries/minijoomla/composition/createMiniJoomlaAdminApp.js -text whitespace=cr-at-eol
+src/libraries/minijoomla/infrastructure/sharepoint-template-revision-files.js -text whitespace=cr-at-eol
+src/administrator/components/com_categories/tmpl/categories/default.js -text whitespace=cr-at-eol
+src/administrator/components/com_content/tmpl/article/edit.js -text whitespace=cr-at-eol
+src/administrator/components/com_content/tmpl/articles/default.js -text whitespace=cr-at-eol
+src/administrator/components/com_media/tmpl/media/default.js -text whitespace=cr-at-eol
+src/administrator/components/com_minijoomla/extension-pages.js -text whitespace=cr-at-eol
+src/administrator/components/com_minijoomla/render-list.js -text whitespace=cr-at-eol
+src/administrator/components/com_modules/tmpl/modules/default.js -text whitespace=cr-at-eol
+src/administrator/components/com_plugins/tmpl/plugins/default.js -text whitespace=cr-at-eol
+src/administrator/components/com_tags/tmpl/tags/default.js -text whitespace=cr-at-eol
+src/libraries/minijoomla/core/format.js -text whitespace=cr-at-eol
+src/media/templates/administrator/atum/css/template.css -text whitespace=cr-at-eol
