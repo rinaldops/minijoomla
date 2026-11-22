@@ -187,6 +187,9 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       event?.preventDefault?.();
       if (!isCurrent()) return;
       const params = Object.fromEntries(names.map((name) => [name, form.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
+            // Trocar um filtro não pode jogar fora a ordenação escolhida: ela é
+            // parte do estado da lista que o usuário montou.
+            for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
       await navigate(link(location.path, params));
     });
   }
@@ -213,12 +216,44 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     });
   }
 
-  function batchReport(result, location) {
-    if (result.failed.length) {
-      report(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`);
+  /*
+     * G2 — lote com FALHA PARCIAL: antes, o relatório era escrito e a lista
+     * não recarregava, então os itens que realmente mudaram continuavam
+     * aparecendo com o estado antigo (filtro/página "mentindo" sobre o estado
+     * real). Agora o erro carrega `partialBatch` com o resumo do lote e
+     * `runBatch` decide:
+     *   - FALHA TOTAL (nada mudou): só reporta o motivo. Recarregar aqui
+     *     seria mentir ao contrário — apresentar como estado novo uma ação
+     *     que não alterou nada — e ainda descartaria o foco;
+     *   - FALHA PARCIAL (algo mudou): reporta o motivo E recarrega a MESMA
+     *     lista com os MESMOS filtros e a MESMA página, para o que mudou
+     *     aparecer mudado e o que falhou continuar visível;
+     *   - SUCESSO: recarrega como sempre (com filtros e página).
+     * `reload` usa `location.params` (a query já resolvida pela memória), então
+     * o recarregamento nunca perde o filtro que o usuário tinha.
+     */
+    function batchReport(result, location) {
+      if (!result.failed.length) return reload(location);
+      throw Object.assign(new Error(`${result.succeeded.length} item(ns) processado(s); ${result.failed.length} falha(s): ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`), { partialBatch: true, succeeded: result.succeeded.length });
+    }
+
+    async function runBatch(run, ids, action, extra, location) {
+      try {
+        return await batchReport(await run(ids, action, extra), location);
+      } catch (error) {
+        if (!error?.partialBatch) throw error;
+        // Reporta a falha ANTES de recarregar: o reload re-renderiza a tela,
+        // `isCurrent()` desta renderização passa a falso e a mensagem seria
+        // engolida (o usuário veria a lista atualizada sem saber o motivo).
+        if (isCurrent()) report(error.message);
+        // Só recarrega quando algo realmente mudou. Numa falha total não há
+        // estado novo para mostrar e recarregar apresentaria como bem-sucedida
+        // uma ação que não alterou nada.
+        if (error.succeeded > 0) {
+          try { await reload(location); } catch { /* navegação cancelada: a falha já foi reportada */ }
+        }
       return undefined;
     }
-    return reload(location);
   }
 
   // ---------- Módulos (com_modules) ----------
@@ -250,7 +285,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     const bind = () => {
       bindFilter(location, ['q', 'state', 'position', 'type']);
       bindSelectAll();
-      const run = async (ids, action, extra) => batchReport(await adminService.moduleInstances.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action, extra), location);
+      const run = async (ids, action, extra) => runBatch((batchIds, batchAction, batchExtra) => adminService.moduleInstances.batch(batchIds.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), batchAction, batchExtra), ids, action, extra, location);
       bindActions({
         publish: (id) => run([id], 'publish'), unpublish: (id) => run([id], 'unpublish'), restore: (id) => run([id], 'restore'),
         duplicate: async (id) => { const created = await adminService.moduleInstances.duplicate(Number(id)); await navigate(link(`/moduleInstances/${created.id}`)); }
@@ -405,7 +440,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       bindSelectAll();
       const run = async (ids, action) => {
         if (!ids.length) { report('Selecione ao menos um plugin.'); return; }
-        await batchReport(await adminService.plugins.batch(ids.map((id) => ({ id: String(id).startsWith('native:') ? id : Number(id), etag: etags.get(String(id)) })), action), location);
+              return runBatch((batchIds, batchAction) => adminService.plugins.batch(batchIds.map((id) => ({ id: String(id).startsWith('native:') ? id : Number(id), etag: etags.get(String(id)) })), batchAction), ids, action, undefined, location);
       };
       bindActions({
         toggle: (id) => { const row = snapshots.find((item) => String(item.id) === String(id)); return run([id], row?.enabled ? 'disable' : 'enable'); },

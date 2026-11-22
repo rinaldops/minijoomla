@@ -51,6 +51,7 @@ import { renderAdminShell } from '../../templates/atum/index.js';
 import { ADMIN_CAPABILITIES, managementFilters, filterManagementRows, renderCapabilities, renderManagementActions, renderNativeComponents } from './extension-management.js';
 import { BUILTIN_MODULE_KEYS } from '../../../libraries/minijoomla/application/extension-input.js';
 import { createExtensionPages, EXTENSION_OVERVIEW_ITEMS, MODULE_INSTANCE_COUNT_DESCRIPTION, renderModuleInstanceHelp } from './extension-pages.js';
+import { rememberListFilters, recallListFilters } from './list-memory.js';
 import { dashboardIcon, articleIcon, categoryIcon, tagIcon, menuIcon, moduleIcon, pluginIcon, configIcon, searchIcon, backIcon, plusIcon, trashIcon, desktopIcon, imageIcon } from './icons.js';
 
 const DOMAIN_KEYS = Object.keys(ADMIN_DOMAINS);
@@ -226,56 +227,16 @@ async function resolveRelationOptions(fields, adminService, recordId, record = {
 const PAGE_SIZE = 20;
 
 /*
- * Persistência de filtro por lista (item 1 do pedido: "sair e voltar pelo
- * menu lateral não pode perder os filtros").
- *
- * Regra escolhida, explícita: a ÚLTIMA query explícita (a URL com que o
- * usuário saiu daquela lista) é lembrada por lista em `sessionStorage` — a
- * memória vive enquanto a aba do navegador viver, some quando ela fecha e
- * nunca vaza para outra aba, que é o comportamento esperado de um painel
- * administrativo. Ao abrir uma lista SEM query explícita (clique na
- * sidebar), a query lembrada é reaplicada; abrir a lista COM query
- * explícita sempre vence e substitui a memória (é mais recente e foi
- * pedida diretamente). Como a navegação da sidebar e os retornos
- * pós-salvar já carregam a query na URL, a sidebar passa a devolver o
- * usuário exatamente à lista filtrada de onde ele saiu.
- *
- * `sessionStorage` é acessado sempre dentro de try/catch: modo privado,
- * política de cookies ou um `storage` indisponível (ex.: testes sem DOM)
- * nunca pode quebrar a navegação — na pior hipótese o filtro não é
- * lembrado, que é o comportamento antigo, nunca um erro de tela.
- */
-const LIST_FILTER_PREFIX = 'minijoomla.admin.listFilters:';
-
-function listFilterKey(path) { return `${LIST_FILTER_PREFIX}${String(path ?? '')}`; }
-
-function rememberListFilters(path, params, storage = globalThis.sessionStorage) {
-  if (!path || !storage) return;
-  try {
-    const meaningful = Object.entries(params ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '');
-    if (meaningful.length) storage.setItem(listFilterKey(path), JSON.stringify(Object.fromEntries(meaningful)));
-    else storage.removeItem(listFilterKey(path));
-  } catch { /* sem memória de filtro: comportamento antigo, nunca erro de tela */ }
-}
-
-function recallListFilters(path, storage = globalThis.sessionStorage) {
-  if (!path || !storage) return {};
-  try {
-    const raw = storage.getItem(listFilterKey(path));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return Object.fromEntries(Object.entries(parsed).filter(([key, value]) => typeof key === 'string' && (typeof value === 'string' || typeof value === 'number')).map(([key, value]) => [key, String(value)]));
-  } catch { return {}; }
-}
-
-/*
  * Resolve a query efetiva de uma listagem: `explicit` quando o usuário
  * chegou com parâmetros na URL; a memória da última visita quando a URL
  * vem limpa (clique na sidebar); e grava a decisão de volta — inclusive
  * apagando a memória quando uma URL limpa é aberta explicitamente por um
  * link que não seja da sidebar (ex.: clicar em "Artigos" no fim de um
  * formulário depois de usar "Limpar filtros"). Nunca muta `params`.
+ *
+ * A persistência em si (`sessionStorage`, com try/catch) fica em
+ * list-memory.js, para ser compartilhada com extension-pages.js sem
+ * import circular.
  */
 function effectiveListParams(path, params, { fromSidebar = false } = {}) {
   const explicit = params ?? {};
@@ -570,9 +531,17 @@ export function createAdminApplication({ adminService, discoveryService, mediaSe
     if (location.path === '/sampledata') return loadSampleDataPage({ sampleDataService, documentRef, router, shell, isCurrent });
     if (location.path === '/installer/roots') return loadExtensionRootsPage({ service: extensionRootsService, documentRef, router, shell, isCurrent });
     if (location.path === '/templates/revision') return loadTemplateRevisionPage({ templateRevisionService, adminService, documentRef, router, shell, isCurrent });
-    const extensionPage = location.path === '/config' ? null : await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(location);
+    // Toda listagem de conteúdo/extensão passa por aqui: a query efetiva é a
+    // URL quando ela vem com parâmetros, ou a memória da última visita quando
+    // a URL chega limpa (clique na sidebar). As páginas recebem a memória
+    // resolvida via `effectiveListParams` para que sidebar, cançelar, salvar e
+    // excluir caiam sempre na MESMA lista filtrada — estas listas não passam
+    // pelo branch de domínio abaixo, que resolve a memória por conta própria.
+    const isListRoute = /^\/(articles|categories|tags|media|moduleInstances|plugins|installer|templates\/styles|options)$/.test(location.path);
+    const pagesLocation = isListRoute ? { ...location, params: effectiveListParams(location.path, location.params) } : location;
+    const extensionPage = location.path === '/config' ? null : await createExtensionPages({ adminService, documentRef, router, shell, isCurrent }).render(pagesLocation);
     if (extensionPage) return extensionPage;
-    const contentPage = await createContentPages({ adminService, documentRef, router, shell, mediaService, clock, isCurrent }).render(location);
+    const contentPage = await createContentPages({ adminService, documentRef, router, shell, mediaService, clock, isCurrent }).render(pagesLocation);
     if (contentPage) return contentPage;
     if (location.path === '/components') return { html: shell({ activeKey: 'nativeComponents', pageTitle: 'Componentes nativos', breadcrumbItems: [{ label: 'Painel de controle', href: link('/') }, { label: 'Componentes' }], bodyHtml: renderNativeComponents(link), link }) };
     if (location.path === '/config') {

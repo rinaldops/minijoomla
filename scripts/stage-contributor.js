@@ -90,6 +90,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'src/administrator/components/com_minijoomla/extension-pages.js',
   'src/administrator/components/com_minijoomla/field-schemas.js',
   'src/administrator/components/com_minijoomla/icons.js',
+  'src/administrator/components/com_minijoomla/list-memory.js',
   'src/administrator/components/com_minijoomla/menu-types.js',
   'src/administrator/components/com_menus/src/Model/menu-item.js',
   'src/administrator/components/com_categories/tmpl/categories/default.js',
