@@ -112,23 +112,29 @@ export function serializeMulti(values, { multiIsExact = false } = {}) {
  * oferecer COM a contagem de linhas, considerando todos os outros
  * filtros ativos mas ignorando o da própria dimensão — senão marcar um
  * valor apagaria os demais do menu e a seleção só poderia restringir,
- * nunca ampliar. `matches` deixa o serviço excluir o que não é da
- * listagem (ex.: lixeira em Artigos).
+ * nunca ampliar.
+ *
+ * `passes(row, skipKey)` (Adendo 3, 3.2) é O MESMO predicado que a
+ * listagem usa para decidir se a linha entra, aplicado com a coluna da
+ * vez excluída. Antes isto era reimplementado aqui com comparação exata e
+ * sensível a maiúsculas, e por isso a soma das contagens de uma coluna
+ * não fechava com o total da lista. As facetas agora só AGREGAM: quem
+ * decide é a listagem, e assim as duas nunca divergem.
+ *
+ * `matches` continua valendo para o que não é da listagem (ex.: a lixeira
+ * em Artigos) e é aplicado junto com `passes`.
  */
-export function buildColumnFacets(rows, dimensions, params = {}, { matches = () => true } = {}) {
+export function buildColumnFacets(rows, dimensions, params = {}, { matches = () => true, passes } = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const facets = {};
   for (const dimension of dimensions) {
     const active = new Set(parseMulti(params[dimension.key]).map((value) => (value === '' ? EMPTY_VALUE : value)));
-    const others = dimensions
-      .filter((other) => other.key !== dimension.key && other.reads)
-      .map((other) => ({ key: other.key, reads: other.reads, values: new Set(parseMulti(params[other.key]).map((value) => (value === '' ? EMPTY_VALUE : value))) }))
-      .filter((other) => other.values.size > 0);
     const counts = new Map();
     for (const row of list) {
       if (!matches(row)) continue;
-      if (others.some((other) => !other.values.has(normalizeFacetValue(other.reads(row))))) continue;
-      counts.set(normalizeFacetValue(dimension.reads(row)), (counts.get(normalizeFacetValue(dimension.reads(row))) ?? 0) + 1);
+      if (passes && !passes(row, dimension.key)) continue;
+      const value = normalizeFacetValue(dimension.reads(row));
+      counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     // O valor escolhido precisa continuar presente para poder ser
     // desmarcado, mesmo que tenha ficado com zero linhas.

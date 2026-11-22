@@ -175,6 +175,51 @@ export function countsByValue(rows, read) {
   return counts;
 }
 
+  /*
+   * Rótulos e ORDEM das opções que o valor cru esconde (Adendo 3, 3.1).
+   * Sem esta tabela o menu mostra "Published"/"Draft"/"1"/"0" — os valores
+   * internos — em ordem alfabética, que não é a ordem em que o usuário pensa
+   * os estados. `defaultSet` é o conjunto que a lista já aplica sozinha
+   * quando o parâmetro está ausente: marcar exatamente esse conjunto deve
+   * REMOVER o parâmetro, não gravá-lo na URL.
+   */
+  export const FACET_VALUE_LABELS = {
+    articles: {
+      state: { order: ['Published', 'Draft', 'Archived', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft', 'Archived'] },
+      featured: { order: ['1', '0'], labels: { 1: 'Em destaque', 0: 'Sem destaque' } }
+    },
+    categories: {
+      state: { order: ['Published', 'Draft', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft'] }
+    },
+    tags: {
+      state: { order: ['Published', 'Draft', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft'] }
+    }
+  };
+
+  export function facetValueLabel(domain, key, value) {
+    const table = FACET_VALUE_LABELS[domain]?.[key];
+    if (!table) return null;
+    return table.labels?.[value] ?? null;
+  }
+
+  export function facetValueOrder(domain, key, values) {
+    const order = FACET_VALUE_LABELS[domain]?.[key]?.order;
+    const list = [...values];
+    if (!order) return list;
+    return list.sort((a, b) => {
+      const ia = order.indexOf(String(a));
+      const ib = order.indexOf(String(b));
+      if (ia === -1 && ib === -1) return String(a).localeCompare(String(b), 'pt-BR');
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  }
+
+  export function facetDefaultSet(domain, key) {
+    return FACET_VALUE_LABELS[domain]?.[key]?.defaultSet ?? null;
+  }
+
 // ---------------------------------------------------------------------------
 // 4. Apresentação: botão e painel
 // ---------------------------------------------------------------------------
@@ -221,7 +266,20 @@ function renderValueRow(filter, value, label, count, selected, { tree = false, d
 export function renderColumnFilterPanel(filter, index = 0) {
   const values = Array.isArray(filter.values) ? filter.values : [];
   const selected = new Set(values);
-  const options = Array.isArray(filter.options) ? filter.options : [];
+    /*
+     * Rótulo e ordem humanos (Adendo 3, 3.1): o valor cru ("Published",
+     * "1") não é o que o usuário lê, e a ordem alfabética dos valores crus
+     * não é a ordem em que ele pensa os estados. A tabela é aplicada aqui,
+     * uma única vez, para os três chamadores.
+     */
+    const rawOptions = Array.isArray(filter.options) ? filter.options : [];
+    const domain = filter.domain ?? '';
+    const key = filter.key ?? filter.column;
+    const order = facetValueOrder(domain, key, rawOptions.map((option) => option.value));
+    const position = new Map(order.map((value, index) => [String(value), index]));
+    const options = [...rawOptions].sort((a, b) => (position.get(String(a.value)) ?? 0) - (position.get(String(b.value)) ?? 0))
+      .map((option) => ({ ...option, label: facetValueLabel(domain, key, option.value) ?? option.label ?? option.value }));
+    const defaultSet = facetDefaultSet(domain, key);
   const label = filter.label ?? filter.column;
   const panelId = `admin-colfilter-panel-${index}-${String(filter.key ?? filter.column).replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const sorts = sortActions(filter);
@@ -442,13 +500,18 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
       const on = visible.filter((box) => box.checked).length;
       if (all) { all.checked = visible.length > 0 && on === visible.length; all.indeterminate = on > 0 && on < visible.length; }
       if (ok) { ok.disabled = checked().length === 0; }
-      if (clear) { const none = checked().length === 0; clear.disabled = none; clear.setAttribute('aria-disabled', none ? 'true' : 'false'); }
     };
+        /*
+         * Busca pelo RÓTULO visível, sem acentos (Adendo 3, 3.3). Procurar em
+         * `data-colfilter-value` falhava na Categoria (o valor é o ID, não o
+         * caminho) e era sensível a acento ("agencia" não achava "Agência").
+         */
+        const normalizeText = (text) => String(text ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
     const applySearch = (term) => {
-      const needle = String(term ?? '').trim().toLocaleLowerCase('pt-BR');
-      for (const label of Array.from(dialog.querySelectorAll?.('[data-colfilter-values] [data-colfilter-option]') ?? [])) {
-        const text = String(label.dataset?.colfilterValue ?? '').toLocaleLowerCase('pt-BR');
-        label.hidden = Boolean(needle) && !text.includes(needle);
+          const needle = normalizeText(term).trim();
+          for (const option of Array.from(dialog.querySelectorAll?.('[data-colfilter-values] [data-colfilter-option]') ?? [])) {
+            const text = normalizeText(option.querySelector?.('[data-colfilter-option-label]')?.textContent ?? option.dataset?.colfilterValue ?? '');
+            option.hidden = Boolean(needle) && !text.includes(needle);
       }
       const allLabel = dialog.querySelector?.('[data-colfilter-all-label]');
       if (allLabel) allLabel.textContent = needle ? '(Selecionar todos os resultados da pesquisa)' : '(Selecionar tudo)';
@@ -464,7 +527,47 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
     const commit = () => {
       const chosen = checked();
       if (!chosen.length) return;
-      const result = applyFilter(key, chosen.map((value) => (value === EMPTY_VALUE ? '' : value)), { multiIsExact: Boolean(spec.multiIsExact) });
+          /*
+           * TODAS as opções marcadas equivalem a "sem filtro": não faz sentido
+           * gravar a lista completa de valores na URL (o link ficaria enorme e
+           * congelaria o conjunto, escondendo valores criados depois). Só a
+           * coluna Estado tem um conjunto padrão diferente de "tudo": sem
+           * `state`, a lista já esconde a lixeira, então o conjunto padrão
+           * (Publicado+Despublicado+Arquivado) remove o parâmetro, e o
+           * conjunto COM a lixeira é `state=*`.
+           */
+          const allValues = boxes().map((box) => box.value).filter((value) => value !== '');
+          const stripped = chosen.map((value) => (value === EMPTY_VALUE ? '' : value));
+          const everything = allValues.every((value) => chosen.includes(value));
+                    /*
+                     * O conjunto padrão vem da tabela central quando o chamador não
+                     * declara um (Adendo 3, 3.1): assim os três chamadores herdam a
+                     * regra de Estado sem repeti-la.
+                     */
+                    const defaultSet = spec.defaultSet ?? facetDefaultSet(domain, key);
+                    if (everything && !defaultSet) {
+            const result = applyFilter(key, []);
+            if (!result.ok) { if (error) { error.hidden = false; error.textContent = result.message; } return; }
+            close(false);
+            return;
+          }
+                    if (defaultSet) {
+                      const normal = [...defaultSet].sort().join('\u0001');
+            const picked = [...new Set(stripped.filter((value) => value !== EMPTY_VALUE))].sort().join('\u0001');
+            if (picked === normal) {
+              const result = applyFilter(key, []);
+              if (!result.ok) { if (error) { error.hidden = false; error.textContent = result.message; } return; }
+              close(false);
+              return;
+            }
+            if (everything) {
+              const result = applyFilter(key, ['*']);
+              if (!result.ok) { if (error) { error.hidden = false; error.textContent = result.message; } return; }
+              close(false);
+              return;
+            }
+          }
+          const result = applyFilter(key, stripped, { multiIsExact: Boolean(spec.multiIsExact) });
       if (!result.ok) { if (error) { error.hidden = false; error.textContent = result.message; } return; }
       close(false);
     };
@@ -495,7 +598,32 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
         navigate(link(location.path, next));
       });
     }
-    dialog.addEventListener?.('keydown', (event) => {
+    /*
+         * Teclado na LISTA (Adendo 3, 3.5): as setas movem o foco entre
+         * "(Selecionar tudo)" e as caixas VISÍVEIS (pulando as escondidas
+         * pela busca) e o Espaço marca/desmarca — o comportamento nativo do
+         * checkbox, que o double de DOM não garante.
+         */
+        dialog.addEventListener?.('keydown', (event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+          const targets = [all, ...boxes().filter((box) => box.closest?.('label')?.hidden !== true)].filter(Boolean);
+          if (!targets.length) return;
+          event.preventDefault?.();
+          const active = doc.activeElement;
+          const current = targets.indexOf(active);
+          const step = event.key === 'ArrowDown' ? 1 : -1;
+          const next = current === -1 ? (step > 0 ? 0 : targets.length - 1) : (current + step + targets.length) % targets.length;
+          targets[next]?.focus?.();
+        });
+        dialog.addEventListener?.('keydown', (event) => {
+          if (event.key !== ' ') return;
+          const box = doc.activeElement;
+          if (!box || boxes().indexOf(box) === -1) return;
+          event.preventDefault?.();
+          box.checked = !box.checked;
+          syncTristate();
+        });
+        dialog.addEventListener?.('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault?.(); close(); }
     });
     // Tab a partir do último controle (ou Shift+Tab do primeiro) CANCELA:
@@ -524,6 +652,16 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
     const panel = panels.find((entry) => entry.toggle === toggle);
     if (panel) openPanel(panel);
   });
+    // Seta para baixo no botão abre o painel (Adendo 3, 3.5).
+    on(doc, 'keydown', (event) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'Down') return;
+      const toggle = event?.target?.closest?.('[data-colfilter-toggle]');
+      if (!toggle || toggle.getAttribute?.('aria-expanded') === 'true') return;
+      const panel = panels.find((entry) => entry.toggle === toggle);
+      if (!panel) return;
+      event.preventDefault?.();
+      openPanel(panel);
+    });
   on(doc.defaultView ?? doc, 'resize', () => { OPEN_PANELS.get(scope)?.reposition?.(); });
   on(doc.defaultView ?? doc, 'scroll', () => { OPEN_PANELS.get(scope)?.reposition?.(); }, true);
 

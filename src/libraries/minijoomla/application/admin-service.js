@@ -44,12 +44,20 @@ import { parseMulti, buildColumnFacets } from './list-filter-params.js';
  * par desambiguado (id canônico + rótulo do caminho) para não misturar
  * homônimas de ramos distintos.
  */
+/*
+ * `publishUp` (Adendo 3, 3.1): uma opção por MÊS presente, com valor
+ * `AAAA-MM` e rótulo "novembro de 2026". O valor é derivado dos campos
+ * de calendário da data, nunca de `new Date('AAAA-MM-DD')` — essa forma
+ * é interpretada como UTC e, a oeste de Greenwich, devolve o dia
+ * anterior.
+ */
 const ARTICLE_FACET_DIMENSIONS = [
   { key: 'state', reads: (row) => stateOf(row) },
   { key: 'title', reads: (row) => row.title },
   { key: 'alias', reads: (row) => row.alias },
   { key: 'categoryId', reads: (row) => String(row.categoryId ?? '') },
   { key: 'author', reads: (row) => row.author },
+  { key: 'publishUp', reads: (row) => publishMonth(row.publishUp) },
   { key: 'featured', reads: (row) => (row.featured ? '1' : '0') }
 ];
 
@@ -448,6 +456,55 @@ export function descendantIds(rows, id) {
 }
 
 /*
+ * Visibilidade por estado, a partir do parâmetro CRU (Adendo 2, item 1):
+ * sem parâmetro, tudo menos a lixeira; `*`, tudo; valor simples, só aquele
+ * estado; `~m:`, exatamente o conjunto — a lixeira entra se (e só se)
+ * estiver no conjunto. Sem isto, `state=~m:Published,Draft` comparava a
+ * string inteira contra o estado da linha e escondia TODAS as linhas.
+ */
+export function stateVisible(row, raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return stateOf(row) !== 'Trashed';
+  if (text === '*') return true;
+  const selected = parseMulti(text);
+  if (!selected.length) return stateOf(row) !== 'Trashed';
+  if (selected.includes('*')) return true;
+  return selected.includes(stateOf(row));
+}
+
+/*
+ * Escopo de categoria: valor simples = o ID e TODOS os descendentes
+ * (formato antigo dos links `categoryId=13`); `~m:` = o conjunto EXATO de
+ * IDs, sem descendentes (é o que o menu de coluna grava, porque o usuário
+ * escolheu categorias nominais). `Number('~m:13')` era `NaN` e escondia
+ * todas as linhas.
+ */
+export function categoryScopeFor(rows, raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  if (text.startsWith('~m:')) {
+    const ids = parseMulti(text).map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    return new Set(ids);
+  }
+  const id = Number(text);
+  if (!Number.isFinite(id)) return null;
+  return new Set([id, ...descendantIds(rows, id)]);
+}
+
+/*
+ * Valor de filtro da coluna Data: `AAAA-MM` derivado dos componentes de
+ * CALENDÁRIO (Adendo 3, 3.1). `new Date('2026-11-01')` é interpretado
+ * como meia-noite UTC e, a oeste de Greenwich, cai em 31/10 — o filtro
+ * cairia no mês errado. Datas vazias viram '' (a opção "(Vazias)").
+ */
+export function publishMonth(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/*
  * Rótulo canônico de uma categoria, independente da árvore de artigos:
  * devolve o caminho "Pai › Filho" (raiz primeiro), de modo que
  * homônimas em ramos distintos fiquem distinguíveis. Usado só como
@@ -671,11 +728,17 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
      * o contador mostraria sempre "N de N" e não haveria como saber
      * quanto o filtro está escondendo.
      */
-    const totalBase = rows.filter((row) => {
-      const state = stateOf(row);
-      return (params.state === '*' ? true : params.state ? true : state !== 'Trashed') && matchesSearchTerm(row);
-    }).length;
-    const columnFacets = buildColumnFacets(rows, ARTICLE_FACET_DIMENSIONS, params, { matches: (row) => matchesSearchTerm(row) && (params.state === '*' ? true : params.state ? true : stateOf(row) !== 'Trashed') });
+    const totalBase = rows.filter((row) => stateVisible(row, params.state) && matchesSearchTerm(row)).length;
+    const columnFacets = buildColumnFacets(rows, ARTICLE_FACET_DIMENSIONS, params, {
+      /*
+       * O MESMO predicado da listagem (Adendo 3, 3.2), com a coluna da
+       * vez excluída. Substitui a comparação exata que este módulo fazia
+       * por conta própria e que fazia a soma das contagens não fechar com
+       * o total da lista (autor com caixa diferente, `categoryId` com
+       * descendentes, `tag` ativa).
+       */
+      passes: (row, key) => matchesColumns(row, key) && matchesSearchTerm(row)
+    });
     return {
       rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(Number(row.categoryId)) ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
       columnFacets,
@@ -819,8 +882,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
          * Facetas agregadas ANTES da paginação, sobre o conjunto completo:
          * a árvore inteira é devolvida (não há página), mas as contagens
          * precisam sair do conjunto não filtrado pela própria coluna.
+         * `hasState` já é o critério da listagem; `matchesColumns` e
+         * `matchesTerm` entram pelo MESMO predicado (Adendo 3, 3.2).
          */
-        const columnFacets = buildColumnFacets(rows, dimensions, params, { matches: (row) => hasState(row) && matchesTerm(row) });
+        const columnFacets = buildColumnFacets(rows, dimensions, params, {
+          passes: (row, key) => hasState(row) && matchesTerm(row) && matchesColumns(row, key)
+        });
         const totalBase = rows.filter((row) => hasState(row) && matchesTerm(row)).length;
         const result = visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
         /*
