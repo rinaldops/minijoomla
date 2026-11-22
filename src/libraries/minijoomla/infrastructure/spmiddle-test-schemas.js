@@ -15,7 +15,7 @@
  * `defineListSchema` é puro: nunca provisiona nada e nunca faz requisição
  * de rede por si só (ver docs/adr/0003-schemas.md do SPMIDDLE).
  */
-import { defineListSchema } from '../../vendor/spmiddle/sharepoint-schema/src/index.js';
+import { defineListSchema } from '../../../../../SPMIDDLE/packages/sharepoint-schema/src/index.js';
 
 export const TesteMiniJoomlaArtigos = defineListSchema({
   key: 'teste-minijoomla-articles',

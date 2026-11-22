@@ -15,7 +15,7 @@
  * para manter o schema deste consumidor independente da existência de
  * qualquer outra lista.
  */
-import { defineListSchema } from '../../vendor/spmiddle/sharepoint-schema/src/index.js';
+import { defineListSchema } from '../../../../../SPMIDDLE/packages/sharepoint-schema/src/index.js';
 
 export const MiniJoomlaArticles = defineListSchema({
   key: 'minijoomla-articles',
