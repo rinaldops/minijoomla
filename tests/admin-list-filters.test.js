@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
-import { rememberListFilters, recallListFilters, listFilterKey } from '../src/administrator/components/com_minijoomla/list-memory.js';
+import { rememberListFilters, recallListFilters, listFilterKey, configureListMemoryScope, currentMemoryScope, SCOPE_ABSENT } from '../src/administrator/components/com_minijoomla/list-memory.js';
 
 /*
  * Filtros persistentes e filtro por coluna no painel administrativo.
@@ -257,7 +257,7 @@ async function runListMemoryTests() {
   rememberListFilters('/articles', { q: 'blog', col_alias: 'a', state: 'Published' }, storage);
   assert.deepEqual(recallListFilters('/articles', storage), { q: 'blog', col_alias: 'a', state: 'Published' });
   assert.deepEqual(recallListFilters('/categories', storage), {}, 'a memória é por lista, nunca global');
-  assert.equal(listFilterKey('/articles'), 'minijoomla.admin.listFilters:/articles');
+  assert.equal(listFilterKey('/articles'), 'minijoomla.admin.listFilters:-:-:/articles');
 
   // Valores vazios não são lembrados: um filtro removido não pode voltar
   // como `?state=` na próxima visita.
@@ -644,8 +644,84 @@ async function runHomonymCategoryTests() {
   console.log('ok - categorias homonimas: rotulos distinguiveis e filtro por id canonico');
 }
 
+/*
+ * Escopo da memória (site + usuário).
+ *
+ * O `sessionStorage` de um tenant SharePoint é POR ORIGEM, então dois sites
+ * diferentes (`/teams/camap-agp`, `/sites/outro`) escrevem no mesmo storage.
+ * Sem site e usuário na chave, os filtros de um apareceriam no outro — e como
+ * o recorte viaja por id de categoria/tag, o cruzamento não é só cosmético:
+ * ids homônimos de outro site trariam conteúdo alheio.
+ */
+async function runMemoryScopeTests() {
+  const storage = new Map();
+  const fakeStorage = {
+    getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+    setItem: (key, value) => { storage.set(key, String(value)); },
+    removeItem: (key) => { storage.delete(key); }
+  };
+
+  const siteA = { site: '/teams/camap-agp', user: '7' };
+  const siteB = { site: '/sites/outro', user: '7' };
+  const userB = { site: '/teams/camap-agp', user: '9' };
+
+  // Dois sites: o mesmo estado de lista não pode atravessar.
+  rememberListFilters('/articles', { state: 'Published', q: 'alfa' }, fakeStorage, siteA);
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteA), { state: 'Published', q: 'alfa' });
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteB), {}, 'outro site não herda a memória');
+
+  // Dois sites, mesmo usuário: gravar no B não sobrescreve o A.
+  rememberListFilters('/articles', { state: 'Draft' }, fakeStorage, siteB);
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteA), { state: 'Published', q: 'alfa' }, 'gravar no outro site não sobrescreve o primeiro');
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteB), { state: 'Draft' });
+
+  // Dois usuários, mesmo site: isolados entre si e do primeiro.
+  rememberListFilters('/articles', { state: 'Archived' }, fakeStorage, userB);
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, userB), { state: 'Archived' });
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteA), { state: 'Published', q: 'alfa' }, 'trocar de usuário na mesma aba não vaza o recorte');
+
+  // Chaves distintas de fato, e com o formato documentado.
+  assert.notEqual(listFilterKey('/articles', siteA), listFilterKey('/articles', siteB));
+  assert.notEqual(listFilterKey('/articles', siteA), listFilterKey('/articles', userB));
+  assert.match(listFilterKey('/articles', siteA), /^minijoomla\.admin\.listFilters:teams\/camap-agp:7:\/articles$/);
+
+  // Normalização: caixa e barras do site não criam memórias paralelas para o
+  // MESMO site (`/teams/CAMAP-AGP/` é o mesmo site que `/teams/camap-agp`).
+  assert.equal(listFilterKey('/articles', { site: '/teams/CAMAP-AGP/', user: '7' }), listFilterKey('/articles', siteA));
+  assert.equal(listFilterKey('/articles', { site: '//teams//camap-agp', user: '7' }), listFilterKey('/articles', siteA));
+
+  // Escopo ausente/ inválido degrada para o formato por site, sem lançar nem
+  // criar chave desonesta. `user` com `:` ou longo demais é descartado.
+  assert.equal(listFilterKey('/articles', { site: '/teams/camap-agp', user: 'a:b' }), listFilterKey('/articles', { site: '/teams/camap-agp' }));
+  assert.equal(listFilterKey('/articles', { site: '/', user: '' }), listFilterKey('/articles', { site: '' }));
+  assert.equal(listFilterKey('/articles', { user: 'x'.repeat(65) }), listFilterKey('/articles', {}));
+  assert.equal(listFilterKey('/articles', {}), 'minijoomla.admin.listFilters:-:-:/articles', 'escopo vazio vira o marcador -:-');
+
+  // A regra de `page` e a de "query explícita vence" continuam valendo dentro
+  // de cada escopo — o escopo restringe o alcance, não muda a semântica.
+  rememberListFilters('/articles', { state: 'Published', page: '3' }, fakeStorage, siteA);
+  assert.deepEqual(recallListFilters('/articles', fakeStorage, siteA), { state: 'Published' }, 'page nunca entra na memória, mesmo com escopo');
+
+  // Storage indisponível continua sendo no-op silencioso, agora com escopo.
+  const throwing = { getItem() { throw new Error('bloqueado'); }, setItem() { throw new Error('bloqueado'); }, removeItem() { throw new Error('bloqueado'); } };
+  assert.deepEqual(recallListFilters('/articles', throwing, siteA), {});
+  rememberListFilters('/articles', { state: 'Published' }, throwing, siteA);
+
+  // `configureListMemoryScope` define o escopo de módulo que o app usa, e o
+  // host real passa o site e um id numérico opaco do SharePoint.
+  configureListMemoryScope({ site: '/teams/camap-agp', user: '7' });
+  assert.deepEqual(currentMemoryScope(), { site: 'teams/camap-agp', user: '7' });
+  assert.equal(listFilterKey('/articles'), listFilterKey('/articles', siteA));
+  configureListMemoryScope();
+  assert.deepEqual(currentMemoryScope(), { site: SCOPE_ABSENT, user: SCOPE_ABSENT }, 'sem escopo volta ao formato por site');
+  assert.match(listFilterKey('/articles'), /^minijoomla\.admin\.listFilters:-:-:\/articles$/);
+
+  console.log('ok - escopo da memoria de filtros isola site e usuario');
+}
+
 export async function runAdminListFiltersTests() {
   await runListMemoryTests();
+  await runMemoryScopeTests();
   await runColumnFilterTests();
   await runRoundTripTests();
   await runPaginationSortTests();

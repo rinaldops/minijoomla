@@ -52,15 +52,24 @@ async function mountSite(root) {
 }
 
 async function mountAdmin(root) {
-  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }] = await Promise.all([
+  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }, { configureListMemoryScope }] = await Promise.all([
     import('../libraries/minijoomla/composition/createMiniJoomlaAdminApp.js'),
     import('../administrator/components/com_minijoomla/app.js'),
     import('../administrator/components/com_minijoomla/editor.js'),
     import('../libraries/vendor/spmiddle/sharepoint-files/src/files.js'),
     import('../libraries/vendor/spmiddle/sharepoint-rest-browser/src/index.js'),
     import('../libraries/minijoomla/infrastructure/spmiddle-extension-guard.js'),
-    import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js')
+    import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js'),
+    import('../administrator/components/com_minijoomla/list-memory.js')
   ]);
+  // Escopo da memória de filtros: o site é obrigatório (todos os sites do
+  // tenant dividem a mesma origem do sessionStorage) e o usuário entra por
+  // um id NUMÉRICO opaco do SharePoint — nunca e-mail/login, que seriam
+  // dado pessoal gravado no índice do storage. Sem rede, o id fica ausente
+  // e a memória segue por site, que é o comportamento seguro.
+  const memoryUser = await fetch(`${CONFIG.webUrl === '/' ? '' : CONFIG.webUrl}/_api/web/currentuser?$select=Id`, { headers: { accept: 'application/json;odata=nometadata' } })
+    .then((response) => (response.ok ? response.json() : null)).catch(() => null);
+  configureListMemoryScope({ site: CONFIG.webUrl, user: memoryUser?.Id !== undefined ? String(memoryUser.Id) : '' });
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
   stylesheet.href = new URL('./admin.scoped.css', import.meta.url).href;

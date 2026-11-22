@@ -25,6 +25,71 @@
 const LIST_FILTER_PREFIX = 'minijoomla.admin.listFilters:';
 
 /*
+ * Escopo da memória: LISTA dentro de SITE dentro de USUÁRIO.
+ *
+ * `sessionStorage` é por ORIGEM, não por site: num tenant SharePoint todos
+ * os sites (`/teams/camap-agp`, `/sites/outro`) compartilham a mesma
+ * origem. Sem o site na chave, filtrar Artigos em `/teams/camap-agp` e
+ * depois abrir Artigos em `/sites/outro` reaplicaria os filtros do outro
+ * site — que apontam para ids de categorias/tags inexistentes ali, ou pior,
+ * para ids homônimos de outro conteúdo. A chave inclui o caminho do site.
+ *
+ * O usuário entra pelo mesmo motivo, no eixo da PESSOA: numa sessão em que
+ * dois logins usam a mesma aba (troca de conta, kiosk), o recorte de
+ * filtros de um vazaria para o outro. O identificador é OPACO (`listMemoryUserToken`
+ * no host) e nunca deve carregar e-mail ou nome em texto claro no arquivo
+ * de runtime: aqui só se aceita um token já reduzido, e um valor ausente
+ * simplesmente não entra na chave (comportamento antigo, por site).
+ *
+ * Ausente o escopo, a chave degrada para o formato anterior por site —
+ * nunca lança.
+ */
+export const SCOPE_ABSENT = '-';
+
+/*
+ * Host injeta o escopo uma vez, quando monta o app (`configureListMemoryScope`).
+ * Guardado em variável de módulo, não em `globalThis`, para não vazar entre
+ * testes que montam mais de um app no mesmo processo.
+ */
+let memoryScope = { site: '', user: '' };
+
+/*
+ * Normaliza o caminho do site para uma forma estável e curta: sem barras
+ * duplicadas ou sobrando, minúsculo (SharePoint compara caminhos sem
+ * diferenciar caixa, então `/teams/CAMAP-AGP` e `/teams/camap-agp` são o
+ * MESMO site e precisam da MESMA memória). `''`/`'/'` viram `-`.
+ */
+export function normalizeMemorySite(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw || raw === '/') return SCOPE_ABSENT;
+  const path = raw.replace(/\/{2,}/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  return path || SCOPE_ABSENT;
+}
+
+/*
+ * Token de usuário: aceita só um identificador curto e sem separador
+ * (`:` é o separador da chave). Qualquer coisa maior, vazia ou com `:` é
+ * descartada — a memória volta a ser por site, nunca corrompe a chave nem
+ * grava dado pessoal longo no índice do `sessionStorage`.
+ */
+export function normalizeMemoryUser(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw || raw.length > 64 || raw.includes(':')) return SCOPE_ABSENT;
+  return raw;
+}
+
+/*
+ * Chamado pelo host que monta o app (`host.js`), com o site real e um
+ * token opaco do usuário. Idempotente e tolerante a ausência: sem
+ * argumentos, limpa o escopo de volta para o formato por site.
+ */
+export function configureListMemoryScope({ site, user } = {}) {
+  memoryScope = { site: normalizeMemorySite(site), user: normalizeMemoryUser(user) };
+}
+
+export function currentMemoryScope() { return memoryScope; }
+
+/*
  * Parâmetros que NUNCA entram na memória, mesmo que estejam na URL:
  * `page` pertence à listagem exibida, não ao recorte de filtros. Se a
  * memória guardasse a página, voltar de um formulário depois de filtrar
@@ -34,21 +99,25 @@ const LIST_FILTER_PREFIX = 'minijoomla.admin.listFilters:';
  */
 const TRANSIENT_PARAMS = new Set(['page']);
 
-export function listFilterKey(path) { return `${LIST_FILTER_PREFIX}${String(path ?? '')}`; }
+export function listFilterKey(path, scope = memoryScope) {
+  const site = normalizeMemorySite(scope?.site);
+  const user = normalizeMemoryUser(scope?.user);
+  return `${LIST_FILTER_PREFIX}${site}:${user}:${String(path ?? '')}`;
+}
 
-export function rememberListFilters(path, params, storage = globalThis.sessionStorage) {
+export function rememberListFilters(path, params, storage = globalThis.sessionStorage, scope = memoryScope) {
   if (!path || !storage) return;
   try {
     const meaningful = Object.entries(params ?? {}).filter(([key, value]) => !TRANSIENT_PARAMS.has(key) && value !== undefined && value !== null && value !== '');
-    if (meaningful.length) storage.setItem(listFilterKey(path), JSON.stringify(Object.fromEntries(meaningful)));
-    else storage.removeItem(listFilterKey(path));
+    if (meaningful.length) storage.setItem(listFilterKey(path, scope), JSON.stringify(Object.fromEntries(meaningful)));
+    else storage.removeItem(listFilterKey(path, scope));
   } catch { /* sem memória de filtro: comportamento antigo, nunca erro de tela */ }
 }
 
-export function recallListFilters(path, storage = globalThis.sessionStorage) {
+export function recallListFilters(path, storage = globalThis.sessionStorage, scope = memoryScope) {
   if (!path || !storage) return {};
   try {
-    const raw = storage.getItem(listFilterKey(path));
+    const raw = storage.getItem(listFilterKey(path, scope));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
