@@ -124,14 +124,29 @@ body{margin:0;background:var(--atum-bg-light)}
 .admin-list .admin-col-nowrap{white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
 .admin-list .admin-col-title{min-width:12rem;overflow-wrap:anywhere}
 .admin-list .admin-col-alias{min-width:9rem;overflow-wrap:anywhere}
-/* Achado real confirmado por captura de tela: sem largura mínima, os
- * rótulos "Autor"/"Categoria" quebravam letra a letra ("Au/tor") e as
- * células apareciam vazias. A largura mínima garante que o rótulo caiba
- * inteiro e que o valor (nome do autor, título da categoria) tenha espaço
- * para aparecer; o conteúdo longo continua quebrando dentro da célula. */
+/* Achado do baseline (item 2): sem largura mínima os rótulos "Autor" e
+ * "Categoria" quebravam letra a letra e as células ficavam estreitas. A
+ * largura mínima dá espaço ao rótulo e ao valor (nome do autor, título da
+ * categoria); o conteúdo longo continua quebrando dentro da célula. */
 .admin-list .admin-col-category{min-width:10rem;overflow-wrap:anywhere}
 .admin-list .admin-col-author{min-width:9rem;overflow-wrap:anywhere}
 .admin-list .admin-col-count{min-width:6rem;white-space:nowrap;overflow-wrap:normal;word-break:keep-all;text-align:center}
+/*
+ * Causa do defeito de apresentação relatado no baseline (itens 2 e 3): as
+ * regras acima só valiam para a CÉLULA (`td`) e o `th` do cabeçalho
+ * continuava sujeito à quebra padrão. Numa tabela em layout automático o
+ * navegador ignora a largura declarada na célula e recalcula a coluna, de
+ * modo que o cabeçalho era espremido — o rótulo "Autor" quebrava entre
+ * letras e a coluna de contagem de Categorias estrangulava. A largura
+ * mínima precisa atender o `th` para valer como largura de coluna.
+ * (A verificação visual final é do Validador: aqui a evidência é o DOM.)
+ */
+.admin-list thead th{white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
+.admin-list thead th.admin-col-title,
+.admin-list thead th.admin-col-alias,
+.admin-list thead th.admin-col-category,
+.admin-list thead th.admin-col-author{white-space:normal;overflow-wrap:anywhere;word-break:normal}
+.admin-list thead th.admin-col-count{min-width:7rem;text-align:center}
 .admin-list .admin-col-action{width:1%;white-space:nowrap;text-align:right}
 .admin-empty{border:1px solid var(--atum-border);padding:1.5rem;background:#fff;text-align:center;color:var(--atum-gray-600)}
 

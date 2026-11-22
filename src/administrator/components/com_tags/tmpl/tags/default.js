@@ -26,16 +26,20 @@ export function renderTagsTable(rows, { link, columnFilters = [], returnParams =
       ? `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="restore" data-ext-id="${esc(row.id)}" aria-label="Restaurar ${esc(title)}">Restaurar</button>`
       : `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="toggle-state" data-ext-id="${esc(row.id)}" aria-label="${state === 'Published' ? 'Despublicar' : 'Publicar'} ${esc(title)}">${stateIcon(state === 'Published' ? 'published' : 'unpublished', STATE_LABELS[state] ?? state)}</button>`;
     const indent = row.depth ? `<span aria-hidden="true">${'— '.repeat(row.depth)}</span><span class="visually-hidden">Nível ${row.depth + 1}: </span>` : '';
-    const counts = `<a class="admin-badge${row.counts.count ? '' : ' is-muted'}" href="${esc(link('/articles', { tag: row.name }))}" aria-label="${esc(`${row.counts.count} artigo(s) com a tag ${row.name}`)}">${esc(row.counts.count)}</a>`;
+    const total = Number(row.counts?.count ?? 0);
+    const counts = `<a class="admin-badge${total ? '' : ' is-muted'}" href="${esc(link('/articles', { tag: row.name }))}" aria-label="${esc(`${total} artigo(s) com a tag ${row.name}`)}">${esc(total)}</a>`;
     return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/tags/${row.id}`, returnParams))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-alias">${esc(row.alias)}</td><td class="admin-col-count">${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
       /*
-             * Rótulo curto visível ("Artigos") para a coluna de contagem não
-             * quebrar letra a letra em telas estreitas, com o rótulo completo
-             * preservado para leitores de tela. O mesmo texto de antes continua
-             * acessível — só deixou de ser o que se desenha na largura da
-             * coluna.
+             * Mesma assinatura do cabeçalho de Categorias — `(column, label,
+             * fullLabel, extraClass)` — para que as duas listagens de taxonomia
+             * não divergissem: a ordem anterior era `(column, label, extraClass,
+             * fullLabel)` e a chamada passava `'admin-col-count'` no lugar do
+             * rótulo acessível, de modo que o `th` ficava sem classe de coluna e
+             * a coluna de contagem continuava estrangulada. O rótulo completo
+             * ("Artigos com a tag") permanece acessível por leitor de tela; o
+             * visível é curto para não quebrar letra a letra.
              */
-            const header = (column, label, extraClass = '', fullLabel = '') => `<th scope="col"${extraClass ? ` class="${extraClass}"` : ''}>${fullLabel ? `<span class="visually-hidden">${esc(fullLabel)}</span><span aria-hidden="true">${esc(label)}</span>` : esc(label)}${filterFor(column) ? renderColumnFilter(filterFor(column), column) : ''}</th>`;
-            return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Tags</caption><thead><tr>${selectAllCell}${header('state', 'Estado')}${header('name', 'Nome')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'admin-col-count', 'Artigos com a tag')}${header('id', 'ID')}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+            const header = (column, label, fullLabel = '', extraClass = '') => `<th scope="col" class="${esc(`admin-col-${column}${extraClass ? ` ${extraClass}` : ''}`)}">${fullLabel ? `<span class="visually-hidden">${esc(fullLabel)}</span><span aria-hidden="true">${esc(label)}</span>` : esc(label)}${filterFor(column) ? renderColumnFilter(filterFor(column), column) : ''}</th>`;
+            return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Tags</caption><thead><tr>${selectAllCell}${header('state', 'Estado')}${header('name', 'Nome')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'Artigos com a tag', 'admin-col-count')}${header('id', 'ID')}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }

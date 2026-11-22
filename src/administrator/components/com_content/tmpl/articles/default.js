@@ -1,12 +1,16 @@
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
+import { formatDate } from '../../../../../libraries/minijoomla/core/format.js';
 import { selectAllCell, selectionCell } from '../../../com_minijoomla/extension-pages.js';
 import { renderArticleIndicator, renderColumnFilter } from '../../../com_minijoomla/render-list.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
-const dateText = (value) => {
-  const date = value ? new Date(value) : null;
-  return date && Number.isFinite(date.getTime()) ? date.toLocaleDateString('pt-BR') : '';
-};
+/*
+ * Achado real (item 2 do baseline): a data de `publishUp` vinha de
+ * `new Date('2026-01-01')`, que interpreta a string sem hora como UTC e,
+ * exibida em UTC-3, mostrava um dia a menos (01/01/2026 -> 31/12/2025).
+ * `formatDate` (core/format.js) monta datas puras com componentes locais.
+ */
+const dateText = (value) => formatDate(value);
 
 export function renderArticlesTable(result, { link, params = {}, now = new Date(), columnFilters = [], returnParams = {} } = {}) {
   /*
@@ -34,10 +38,19 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
    * confundam.
    */
   const filterFor = (column) => columnFilters.find((filter) => filter.column === column);
-  const header = (key, label, extraKey, extraLabel) => {
+    /*
+     * `columnClass` repassa para o `<th>` a MESMA classe de coluna usada na
+     * célula (`admin-col-author`, `admin-col-count`, …). Sem isso as regras
+     * de largura mínima/`white-space` do CSS atingiam só o `td`: em tabela
+     * de layout automático o navegador ignora a largura da célula e espreme
+     * o cabeçalho, que era o defeito visual do "Au/tor" e da coluna de
+     * contagem estrangulada.
+     */
+    const header = (key, label, extraKey, extraLabel, columnClass) => {
     const active = sort === key || sort === extraKey;
     const filter = filterFor(key);
-    return `<th scope="col"${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}${filter ? renderColumnFilter(filter, key) : ''}</th>`;
+      const classes = [`admin-col-${key}`, columnClass].filter(Boolean).join(' ');
+      return `<th scope="col"${classes ? ` class="${esc(classes)}"` : ''}${active ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>${sortLink(key, label)}${extraKey ? ` · ${sortLink(extraKey, extraLabel)}` : ''}${filter ? renderColumnFilter(filter, key) : ''}</th>`;
   };
   const rows = result.rows.map((row) => {
     const title = String(row.title ?? '').trim() || `Artigo ${row.id}`;
