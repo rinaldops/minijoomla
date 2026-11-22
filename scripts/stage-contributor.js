@@ -157,6 +157,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'src/media/vendor/tinymce/tinymce.min.js',
   'src/libraries/minijoomla/application/admin-extensions-service.js',
   'src/libraries/minijoomla/application/admin-service.js',
+  'src/libraries/minijoomla/application/list-filter-params.js',
   'src/libraries/minijoomla/application/home-settings.js',
   'src/libraries/minijoomla/application/admin-plugins.js',
   'src/libraries/minijoomla/application/sample-data-service.js',

@@ -30,6 +30,28 @@ import { normalizeParamDefinitions, normalizeParamValues, parseJsonObject } from
 import { createExtensionAdministration, runBatch, optionalPluginGroup, MODULE_POSITIONS } from './admin-extensions-service.js';
 import { readTemplateMetadata, packTemplateMetadata } from './template-metadata.js';
 import { readHomeShowComponent, mergeHomeShowComponent } from './home-settings.js';
+/*
+ * `parseMulti`/`buildColumnFacets` são o mesmo contrato de filtro de
+ * coluna usado pela UI (src/administrator/.../column-filter.js). A
+ * camada de serviço precisa da MESMA leitura dos parâmetros, senão o
+ * painel mostraria uma coisa e o filtro aplicaria outra.
+ */
+import { parseMulti, buildColumnFacets } from './list-filter-params.js';
+
+/*
+ * Dimensões de faceta das colunas de Artigos. `reads` extrai o valor
+ * bruto da linha, que é o que o menu lista e filtra; a categoria usa o
+ * par desambiguado (id canônico + rótulo do caminho) para não misturar
+ * homônimas de ramos distintos.
+ */
+const ARTICLE_FACET_DIMENSIONS = [
+  { key: 'state', reads: (row) => stateOf(row) },
+  { key: 'title', reads: (row) => row.title },
+  { key: 'alias', reads: (row) => row.alias },
+  { key: 'categoryId', reads: (row) => String(row.categoryId ?? '') },
+  { key: 'author', reads: (row) => row.author },
+  { key: 'featured', reads: (row) => (row.featured ? '1' : '0') }
+];
 
 function requireRepository(repositories, domain) {
   const repository = repositories?.[domain];
@@ -566,26 +588,60 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     const categoryPaths = new Map(categoryList.map((row) => [row.id, categoryPathLabel(categoryList, row.id, 'title')]));
     const categoryScope = params.categoryId ? new Set([Number(params.categoryId), ...descendantIds(categoryList, params.categoryId)]) : null;
     const term = String(params.q ?? '').trim();
-    const filtered = rows.filter((row) => {
-      const state = stateOf(row);
-      if (params.state === '*' ? false : params.state ? state !== params.state : state === 'Trashed') return false;
+    /*
+     * Filtros por COLUNA (menu tipo Excel). Cada chave aceita um valor
+     * literal (formato antigo dos links `col_*`, até com vírgulas) ou a
+     * lista multi-valor `~m:a,b` — dentro de uma coluna os valores são
+     * OU (basta casar um), e entre COLUNAS diferentes são E, exatamente
+     * como o AutoFiltro: escolher "Publicado" e "Arquivado" mostra as
+     * duas situações, mas combinado com Autor só mostra as linhas que
+     * satisfazem as duas colunas.
+     */
+    const columnValues = (key) => parseMulti(params[key] ?? '');
+    const lowerOr = (value) => String(value ?? '').toLocaleLowerCase();
+    const anyOf = (selected, value) => selected.some((wanted) => (wanted === '' ? String(value ?? '') === '' : lower(wanted) === lower(value)));
+    const matchesSearchTerm = (row) => matchesSearch(row, term, ['title', 'alias', 'note']);
+    /*
+     * `skip` deixa uma coluna de fora do teste. Sem isso, não haveria
+     * como contar as facetas: o menu de uma coluna precisa continuar
+     * oferecendo os valores que o filtro ATIVO dessa mesma coluna
+     * escondeu, senão a seleção vira uma armadilha (só dá para
+     * restringir, nunca ampliar).
+     */
+    const matchesColumns = (row, skip) => {
+      /*
+       * Visibilidade padrão do domínio: sem `state` explícito a lixeira
+       * fica oculta; `state=*` mostra tudo. Isto não é um filtro de
+       * coluna, mas precisa entrar aqui para que a contagem das facetas
+       * e o total da página concordem com a lista renderizada.
+       */
+      if (params.state === '*' ? false : params.state ? stateOf(row) !== params.state : stateOf(row) === 'Trashed') return false;
+      if (skip !== 'state') {
+        const selected = columnValues('state');
+        if (selected.length && !selected.some((wanted) => (wanted === '*' ? true : stateOf(row) === wanted))) return false;
+      }
       if (categoryScope && !categoryScope.has(Number(row.categoryId))) return false;
-      if (['1', '0'].includes(String(params.featured ?? '')) && Boolean(row.featured) !== (String(params.featured) === '1')) return false;
-      if (params.author && row.author !== params.author) return false;
+      if (skip !== 'featured') {
+        const selected = columnValues('featured');
+        if (selected.length && !selected.some((wanted) => Boolean(row.featured) === (wanted === '1'))) return false;
+      }
+      if (skip !== 'author') {
+        const selected = columnValues('author');
+        if (selected.length && !anyOf(selected, row.author)) return false;
+      }
       if (params.language && row.language !== params.language) return false;
       if (params.tag && !tagNames(row.tags).some((name) => lower(name) === lower(params.tag))) return false;
-      /*
-       * Filtros por COLUNA (menu tipo Excel) — comparação exata do valor
-       * da célula, independente da busca textual `q`. `title`/`alias`
-       * são exatos (case-insensitive) porque o menu lista valores
-       * distintos reais da coluna; um filtro por substring esconderia
-       * justamente o valor escolhido quando um título é prefixo de
-       * outro.
-       */
-      if (params.title && lower(row.title) !== lower(params.title)) return false;
-      if (params.alias && lower(row.alias) !== lower(params.alias)) return false;
-      return matchesSearch(row, term, ['title', 'alias', 'note']);
-    });
+      if (skip !== 'title') {
+        const selected = columnValues('title');
+        if (selected.length && !anyOf(selected, row.title)) return false;
+      }
+      if (skip !== 'alias') {
+        const selected = columnValues('alias');
+        if (selected.length && !anyOf(selected, row.alias)) return false;
+      }
+      return true;
+    };
+    const filtered = rows.filter((row) => matchesColumns(row, null) && matchesSearchTerm(row));
     const sort = ARTICLE_SORTS.includes(params.sort) ? params.sort : 'id';
     const direction = (params.dir ?? (sort === 'id' ? 'desc' : 'asc')) === 'desc' ? -1 : 1;
     /*
@@ -604,8 +660,21 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     const pageCount = Math.max(1, Math.ceil(filtered.length / limit));
     const page = Math.min(pageCount, Math.max(1, Number.parseInt(params.page, 10) || 1));
     const pageRows = await snapshots(articleCrud, filtered.slice((page - 1) * limit, page * limit));
+    /*
+     * `totalBase` é o total que a barra de filtros ativos usa para
+     * comparar: mantém a busca `q` e os padrões de visibilidade, mas
+     * ignora os filtros de coluna/gerenciamento selecionados. Sem ele,
+     * o contador mostraria sempre "N de N" e não haveria como saber
+     * quanto o filtro está escondendo.
+     */
+    const totalBase = rows.filter((row) => {
+      const state = stateOf(row);
+      return (params.state === '*' ? true : params.state ? true : state !== 'Trashed') && matchesSearchTerm(row);
+    }).length;
+    const columnFacets = buildColumnFacets(rows, ARTICLE_FACET_DIMENSIONS, params, { matches: (row) => matchesSearchTerm(row) && (params.state === '*' ? true : params.state ? true : stateOf(row) !== 'Trashed') });
     return {
-      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(Number(row.categoryId)) ?? '' })), total: filtered.length, page, pageCount, limit,
+      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(Number(row.categoryId)) ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
+      columnFacets,
       facets: { authors: [...new Set(rows.map((row) => row.author).filter(Boolean))].sort(), languages: [...new Set(rows.map((row) => row.language).filter(Boolean))].sort() }
     };
   }
