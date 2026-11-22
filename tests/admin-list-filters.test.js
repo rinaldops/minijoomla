@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
 import { rememberListFilters, recallListFilters, listFilterKey, configureListMemoryScope, currentMemoryScope, SCOPE_ABSENT } from '../src/administrator/components/com_minijoomla/list-memory.js';
-import { buildColumnFacets } from '../src/administrator/components/com_minijoomla/column-filter.js';
+import { buildColumnFacets, renderColumnFilterPanel } from '../src/administrator/components/com_minijoomla/column-filter.js';
 
 /*
  * Filtros persistentes e filtro por coluna no painel administrativo.
@@ -903,6 +903,17 @@ async function runExtensionColumnTests() {
       const pluginHtml = fake.documentRef.body.innerHTML;
       assert.match(pluginHtml, /data-colfilter-column="state"/, 'a lista de plugins oferece filtro por coluna');
       assert.ok(!/aria-label="Filtrar coluna undefined/.test(pluginHtml), 'os rótulos dos plugins também resolvem');
+
+      /*
+       * Coluna Tipo de extensão (Adendo 3, 3.1): o painel publicava o
+       * identificador do manifesto cru ("module"), enquanto a barra de busca
+       * da mesma tela já traduzia ("Módulo"). Duas traduções para a mesma
+       * coluna é o defeito; agora a tabela canônica é a única fonte.
+       */
+      const typePanel = renderColumnFilterPanel({ domain: 'extensions', key: 'type', column: 'type', label: 'Tipo', options: ['plugin', 'component', 'module'] });
+      const typeLabels = [...typePanel.matchAll(/data-colfilter-value="([^"]*)"><input[^>]*>\s*<span class="admin-colfilter-option-label">([^<]*)</g)]
+        .map(([, value, label]) => [value, label.trim()]);
+      assert.deepEqual(typeLabels, [['component', 'Componente'], ['module', 'Módulo'], ['plugin', 'Plugin']], 'a coluna Tipo mostra o rótulo humano, na ordem da tabela canônica, e guarda o valor cru');
     } finally { app.stop(); }
   });
 
@@ -1192,6 +1203,101 @@ async function runHomonymCategoryTests() {
 }
 
 /*
+ * Árvore da coluna Categoria (Adendo 3, 3.4).
+ *
+ * A coluna Categoria é a única hierárquica da barra de filtros: o menu
+ * precisa mostrar "Pai › Filho" indentado (senão o ID cru não diz nada) e
+ * marcar um pai precisa marcar os filhos presentes. O conjunto gravado é a
+ * lista EXATA de ids (`~m:`), nunca o id do pai sozinho — a expansão é
+ * visual, não semântica: `categoryId` simples já expande para descendentes,
+ * e um `~m:10` levaria tudo o que a árvore tem, mesmo o que o usuário
+ * desmarcou.
+ *
+ * A árvore do fixture: 10 (Institucional) › { 11 (Avisos), 12 (Avisos) };
+ * 11 › 15 (Extra, neto); 14 (Avisos) é raiz solta — cobre o caso de homônima
+ * em outro ramo, que já foi tratado no teste anterior.
+ */
+function categoryTreeRepository() {
+  const categories = [
+    { id: 10, title: 'Institucional', alias: 'institucional', parentId: null, state: 'Published' },
+    { id: 11, title: 'Avisos', alias: 'avisos', parentId: 10, state: 'Published' },
+    { id: 12, title: 'Avisos', alias: 'avisos-b', parentId: 10, state: 'Published' },
+    { id: 14, title: 'Solto', alias: 'solto', parentId: null, state: 'Published' },
+    { id: 15, title: 'Extra', alias: 'extra', parentId: 11, state: 'Published' }
+  ];
+  // Um artigo por categoria, para que cada valor do menu exista de fato na
+  // faceta: `buildColumnFacets` só lista categoria presente na listagem.
+  const articles = [10, 11, 12, 14, 15].map((categoryId, index) => ({ id: 300 + index, title: `Artigo ${categoryId}`, alias: `artigo-${categoryId}`, categoryId, state: 'Published' }));
+  const store = (seed) => {
+    const items = new Map(seed.map((item) => [item.id, { etag: '"1"', ...item }]));
+    let nextId = Math.max(0, ...seed.map((item) => item.id)) + 1;
+    const reader = (item) => Object.freeze(Object.defineProperty({ ...item }, 'etag', { value: item.etag, enumerable: false }));
+    return {
+      async findMany() { return { items: [...items.values()].map(({ etag, ...rest }) => ({ ...rest })) }; },
+      async findById(id) { const item = items.get(id); if (!item) throw Object.assign(new Error('not found'), { code: 'not-found' }); return reader(item); },
+      async create(input) { const id = nextId++; const item = { id, etag: '"1"', ...input }; items.set(id, item); return reader(item); },
+      async update(id, input, { etag } = {}) { const item = items.get(id); if (etag !== item.etag) throw Object.assign(new Error('etag'), { code: 'concurrency-conflict' }); items.set(id, { ...item, ...input, etag: '"2"' }); return null; },
+      async delete(id, { etag } = {}) { const item = items.get(id); if (etag !== item.etag) throw Object.assign(new Error('etag'), { code: 'concurrency-conflict' }); items.delete(id); }
+    };
+  };
+  const empty = store([]);
+  return { categories: store(categories), articles: store(articles), tags: empty, menu: empty, extensions: empty, moduleInstances: empty, siteConfig: empty };
+}
+
+async function runCategoryTreeTests() {
+  const service = createAdminService(categoryTreeRepository());
+  const facets = (await service.articles.query({})).columnFacets;
+  // `columnFacets` é um mapa por dimensão (a coluna → valores), não uma lista:
+  // é a forma que o painel consome para abrir o menu de uma coluna.
+  const categoryFacet = facets.categoryId;
+  assert.ok(Array.isArray(categoryFacet) && categoryFacet.length, 'a listagem de artigos publica a faceta de categoria');
+
+  const byValue = new Map(categoryFacet.map((item) => [String(item.value), item]));
+  // Rótulo humano: o caminho completo, não o id.
+  assert.equal(byValue.get('10')?.label, 'Institucional', 'a raiz traz só o próprio título');
+  assert.equal(byValue.get('11')?.label, 'Institucional › Avisos', 'o filho traz o caminho inteiro, não o id');
+  assert.equal(byValue.get('15')?.label, 'Institucional › Avisos › Extra', 'o neto encadeia os três níveis');
+  assert.equal(byValue.get('14')?.label, 'Solto', 'a raiz solta não herda caminho de ninguém');
+
+  // Profundidade: é o que deixa o ligador reconstruir a árvore do markup
+  // plano, já que o painel é uma lista de `<label>`s em ordem de documento.
+  assert.equal(byValue.get('10')?.depth, 0, 'a raiz fica no nível 0');
+  assert.equal(byValue.get('11')?.depth, 1, 'o filho desce um nível');
+  assert.equal(byValue.get('15')?.depth, 2, 'o neto desce dois níveis');
+  assert.equal(byValue.get('14')?.depth, 0, 'a raiz solta volta ao nível 0');
+
+  // A ordem também é a da árvore (pai antes dos filhos), senão a indentação
+  // por profundidade não desenharia nada coerente.
+  const order = categoryFacet.map((item) => String(item.value));
+  assert.ok(order.indexOf('10') < order.indexOf('11'), 'o pai aparece antes do filho');
+  assert.ok(order.indexOf('11') < order.indexOf('15'), 'o pai aparece antes do neto');
+
+  /*
+   * (2) A expansão pai→filhos é visual: `renderColumnFilterPanel` emite a
+   * profundidade no markup e o ligador marca/desmarca em cascata. Aqui se
+   * prova pelo markup REAL, com os checkboxes lidos dele — nada de
+   * `querySelector` falso.
+   */
+  const treeHtml = renderColumnFilterPanel({
+    key: 'categoryId',
+    domain: 'articles',
+    label: 'Categoria',
+    tree: true,
+    options: categoryFacet.map((item) => ({ value: String(item.value), label: item.label, count: item.count, depth: item.depth }))
+  });
+  const fake = createFakeDocumentRef({ elements: {} });
+  const { boxes } = wirePanelControls(fake, treeHtml, 'categoryId');
+  const depthOf = (value) => Number((new RegExp(`data-colfilter-value="${value}"[\\s\\S]*?data-colfilter-depth="(\\d+)"`).exec(treeHtml) ?? [])[1]);
+  assert.equal(depthOf('10'), 0, 'o markup traz a profundidade da raiz');
+  assert.equal(depthOf('11'), 1, 'o markup traz a profundidade do filho');
+  assert.equal(depthOf('15'), 2, 'o markup traz a profundidade do neto');
+  assert.equal(boxes.length, 5, 'cada categoria presente na listagem aparece como uma caixa');
+  assert.ok(treeHtml.includes('Institucional › Avisos › Extra'), 'o rótulo humano chega ao markup final, não só à faceta');
+
+  console.log('ok - arvore de categorias: rotulo de caminho, profundidade e ordem de pai para filho');
+}
+
+/*
  * Escopo da memória (site + usuário).
  *
  * O `sessionStorage` de um tenant SharePoint é POR ORIGEM, então dois sites
@@ -1277,5 +1383,6 @@ export async function runAdminListFiltersTests() {
   await runTemplateStylesColumnTests();
   await runArticleChainTests();
   await runHomonymCategoryTests();
+  await runCategoryTreeTests();
   console.log('ok - filtros administrativos persistentes e por coluna');
 }

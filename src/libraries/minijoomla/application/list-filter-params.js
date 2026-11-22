@@ -124,7 +124,7 @@ export function serializeMulti(values, { multiIsExact = false } = {}) {
  * `matches` continua valendo para o que não é da listagem (ex.: a lixeira
  * em Artigos) e é aplicado junto com `passes`.
  */
-export function buildColumnFacets(rows, dimensions, params = {}, { matches = () => true, passes } = {}) {
+export function buildColumnFacets(rows, dimensions, params = {}, { matches = () => true, passes, labels, depths } = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const facets = {};
   for (const dimension of dimensions) {
@@ -139,8 +139,22 @@ export function buildColumnFacets(rows, dimensions, params = {}, { matches = () 
     // O valor escolhido precisa continuar presente para poder ser
     // desmarcado, mesmo que tenha ficado com zero linhas.
     for (const value of active) if (!counts.has(value)) counts.set(value, 0);
+    /*
+     * O rótulo e a profundidade vêm do mapa da dimensão quando existem
+     * (Adendo 3, 3.1/3.4): a Categoria precisa do caminho "Pai › Filho" —
+     * o ID não diz nada ao usuário — e da profundidade para o binder
+     * reconstruir a árvore a partir do markup plano.
+     */
+    const labelMap = labels?.[dimension.key];
+    const depthMap = depths?.[dimension.key];
     facets[dimension.key] = [...counts.entries()]
-      .map(([value, count]) => ({ value, label: value === EMPTY_VALUE ? '(Vazias)' : value, count, empty: value === EMPTY_VALUE }))
+      .map(([value, count]) => ({
+        value,
+        label: value === EMPTY_VALUE ? '(Vazias)' : (labelMap?.get?.(value) ?? value),
+        count,
+        empty: value === EMPTY_VALUE,
+        ...(depthMap ? { depth: depthMap.get?.(value) ?? 0 } : {})
+      }))
       .sort((a, b) => (a.empty === b.empty ? a.label.localeCompare(b.label, 'pt-BR') : a.empty ? 1 : -1));
   }
   return facets;

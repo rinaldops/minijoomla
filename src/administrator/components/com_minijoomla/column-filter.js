@@ -41,7 +41,7 @@ export const CANONICAL_COLUMNS = {
     // `categoryId` é ID canônico e tem semântica própria: um valor simples
     // inclui os descendentes (contrato antigo de Artigos), o formato
     // múltiplo significa o conjunto exato de IDs.
-    { column: 'category', key: 'categoryId', aliases: ['col_category', 'col_categoryId'], label: 'Categoria', multiIsExact: true },
+    { column: 'category', key: 'categoryId', aliases: ['col_category', 'col_categoryId'], label: 'Categoria', multiIsExact: true, tree: true },
     { column: 'author', key: 'author', aliases: ['col_author'], label: 'Autor' },
     { column: 'publishUp', key: 'publishUp', aliases: [], label: 'Data' },
     { column: 'featured', key: 'featured', aliases: ['col_featured'], label: 'Destaque' },
@@ -193,6 +193,16 @@ export function countsByValue(rows, read) {
     },
     tags: {
       state: { order: ['Published', 'Draft', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft'] }
+    },
+    /*
+     * Tipo de extensão (Adendo 3, 3.1): a coluna publicava o identificador
+     * cru do manifesto ("component", "module", "plugin"…) — o mesmo tipo de
+     * defeito da coluna Estado, que mostrava "Published". A ordem é a de
+     * exibição do Joomla (componente, módulo, plugin, template, idioma,
+     * biblioteca, pacote), não alfabética.
+     */
+    extensions: {
+      type: { order: ['component', 'module', 'plugin', 'template', 'language', 'library', 'package'], labels: { component: 'Componente', module: 'Módulo', plugin: 'Plugin', template: 'Template', language: 'Idioma', library: 'Biblioteca', package: 'Pacote' } }
     }
   };
 
@@ -251,7 +261,8 @@ export function renderColumnFilterButton(filter, index = 0) {
 
 function renderValueRow(filter, value, label, count, selected, { tree = false, depth = 0 } = {}) {
   const indent = tree && depth ? ` style="padding-left:${(1 + depth).toFixed(2)}rem"` : '';
-  return `<label class="admin-colfilter-option" data-colfilter-option data-colfilter-value="${escapeHtml(value)}"${indent}>`
+  const depthAttribute = tree ? ` data-colfilter-depth="${escapeHtml(String(depth))}"` : '';
+  return `<label class="admin-colfilter-option" data-colfilter-option data-colfilter-value="${escapeHtml(value)}"${depthAttribute}${indent}>`
     + `<input type="checkbox" value="${escapeHtml(value)}"${selected ? ' checked' : ''}>`
     + `<span class="admin-colfilter-option-label"${filter.tree && label !== value ? ` title="${escapeHtml(label)}"` : ''}>${escapeHtml(label)}</span>`
     + `<span class="admin-colfilter-option-count" aria-hidden="true">${escapeHtml(String(count))}</span></label>`;
@@ -273,13 +284,28 @@ export function renderColumnFilterPanel(filter, index = 0) {
      * uma única vez, para os três chamadores.
      */
     const rawOptions = Array.isArray(filter.options) ? filter.options : [];
+    /*
+     * Os chamadores históricos passam valores crus (`['sidebar-left', …]`) e o
+     * painel novo passa objetos `{value,label,count}`. Normalizar aqui, no
+     * único ponto que renderiza, evita que cada lista repita a conversão — e
+     * era essa divergência que fazia a coluna Tipo de extensão exibir
+     * "module" cru enquanto a busca mostrava "Módulo".
+     */
+    const normalizedOptions = rawOptions.map((option) => (option && typeof option === 'object' ? option : { value: option }));
     const domain = filter.domain ?? '';
     const key = filter.key ?? filter.column;
-    const order = facetValueOrder(domain, key, rawOptions.map((option) => option.value));
+    const order = facetValueOrder(domain, key, normalizedOptions.map((option) => option.value));
     const position = new Map(order.map((value, index) => [String(value), index]));
-    const options = [...rawOptions].sort((a, b) => (position.get(String(a.value)) ?? 0) - (position.get(String(b.value)) ?? 0))
+    const options = [...normalizedOptions].sort((a, b) => (position.get(String(a.value)) ?? 0) - (position.get(String(b.value)) ?? 0))
       .map((option) => ({ ...option, label: facetValueLabel(domain, key, option.value) ?? option.label ?? option.value }));
     const defaultSet = facetDefaultSet(domain, key);
+    /*
+     * Hierarquia (Adendo 3, 3.4): a coluna Categoria é a única com árvore, e
+     * resolvê-la aqui deixa os três chamadores herdarem a regra em vez de
+     * repeti-la (o mesmo critério do `defaultSet` acima).
+     */
+    const canonical = columnsForDomain(domain).find((entry) => entry.key === key);
+    filter = { ...filter, tree: Boolean(filter.tree ?? canonical?.tree) };
   const label = filter.label ?? filter.column;
   const panelId = `admin-colfilter-panel-${index}-${String(filter.key ?? filter.column).replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const sorts = sortActions(filter);
@@ -501,6 +527,37 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
       if (all) { all.checked = visible.length > 0 && on === visible.length; all.indeterminate = on > 0 && on < visible.length; }
       if (ok) { ok.disabled = checked().length === 0; }
     };
+    /*
+     * Árvore de Categoria (Adendo 3, 3.4). O markup é plano, mas cada opção
+     * carrega a profundidade; um filho é a opção seguinte de profundidade
+     * maior até que apareça outra de profundidade menor ou igual. Marcar um
+     * pai marca os descendentes presentes (e só eles — o conjunto gravado é
+     * exatamente o que está na tela), e o pai fica `indeterminate` quando só
+     * parte dos filhos está marcada, marcado quando todos estão. Sem
+     * `filter.tree` nada disto roda: as demais colunas seguem sem hierarquia.
+     */
+    const treeRows = () => Array.from(dialog.querySelectorAll?.('[data-colfilter-values] [data-colfilter-option]') ?? []).map((row) => ({
+      row,
+      box: row.querySelector?.('input[type="checkbox"]'),
+      depth: Number(row.dataset?.colfilterDepth ?? 0)
+    })).filter((entry) => entry.box);
+    const descendantsOf = (rows, index) => {
+      const base = rows[index].depth;
+      const out = [];
+      for (let cursor = index + 1; cursor < rows.length && rows[cursor].depth > base; cursor += 1) out.push(rows[cursor].box);
+      return out;
+    };
+    const refreshTreeState = () => {
+      if (!filter.tree) return;
+      const rows = treeRows();
+      for (let index = rows.length - 1; index >= 0; index -= 1) {
+        const descendants = descendantsOf(rows, index);
+        if (!descendants.length) { rows[index].box.indeterminate = false; continue; }
+        const on = descendants.filter((box) => box.checked).length;
+        rows[index].box.checked = on === descendants.length;
+        rows[index].box.indeterminate = on > 0 && on < descendants.length;
+      }
+    };
         /*
          * Busca pelo RÓTULO visível, sem acentos (Adendo 3, 3.3). Procurar em
          * `data-colfilter-value` falhava na Categoria (o valor é o ID, não o
@@ -585,8 +642,16 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
     };
     OPEN_PANELS.set(scope, { close, dispose, reposition: position });
 
-    boxes().forEach((box) => box.addEventListener?.('change', syncTristate));
-    all?.addEventListener?.('change', () => { const on = Boolean(all.checked); for (const box of boxes()) if (box.closest?.('label')?.hidden !== true) box.checked = on; syncTristate(); });
+    boxes().forEach((box) => box.addEventListener?.('change', () => {
+      if (filter.tree) {
+        const rows = treeRows();
+        const index = rows.findIndex((entry) => entry.box === box);
+        if (index >= 0) for (const child of descendantsOf(rows, index)) child.checked = Boolean(box.checked);
+        refreshTreeState();
+      }
+      syncTristate();
+    }));
+    all?.addEventListener?.('change', () => { const on = Boolean(all.checked); for (const box of boxes()) if (box.closest?.('label')?.hidden !== true) box.checked = on; refreshTreeState(); syncTristate(); });
     search?.addEventListener?.('input', () => applySearch(search.value));
     search?.addEventListener?.('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault?.(); commit(); } });
     ok?.addEventListener?.('click', () => commit());

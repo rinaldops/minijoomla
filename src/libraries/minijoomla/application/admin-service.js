@@ -642,7 +642,14 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
      * `categoryPaths` dá o rótulo desambiguado ("Pai › Filho") usado no
      * menu de filtro da coluna Categoria.
      */
-    const categoryPaths = new Map(categoryList.map((row) => [row.id, categoryPathLabel(categoryList, row.id, 'title')]));
+    const categoryPaths = new Map(categoryList.map((row) => [String(row.id), categoryPathLabel(categoryList, row.id, 'title')]));
+    /*
+     * Rótulo e profundidade da coluna Categoria (Adendo 3, 3.1/3.4): o menu
+     * mostra "Pai › Filho" no lugar do ID, e a profundidade deixa o binder
+     * reconstruir a árvore do markup plano. `treeOrder` já resolve a
+     * hierarquia e tolera ciclos.
+     */
+    const categoryDepths = new Map(treeOrder(categoryList, 'title').map(({ row, depth }) => [String(row.id), depth]));
     const categoryScope = categoryScopeFor(categoryList, params.categoryId);
     const term = String(params.q ?? '').trim();
     /*
@@ -737,10 +744,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
        * o total da lista (autor com caixa diferente, `categoryId` com
        * descendentes, `tag` ativa).
        */
-      passes: (row, key) => matchesColumns(row, key) && matchesSearchTerm(row)
+      passes: (row, key) => matchesColumns(row, key) && matchesSearchTerm(row),
+      labels: { categoryId: categoryPaths },
+      depths: { categoryId: categoryDepths }
     });
     return {
-      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(Number(row.categoryId)) ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
+      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(String(row.categoryId)) ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
       columnFacets,
       facets: { authors: [...new Set(rows.map((row) => row.author).filter(Boolean))].sort(), languages: [...new Set(rows.map((row) => row.language).filter(Boolean))].sort() }
     };
