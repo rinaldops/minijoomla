@@ -323,6 +323,7 @@ export const CONTRIBUTOR_FILES = Object.freeze([
   'tests/admin-component-views.test.js',
   'tests/admin-config-view.test.js',
   'tests/admin-discovery-views.test.js',
+  'tests/admin-list-filters.test.js',
   'tests/admin-taxonomy-views.test.js',
   'tests/admin-modules-view.test.js',
   'tests/admin-plugins-view.test.js',
