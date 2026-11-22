@@ -9,7 +9,7 @@
  * registro não faz nenhuma requisição — o transporte só é instanciado sob
  * demanda, via `getTransport`/`getListClient`.
  */
-import { createDataSourceRegistry } from '../../../../../SPMIDDLE/packages/sharepoint-rest-browser/src/index.js';
+import { createDataSourceRegistry } from '../../vendor/spmiddle/sharepoint-rest-browser/src/index.js';
 import { MINIJOOMLA_SCHEMAS } from './spmiddle-schemas.js';
 
 function object(value, name) {

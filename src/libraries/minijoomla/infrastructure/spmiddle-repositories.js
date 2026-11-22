@@ -16,7 +16,7 @@
  * tags para artigo; equivalentes para categoria/tag/menu), para que o
  * adapter continue funcionando sem qualquer alteração.
  */
-import { createMapper, createRepository } from '../../../../../SPMIDDLE/packages/data-core/src/index.js';
+import { createMapper, createRepository } from '../../vendor/spmiddle/data-core/src/index.js';
 import { MINIJOOMLA_SCHEMAS } from './spmiddle-schemas.js';
 import { ValidationError } from '../core/contracts.js';
 import { parseJsonObject } from '../application/declared-params.js';

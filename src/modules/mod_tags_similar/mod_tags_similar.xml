@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<extension type="module" client="site" method="upgrade">
-  <name>mod_tags_similar</name><version>1.0.0</version>
-  <description>Lista artigos relacionados por tags em comum.</description>
-  <files><filename module="mod_tags_similar">mod_tags_similar.js</filename><folder>tmpl</folder></files>
+<!-- Generated from the native module catalogue; no PHP installer is provided. -->
+<extension type="module" client="site" method="upgrade" xmlns:mj="urn:minijoomla:runtime:1" mj:key="tags-similar">
+  <name>mod_tags_similar</name>
+  <version>0.17.11</version>
+  <description>Artigos relacionados pelas tags do artigo atual.</description>
+  <files>
+    <filename module="mod_tags_similar">mod_tags_similar.js</filename>
+    <folder>tmpl</folder>
+  </files>
+  <config>
+    <fields name="params">
+      <fieldset name="basic" label="Tags — Similares">
+        <field name="limit" type="number" label="Quantidade de itens" min="1" max="50" default="5" />
+      </fieldset>
+      <fieldset name="advanced" label="Avançado">
+        <field name="moduleClass" type="text" label="Classe CSS do módulo" default="" />
+        <field name="headerTag" type="list" label="Tag do título" default="h2">
+          <option value="h1">h1</option>
+          <option value="h2">h2</option>
+          <option value="h3">h3</option>
+          <option value="h4">h4</option>
+          <option value="h5">h5</option>
+          <option value="h6">h6</option>
+          <option value="div">div</option>
+          <option value="span">span</option>
+          <option value="p">p</option>
+        </field>
+        <field name="headerClass" type="text" label="Classe CSS do título" default="" />
+      </fieldset>
+    </fields>
+  </config>
 </extension>
