@@ -21,8 +21,13 @@ export function runAdminTaxonomyViewsTests() {
   assert.match(hostile, /Nota &amp; &quot;citada&quot;/);
   assert.match(hostile, /<th scope="col"[^>]*><span class="admin-th-label">Título<\/span><\/th>/);
   assert.match(hostile, /Artigos<span class="visually-hidden"> \(publicados, despublicados, arquivados, lixeira\)<\/span><\/span>/, 'a coluna de contagem mantém rótulo curto visível e rótulo completo acessível');
-  assert.equal((hostile.match(/class="admin-badge/g) ?? []).length, 4, 'categories show one badge per article state');
-  assert.equal((hostile.match(/ is-muted/g) ?? []).length, 3, 'zero counts are muted');
+  // A coluna "Artigos" usa o contador canônico (`renderCategoryCounts`):
+  // um link por situação, com o número visível e o rótulo acessível — não os
+  // antigos `admin-badge`, que não levavam a lugar nenhum.
+  assert.equal((hostile.match(/class="admin-count admin-count-/g) ?? []).length, 4, 'um contador por situação de artigo');
+  assert.match(hostile, /aria-label="2 artigos publicados em Notícias &lt;script&gt;alert\(1\)&lt;\/script&gt;"/, 'o aria-label diz o que o número significa e é escapado');
+  assert.match(hostile, /aria-label="0 artigos despublicados em/, 'contagem zero continua contada e rotulada');
+  assert.doesNotMatch(hostile, /class="admin-badge/, 'o contador canônico substituiu os badges');
   assert.match(hostile, /data-ext-action="toggle-state"/);
 
   const tree = renderCategoriesTable([{ id: 4, title: '   ', alias: 'a', state: 'Trashed', depth: 2, counts: counts({ Published: 0 }) }], { link });

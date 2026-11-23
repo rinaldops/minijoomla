@@ -219,7 +219,14 @@ export async function runAdminJoomlaContentTests() {
   assert.match(listing.html, /data-ext-select-all/);
   assert.match(listing.html, /<th scope="col"[^>]*aria-sort="ascending"[^>]*><span class="admin-th-label"><a href="[^"]*dir=desc[^"]*">Título/);
   for (const label of ['Categoria', 'Autor', 'Data', 'Destaque', 'Estado', 'ID']) assert.match(listing.html, new RegExp(`>${label}`));
-  for (const name of ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']) assert.match(listing.html, new RegExp(`name="${name}"`));
+  // Frente C3: um filtro que JÁ tem coluna filtrável vive só no menu do
+  // cabeçalho (nunca duplicado na barra); o que não tem coluna (Tag, Idioma,
+  // itens por página) fica na barra ou no painel "Mais filtros".
+  for (const name of ['q', 'tag', 'language', 'limit']) assert.match(listing.html, new RegExp(`name="${name}"`));
+  for (const name of ['state', 'categoryId', 'featured', 'author']) {
+    assert.doesNotMatch(listing.html, new RegExp(`name="${name}"`), `${name} tem coluna filtrável e não se repete na barra`);
+    assert.match(listing.html, new RegExp(`data-colfilter-key="${name}"`));
+  }
   assert.match(listing.html, /admin-col-alias">gol</);
   assert.match(listing.html, /Gol &lt;b&gt;/);
   assert.doesNotMatch(listing.html, /Gol <b>/);

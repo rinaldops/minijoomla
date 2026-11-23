@@ -218,7 +218,10 @@ async function runCountColumnWidthTests() {
    */
   const sparseCategories = renderCategoriesTable([{ id: 1, title: 'I', alias: 'i', state: 'Published', depth: 0, counts: { Published: 2 } }], { link });
   assert.ok(!/undefined/.test(sparseCategories), 'a contagem por estado nao imprime undefined quando o agregado omite a chave');
-  assert.match(sparseCategories, /aria-label="0 artigo\(s\): Despublicado"/, 'estado sem artigos e contado como zero');
+  // O contador canônico rotula cada situação com o que o número significa,
+  // então um estado ausente do agregado aparece como zero em vez de
+  // "undefined" — e o rótulo cita a categoria dona da contagem.
+  assert.match(sparseCategories, /aria-label="0 artigos despublicados em I"/, 'estado sem artigos e contado como zero');
 
   const sparseTags = renderTagsTable([{ id: 1, name: 'D', alias: 'd', state: 'Published', depth: 0, counts: {} }], { link });
   assert.ok(!/undefined/.test(sparseTags), 'a contagem de Tags nao imprime undefined quando o agregado omite a chave');

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createAdminApplication } from '../src/administrator/components/com_minijoomla/app.js';
 import { ADMIN_DOMAINS, ARTICLE_EDITOR_LAYOUT } from '../src/administrator/components/com_minijoomla/field-schemas.js';
 import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+import { renderColumnFilterPanel } from '../src/administrator/components/com_minijoomla/column-filter.js';
 import { createDemoRepositories } from '../examples/demo-repositories.js';
 
 /*
@@ -201,9 +202,18 @@ async function runModuleInstanceCountPresentationTests() {
       const writesBeforePages = writes;
       await app.router.navigate('#/extensions?type=Module');
       assert.match(html(), /<h1>Extensões registradas<\/h1>/);
-      assert.match(html(), /value="Module" selected>Módulo<\/option>/);
-      assert.match(html(), /<td>Módulo<\/td>/);
-      assert.doesNotMatch(html(), /<td>Module<\/td>/);
+      // Frente C3: o recorte de Tipo deixou de ser um `<select>` na barra (o
+      // controle é agora a coluna Tipo, com o painel de valores). O contrato
+      // que este teste protege é o mesmo: o rótulo humano do enum continua
+      // Módulo e `Plugin`, e o valor gravado continua `Module`/`Plugin`.
+      assert.match(html(), /admin-col-type admin-th-filterable/, 'Tipo oferece o menu de filtro na coluna');
+      const typePanel = renderColumnFilterPanel({ key: 'type', column: 'type', label: 'Tipo', values: ['Module'], options: [{ value: 'Module', label: 'Módulo' }, { value: 'Plugin', label: 'Plugin' }] }, 1);
+      assert.match(typePanel, /<input type="checkbox" value="Module" checked>/);
+      assert.match(typePanel, />Módulo</);
+      assert.match(typePanel, />Plugin</);
+      assert.doesNotMatch(html(), /<select[^>]*name="type"/, 'o select duplicado de Tipo saiu da barra');
+      assert.match(html(), /<td[^>]*class="[^"]*admin-col-type[^"]*">Módulo<\/td>/, 'a célula mostra o rótulo humano do enum');
+      assert.doesNotMatch(html(), /<td[^>]*>Module<\/td>/, 'a célula nunca mostra o enum cru');
       await app.router.navigate(`#/extensions/${type.id}`);
       assert.match(html(), /name="type" readonly disabled value="Módulo"/);
       assert.equal((await service.extensions.get(type.id)).type, 'Module', 'presentation never changes the stored enum');
@@ -222,7 +232,7 @@ async function runModuleInstanceCountPresentationTests() {
       const writesBeforeList = writes;
       await app.router.navigate('#/moduleInstances?state=*');
       assert.match(html(), /<h1>Módulos do site<\/h1>/);
-      assert.match(html(), /<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Tipo de módulo<\/span>/);
+      assert.match(html(), /class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Tipo de módulo<\/span>/);
       assert.match(html(), /for="admin-modules-filter-type" class="visually-hidden">Tipo de módulo<\/label>/);
       assert.match(html(), /Primeira instância/);
       assert.equal(writes, writesBeforeList);
@@ -238,7 +248,7 @@ async function runModuleInstanceCountPresentationTests() {
   const app = createAdminApplication({ adminService: fallback, documentRef, autoStart: false });
   try {
     await app.router.navigate('#/moduleInstances');
-    assert.match(documentRef.body.innerHTML, /<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Tipo de módulo<\/span>/);
+    assert.match(documentRef.body.innerHTML, /class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Tipo de módulo<\/span>/);
     await app.router.navigate('#/moduleInstances/new');
     assert.match(documentRef.body.innerHTML, /for="admin-field-moduleInstances-extensionKey">Tipo de módulo \*/);
     assert.deepEqual(ADMIN_DOMAINS.moduleInstances.fields, fieldsBefore);

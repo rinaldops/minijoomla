@@ -43,8 +43,8 @@ export async function runAdminRenderTests() {
 
   // 4. renderAdminList: colunas escolhidas (com rótulo mapeável), link de edição por id (com ícone), estado vazio acessível, link de "Novo" opcional.
   const listHtml = renderAdminList({ rows: [{ id: 1, title: '<Artigo>', alias: 'artigo' }], columns: ['title', 'alias'], columnLabels: { title: 'Título' }, editHref: (id) => `#/admin/articles/${id}`, newHref: '#/admin/articles/new' });
-  assert.match(listHtml, /<thead><tr><th scope="col" class="admin-th[^"]*"><span class="admin-th-label">Título<\/span>[\s\S]*?<th scope="col" class="admin-th[^"]*"><span class="admin-th-label">alias<\/span>[\s\S]*?<th scope="col" class="admin-th"><span class="admin-th-label">Ação<\/span><\/th><\/tr><\/thead>/);
-  assert.match(listHtml, /<th scope="row"><a href="#\/admin\/articles\/1" aria-label="Editar: &lt;Artigo&gt;">&lt;Artigo&gt;<\/a><\/th><td>artigo<\/td>/);
+  assert.match(listHtml, /<thead><tr><th scope="col" class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Título<\/span>[\s\S]*?<th scope="col" class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">alias<\/span>[\s\S]*?<th scope="col" class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Ação<\/span>[\s\S]{0,20}?<\/th><\/tr><\/thead>/);
+  assert.match(listHtml, /<th scope="row" class="admin-col-title"><a href="#\/admin\/articles\/1" aria-label="Editar: &lt;Artigo&gt;" title="&lt;Artigo&gt;">&lt;Artigo&gt;<\/a><\/th><td class="admin-col-alias">artigo<\/td>/);
   assert.match(listHtml, /<td class="admin-col-action"><a class="admin-btn admin-btn-ghost" href="#\/admin\/articles\/1" aria-label="Editar: &lt;Artigo&gt;">.*Editar<\/a><\/td>/);
   assert.match(listHtml, /<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form>/);
   assert.match(listHtml, /<a class="admin-new-link admin-btn admin-btn-success" href="#\/admin\/articles\/new">.*Novo<\/a>/);
@@ -65,8 +65,8 @@ export async function runAdminRenderTests() {
   assert.ok(!unsafeTitle.includes('<script>'));
   assert.match(unsafeTitle, /aria-label="Editar: &quot;&gt;&lt;script&gt;/);
   const namedList = renderAdminList({ rows: [{ id: 7, name: 'Categoria' }, { id: 8, name: '' }], titleField: 'name', editHref: (id) => `#/categories/${id}` });
-  assert.match(namedList, /<th scope="row"><a href="#\/categories\/7" aria-label="Editar: Categoria">Categoria<\/a>/);
-  assert.match(namedList, /aria-label="Editar: Registro 8">Registro 8<\/a>/);
+  assert.match(namedList, /<th scope="row" class="admin-col-name"><a href="#\/categories\/7" aria-label="Editar: Categoria" title="Categoria">Categoria<\/a>/);
+  assert.match(namedList, /aria-label="Editar: Registro 8" title="Registro 8">Registro 8<\/a>/);
   const titleOmitted = renderAdminList({ rows: [{ id: 1, title: 'X', alias: 'x' }], columns: ['alias'] });
   assert.ok(!titleOmitted.includes('scope="row"'));
 

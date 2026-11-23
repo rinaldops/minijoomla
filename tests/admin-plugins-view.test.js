@@ -24,8 +24,8 @@ export function runAdminPluginsViewTests() {
   assert.match(html, /<code>chave&quot;&lt;script&gt;<\/code>/);
   assert.match(html, /<td>0<\/td><td><code>chave/);
   assert.match(html, /<td><\/td><\/tr>/, 'empty version leaves a valid empty cell');
-  assert.match(html, /<th scope="col" class="admin-th"><span class="admin-th-label">Nome do plugin<\/span><\/th>/);
-  assert.match(html, /<th scope="col" class="admin-th"><span class="admin-th-label">Versão<\/span><\/th>/);
+  assert.match(html, /<th scope="col" class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Nome do plugin<\/span>/);
+  assert.match(html, /<th scope="col" class="admin-th[^"]*"[^>]*>[\s\S]{0,40}?<span class="admin-th-label">Versão<\/span>/);
 
   console.log('ok - admin plugins view: tabela, estados, virtual, descrições e escaping');
 }
