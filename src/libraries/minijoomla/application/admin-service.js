@@ -52,6 +52,9 @@ import { parseMulti, buildColumnFacets } from './list-filter-params.js';
  * anterior.
  */
 const ARTICLE_FACET_DIMENSIONS = [
+  // `id` também é cabeçalho filtrável (coluna ID), então precisa de faceta:
+  // sem ele o botão do menu abria sem nenhuma opção.
+  { key: 'id', reads: (row) => String(row.id ?? '') },
   { key: 'state', reads: (row) => stateOf(row) },
   { key: 'title', reads: (row) => row.title },
   { key: 'alias', reads: (row) => row.alias },
@@ -499,6 +502,15 @@ export function categoryScopeFor(rows, raw) {
  */
 export function publishMonth(value) {
   if (value === undefined || value === null || value === '') return '';
+  /*
+   * Datas ISO puras (`AAAA-MM-DD`) são lidas componente a componente, sem
+   * passar por `new Date(...)`: a forma curta é interpretada como UTC e, a
+   * oeste de Greenwich, devolve o dia anterior — o filtro cairia no mês
+   * errado. Só valores com data/hora explícita (ou um `Date`) usam o
+   * construtor, porque aí o instante é inequívoco.
+   */
+  const isoDate = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(String(value).trim());
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}`;
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -521,6 +533,31 @@ export function categoryPathLabel(rows, id, labelField = 'title') {
     current = current.parentId === null || current.parentId === undefined ? null : byId.get(Number(current.parentId));
   }
   return chain.join(' › ');
+}
+
+/*
+ * Rótulo de categoria para o menu de Artigos (Adendo 2, item 5): o caminho
+ * de títulos por si só NÃO separa irmãs homônimas — duas "Notícias" sob pais
+ * diferentes, ou duas filhas de mesmo título no MESMO pai, produziriam duas
+ * linhas idênticas e indistinguíveis no menu. Desempate: o caminho completo,
+ * e quando ainda assim houver repetição nos rótulos oferecidos, acrescenta
+ * o ALIAS da categoria (identificador legível) e, se o alias também não
+ * separar, o `#id`, que é único por definição. O valor do filtro continua
+ * sendo o ID; isto é puramente apresentação.
+ */
+export function categoryFacetLabels(categories, ids) {
+  const base = new Map(ids.map((id) => [String(id), categoryPathLabel(categories, id, 'title')]));
+  const counts = new Map();
+  for (const label of base.values()) counts.set(label, (counts.get(label) ?? 0) + 1);
+  const byId = new Map(categories.map((row) => [Number(row.id), row]));
+  const result = {};
+  for (const [value, label] of base) {
+    if ((counts.get(label) ?? 0) < 2) { result[value] = label; continue; }
+    const row = byId.get(Number(value)) ?? {};
+    const alias = String(row.alias ?? '').trim();
+    result[value] = alias ? `${label} (${alias}) · #${value}` : `${label} · #${value}`;
+  }
+  return result;
 }
 
 /** Ordena em árvore (pai antes dos filhos, irmãos por título) devolvendo { row, depth }. */
@@ -642,7 +679,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
      * `categoryPaths` dá o rótulo desambiguado ("Pai › Filho") usado no
      * menu de filtro da coluna Categoria.
      */
-    const categoryPaths = new Map(categoryList.map((row) => [String(row.id), categoryPathLabel(categoryList, row.id, 'title')]));
+    const categoryPaths = categoryFacetLabels(categoryList, categoryList.map((row) => String(row.id)));
     /*
      * Rótulo e profundidade da coluna Categoria (Adendo 3, 3.1/3.4): o menu
      * mostra "Pai › Filho" no lugar do ID, e a profundidade deixa o binder
@@ -678,13 +715,25 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
        * fica oculta; `state=*` mostra tudo. Isto não é um filtro de
        * coluna, mas precisa entrar aqui para que a contagem das facetas
        * e o total da página concordem com a lista renderizada.
+       *
+       * Com a coluna Estado EXCLUÍDA (`skip === 'state'`) vale o padrão
+       * SEM filtro (`undefined`), nunca o estado selecionado: o menu de
+       * Estado precisa oferecer os valores que o próprio filtro escondeu
+       * — inclusive a lixeira, que o padrão oculta. Reaplicar
+       * `params.state` aqui prendia a seleção ao valor atual e tornava
+       * impossível ampliar ou trocar o recorte.
        */
-      if (!stateVisible(row, params.state)) return false;
+      if (!stateVisible(row, skip === 'state' ? undefined : params.state)) return false;
       if (skip !== 'state') {
         const selected = columnValues('state');
         if (selected.length && !selected.some((wanted) => (wanted === '*' ? true : stateOf(row) === wanted))) return false;
       }
-      if (categoryScope && !categoryScope.has(Number(row.categoryId))) return false;
+      /*
+       * `categoryId` segue a mesma regra (e é o mesmo motivo): o menu da
+       * coluna Categoria precisa listar as categorias que o filtro ativo
+       * escondeu, senão não há como trocar de recorte sem limpar tudo.
+       */
+      if (skip !== 'categoryId' && categoryScope && !categoryScope.has(Number(row.categoryId))) return false;
       if (skip !== 'featured') {
         const selected = columnValues('featured');
         if (selected.length && !selected.some((wanted) => Boolean(row.featured) === (wanted === '1'))) return false;
@@ -706,6 +755,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       if (skip !== 'alias') {
         const selected = columnValues('alias');
         if (selected.length && !anyOf(selected, row.alias)) return false;
+      }
+      // ID é cabeçalho filtrável: sem este teste o menu oferecia os IDs mas
+      // escolher um não reduzia a lista.
+      if (skip !== 'id') {
+        const selected = columnValues('id');
+        if (selected.length && !selected.some((wanted) => String(row.id ?? '') === String(wanted))) return false;
       }
       return true;
     };
@@ -730,12 +785,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     const pageRows = await snapshots(articleCrud, filtered.slice((page - 1) * limit, page * limit));
     /*
      * `totalBase` é o total que a barra de filtros ativos usa para
-     * comparar: mantém a busca `q` e os padrões de visibilidade, mas
-     * ignora os filtros de coluna/gerenciamento selecionados. Sem ele,
-     * o contador mostraria sempre "N de N" e não haveria como saber
-     * quanto o filtro está escondendo.
+     * comparar: mantém a busca `q` e ignora TODOS os filtros de coluna,
+     * inclusive Estado. Usar `params.state` aqui contradizia o Adendo 2:
+     * o denominador tem de ser o conjunto sem filtro de coluna, senão
+     * "N de M" não mede quanto o filtro esconde.
      */
-    const totalBase = rows.filter((row) => stateVisible(row, params.state) && matchesSearchTerm(row)).length;
+    const totalBase = rows.filter((row) => stateVisible(row, undefined) && matchesSearchTerm(row)).length;
     const columnFacets = buildColumnFacets(rows, ARTICLE_FACET_DIMENSIONS, params, {
       /*
        * O MESMO predicado da listagem (Adendo 3, 3.2), com a coluna da
@@ -748,8 +803,19 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       labels: { categoryId: categoryPaths },
       depths: { categoryId: categoryDepths }
     });
+    /*
+     * A faceta de Estado precisa oferecer TODOS os estados canônicos, não só
+     * os que sobraram na listagem. O recorte padrão esconde a lixeira, então
+     * `stateOf` nunca produzia "Trashed": o menu de Estado abria sem "Na
+     * lixeira" e era impossível filtrar PARA dentro da lixeira a partir da
+     * listagem padrão — só era possível sair dela depois de chegar por outro
+     * caminho. As contagens continuam vindo do recorte real (com 0 para o
+     * que está escondido), que é justamente o que o menu deve mostrar.
+     */
+    const stateCounts = new Map(columnFacets.state.map((option) => [option.value, option]));
+    columnFacets.state = ARTICLE_STATES.map((state) => stateCounts.get(state) ?? { value: state, label: state, count: 0, empty: false });
     return {
-      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths.get(String(row.categoryId)) ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
+      rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths[String(row.categoryId)] ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
       columnFacets,
       facets: { authors: [...new Set(rows.map((row) => row.author).filter(Boolean))].sort(), languages: [...new Set(rows.map((row) => row.language).filter(Boolean))].sort() }
     };
@@ -880,7 +946,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
           const selected = selectedFor(name);
           return !selected.length || selected.some((wanted) => (wanted === '' ? value === '' : lower(value) === lower(wanted)));
         };
-        const hasState = (row) => stateVisible(row, params.state);
+        const hasState = (row, raw = params.state) => stateVisible(row, raw);
         const matchesColumns = (row, skip) => (skip === 'state' || matchesValue('state', stateOf(row)))
           && (skip === titleField || matchesValue(titleField, row[titleField]))
           && (skip === aliasField || matchesValue(aliasField, row[aliasField]));
@@ -893,11 +959,24 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
          * precisam sair do conjunto não filtrado pela própria coluna.
          * `hasState` já é o critério da listagem; `matchesColumns` e
          * `matchesTerm` entram pelo MESMO predicado (Adendo 3, 3.2).
+         *
+         * Ao EXCLUIR a coluna Estado, a visibilidade volta ao padrão SEM
+         * filtro: senão a faceta de Estado só ofereceria o valor já
+         * selecionado e a lixeira nunca apareceria (mesmo defeito
+         * corrigido na listagem de artigos).
          */
         const columnFacets = buildColumnFacets(rows, dimensions, params, {
-          passes: (row, key) => hasState(row) && matchesTerm(row) && matchesColumns(row, key)
+          passes: (row, key) => stateVisible(row, key === 'state' ? undefined : params.state) && matchesTerm(row) && matchesColumns(row, key)
         });
-        const totalBase = rows.filter((row) => hasState(row) && matchesTerm(row)).length;
+        /*
+         * Mesmo defeito e mesma correção da listagem de artigos: a faceta de
+         * Estado precisa oferecer a lista canônica inteira da taxonomia
+         * (incluindo "Na lixeira", que o recorte padrão esconde) e nunca o
+         * curinga `state=*` como se fosse um valor com contagem.
+         */
+        const stateCounts = new Map(columnFacets.state.map((option) => [option.value, option]));
+        columnFacets.state = TAXONOMY_STATES.map((state) => stateCounts.get(state) ?? { value: state, label: state, count: 0, empty: false });
+        const totalBase = rows.filter((row) => stateVisible(row, undefined) && matchesTerm(row)).length;
         const result = visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
         /*
          * A taxonomia devolve a árvore inteira (sem página) e expõe as

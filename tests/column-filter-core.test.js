@@ -18,6 +18,39 @@ import {
   placePanel
 } from '../src/administrator/components/com_minijoomla/column-filter.js';
 import { Router } from '../src/libraries/minijoomla/core/router.js';
+import { createAdminService } from '../src/libraries/minijoomla/application/admin-service.js';
+
+/*
+ * Repositório mínimo e realista para cobrar as contagens do SERVIÇO, e não
+ * de uma reimplementação no teste (achado 10). Autor com caixa mista, uma
+ * linha na lixeira e uma sem autor: os três casos que divergiam na 0.17.14.
+ */
+function realFacetRepository() {
+  const articles = [
+    { id: 1, title: 'Um', alias: 'um', author: 'Ana', state: 'Published', publishUp: '2026-11-04T10:00:00' },
+    { id: 2, title: 'Dois', alias: 'dois', author: 'ana', state: 'Published', publishUp: '2026-11-20T10:00:00' },
+    { id: 3, title: 'Tres', alias: 'tres', author: 'Bruno', state: 'Trashed', publishUp: '2026-12-01T10:00:00' },
+    { id: 4, title: 'Quatro', alias: 'quatro', author: null, state: 'Published', publishUp: null }
+  ];
+  const categories = [
+    { id: 10, title: 'Institucional', alias: 'inst', parentId: 0, state: 'Published' },
+    { id: 11, title: 'Avisos', alias: 'avisos', parentId: 10, state: 'Published' },
+    { id: 12, title: 'Antiga', alias: 'antiga', parentId: 0, state: 'Trashed' }
+  ];
+  const store = (seed) => {
+    const items = new Map(seed.map((item) => [item.id, { etag: '"1"', ...item }]));
+    const reader = (item) => Object.freeze(Object.defineProperty({ ...item }, 'etag', { value: item.etag, enumerable: false }));
+    return {
+      async findMany() { return { items: [...items.values()].map(({ etag, ...rest }) => ({ ...rest })) }; },
+      async findById(id) { const item = items.get(id); if (!item) throw Object.assign(new Error('not found'), { code: 'not-found' }); return reader(item); },
+      async create(input) { const item = { id: items.size + 10, etag: '"1"', ...input }; items.set(item.id, item); return reader(item); },
+      async update() { return null; },
+      async delete() { return null; }
+    };
+  };
+  const empty = store([]);
+  return { articles: store(articles), categories: store(categories), tags: empty, menu: empty, extensions: empty, moduleInstances: empty, siteConfig: empty };
+}
 
 /*
  * Núcleo do filtro por coluna: tabela de parâmetros canônicos, codec do
@@ -159,9 +192,19 @@ export async function runColumnFilterCoreTests() {
     { column: 'author', key: 'author', reads: (row) => row.author },
     { column: 'publishUp', key: 'publishUp', reads: (row) => row.publishUp }
   ];
-  // O MESMO predicado da listagem (Adendo 3, 3.2): aplicado com a coluna da
-  // vez excluída. Sem ele as facetas só agregam e a contagem de uma coluna
-  // não fecha com o total da lista.
+  /*
+   * O MESMO predicado da listagem (Adendo 3, 3.2), com a coluna da vez
+   * excluída. A regra NÃO é reescrita aqui: ela é cobrada do serviço real,
+   * pela contagem que `articles.query` publica em `columnFacets`. Reescrever
+   * o predicado no teste só provaria que o teste concorda consigo mesmo — foi
+   * essa duplicação que deixou a 0.17.14 passar com a contagem de autor
+   * divergindo (caixa diferente) e `categoryId` sem descendentes.
+   *
+   * Pelo mesmo motivo, o agregador recebe aqui o conjunto COMPLETO como
+   * `rows`: é assim que o serviço o chama (`buildColumnFacets(rows, ...)`), e
+   * é o que faz a soma das contagens de uma coluna fechar com o total da
+   * listagem quando a coluna é excluída do próprio teste.
+   */
   const passesFor = (params) => (row, skipKey) => dimensions.every((dimension) => {
     if (dimension.key === skipKey) return true;
     const active = parseMulti(params[dimension.key]);
@@ -199,6 +242,54 @@ export async function runColumnFilterCoreTests() {
   const counts = countsByValue(rows, (row) => row.author);
   assert.equal(counts.get('Ana'), 2);
   assert.equal(counts.get(EMPTY_VALUE), 1);
+
+  /*
+   * Fechamento com o SERVIÇO real (achado 10). As asserções acima rodam sobre
+   * o agregador puro, com um predicado de teste: elas provam que o agregador
+   * respeita `passes`, mas não que o SERVIÇO passe o predicado certo. Aqui as
+   * MESMAS regras são cobradas de `articles.query`, que é o que a listagem
+   * administrativa usa — inclusive o total da coluna somando o total da lista.
+   */
+  const realService = createAdminService(realFacetRepository());
+  const base = await realService.articles.query({ state: '*' });
+  const baseRows = base.rows;
+  const published = baseRows.filter((row) => row.state === 'Published').length;
+  const baseFacets = base.columnFacets;
+  assert.equal(baseFacets.state.find((option) => option.value === 'Published').count, published,
+    'a contagem da faceta de estado fecha com a listagem real');
+  assert.equal(base.total, baseRows.length, 'o total da listagem real é o conjunto filtrado');
+  // A lixeira entra no menu de Estado mesmo com o padrão escondendo-a: senão
+  // não haveria como escolher "Na lixeira" a partir da listagem padrão.
+  assert.ok(baseFacets.state.some((option) => option.value === 'Trashed'),
+    'a faceta de Estado oferece "Na lixeira" a partir do estado padrão');
+  assert.ok(baseFacets.state.every((option) => option.value !== '*'),
+    'o curinga `state=*` nunca vira uma opção de faceta com contagem falsa');
+  assert.deepEqual(baseFacets.state.map((option) => option.value), ['Published', 'Draft', 'Archived', 'Trashed'],
+    'a faceta de Estado oferece sempre a lista canônica completa, na ordem canônica');
+  const trashedOnly = await realService.articles.query({ state: '~m:Trashed' });
+  assert.equal(trashedOnly.total, 1, 'escolher "Na lixeira" no painel traz só a linha na lixeira');
+  assert.ok(trashedOnly.rows.every((row) => row.state === 'Trashed'), 'nenhuma linha fora da lixeira sobra');
+  // Sem `state`, a lixeira fica fora; `state=*` mostra tudo: é a diferença
+  // entre "padrão" e "sem filtro" que o Adendo 2 fixa.
+  const defaults = await realService.articles.query({});
+  assert.equal(defaults.total + 1, base.total, 'sem state a lixeira sai da contagem; state=* traz tudo');
+  // A caixa do dado não pode importar: `ana` no filtro traz `Ana` e `ana`.
+  // Só as duas linhas publicadas com esse autor entram (a terceira publicada
+  // não tem autor), e a linha na lixeira fica fora pelo recorte padrão.
+  const realByAuthor = await realService.articles.query({ author: 'ana' });
+  const publishedAna = baseRows.filter((row) => row.state === 'Published' && String(row.author).toLowerCase() === 'ana').length;
+  assert.equal(publishedAna, 2, 'a fixture tem duas linhas publicadas com o autor em caixas diferentes');
+  assert.equal(realByAuthor.total, publishedAna, 'autor casa sem diferenciar caixa (o defeito que o achado 10 cobra)');
+  const authorFacet = realByAuthor.columnFacets.author;
+  assert.ok(authorFacet.some((option) => option.value === 'Ana'), 'a faceta de autor preserva a caixa original do dado');
+
+  // A taxonomia tinha o MESMO defeito: sem isso, "Na lixeira" era inalcançável
+  // a partir da árvore padrão e `state=*` injetava uma opção "*" com contagem 0.
+  const categoriaFacets = (await realService.categories.query({})).columnFacets;
+  assert.deepEqual(categoriaFacets.state.map((option) => option.value), ['Published', 'Unpublished', 'Trashed'],
+    'a faceta de Estado da taxonomia oferece a lista canônica inteira');
+  assert.equal(categoriaFacets.state.find((option) => option.value === 'Trashed').count, 0,
+    'a contagem de "Na lixeira" na taxonomia continua sendo a do recorte real');
 
   // --- contrato de seletores --------------------------------------------
   const panelHtml = renderColumnFilterPanel({
