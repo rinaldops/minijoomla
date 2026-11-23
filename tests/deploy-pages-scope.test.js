@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -280,6 +280,49 @@ export async function runDeployPagesScopeTests() {
     `o passo de ativacao deve montar o proprio stage sem apagar o do preparo: ${stageDirs.join(', ')}`);
   assert.ok(stageDirs.includes('stage'), 'o stage do passo 1 deve continuar intacto');
   cases.push('prepare-only-depois-activate-existing-na-mesma-arvore');
+
+  /*
+   * 9. `--mse-layout FullBleed` so escreve a pagina em publishPages(), ou seja,
+   *    combinado com --admin-only so pode aparecer no canvas de
+   *    Administrator.aspx. O wrapper FullBleed e o que destrava o painel da
+   *    coluna de ~1200px; se a flag vazasse para a pagina publica, o site
+   *    publico mudaria de layout numa rodada restrita ao painel.
+   */
+  const fullBleed = await runDeploy(['--admin-only', '--mse-layout', 'FullBleed', '--skip-provision', '--activate-existing']);
+  assert.equal(fullBleed.status, 0, `--mse-layout FullBleed deve concluir: ${fullBleed.stderr}`);
+  assert.deepEqual(pagesMentioned(fullBleed.seen), [ADMIN_PAGE],
+    '--mse-layout com --admin-only nao pode enderecar a pagina publica');
+  assert.deepEqual(fullBleed.written, [`rollback-${ADMIN_PAGE}.html`],
+    '--mse-layout com --admin-only deve gerar rollback somente do painel');
+  const layoutWrites = fullBleed.seen.filter((expression) => expression.includes('data-spmiddle-layout'));
+  assert.ok(layoutWrites.length > 0,
+    '--mse-layout FullBleed deve emitir o wrapper data-spmiddle-layout na pagina escrita');
+  assert.ok(layoutWrites.every((expression) => expression.includes(ADMIN_PAGE) && !expression.includes(PUBLIC_PAGE)),
+    'o wrapper FullBleed so pode aparecer no canvas de Administrator.aspx');
+  cases.push('mse-layout-fullbleed-restrito-ao-painel');
+
+  // 9b. The layout helper assets must be staged for the wrapper to work: the
+  //     snippet references <release>/host/spmiddle-layout/*, copied from the
+  //     real SPMIDDLE adapter. A missing file means a blank wrapper in prod.
+  const layoutStage = join(PROJECT, 'tmp', 'deploy', VERSION, 'stage', 'host', 'spmiddle-layout');
+  assert.ok(existsSync(layoutStage), 'o stage deve conter host/spmiddle-layout/');
+  assert.deepEqual(readdirSync(layoutStage).sort(),
+    ['layout.css', 'layout.js', 'spmiddle-mse-host.js'],
+    'os tres ativos do adaptador SPMIDDLE devem estar no stage, no caminho exato');
+  for (const name of readdirSync(layoutStage)) {
+    const staged = readFileSync(join(layoutStage, name));
+    const source = readFileSync(join(PROJECT, '..', 'SPMIDDLE', 'host-adapters', 'modern-script-editor', name));
+    assert.ok(staged.equals(source), `host/spmiddle-layout/${name} deve ser byte-identico ao adaptador SPMIDDLE`);
+  }
+  cases.push('layout-spmiddle-empacotado-byte-identico');
+
+  // 9c. An invalid layout value is rejected before any host contact.
+  const badLayout = await runDeploy(['--admin-only', '--mse-layout', 'Wide', '--skip-provision']);
+  assert.notEqual(badLayout.status, 0, '--mse-layout invalido deve falhar');
+  assert.match(`${badLayout.stdout}${badLayout.stderr}`, /FullBleed|Contained/,
+    'a recusa deve citar os valores aceitos');
+  assert.equal(badLayout.seen.length, 0, 'a recusa deve ocorrer antes de contatar o host');
+  cases.push('mse-layout-invalido-recusado-antes-do-host');
 
   return cases;
 }

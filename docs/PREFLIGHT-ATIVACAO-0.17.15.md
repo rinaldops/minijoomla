@@ -82,13 +82,34 @@ pointer. Sem a flag, o mesmo script já valida o readback e a contagem antes de
 chamar `publishPages()` — a ordem no código já é a correta
 (`await upload(files)` → `if (remote !== files.length) throw` → `publishPages()`).
 
+Passo 1.5 (somente leitura) — provar que os ativos de layout `FullBleed` já
+estão **dentro** da release preparada, com hash. `--mse-layout FullBleed` não
+inventa o algoritmo: ele só acrescenta o `<div data-spmiddle-host
+data-spmiddle-layout="FullBleed">` no snippet **e** exige que
+`<release>/host/spmiddle-layout/{layout.js,layout.css,spmiddle-mse-host.js}`
+existam no caminho exato. Esses três arquivos são copiados do adaptador real
+`SPMIDDLE/host-adapters/modern-script-editor/` durante o *stage*
+(`scripts/deploy-sharepoint.mjs:269-275`), então o passo 1 já os subiu; este
+passo apenas confirma o hash localmente, sem contato com o host.
+
+```sh
+# Hash local dos três ativos que o wrapper FullBleed referencia, calculado no
+# stage já preparado. Deve ser idêntico ao hash do adaptador SPMIDDLE de origem.
+node -e "const {createHash}=require('node:crypto');const {readFileSync,readdirSync}=require('node:fs');const p='tmp/deploy/0.17.15/stage/host/spmiddle-layout';for(const n of readdirSync(p).sort()){console.log(n, createHash('sha256').update(readFileSync(p+'/'+n)).digest('hex'))}"
+```
+
+Registre a saída no aceite junto com os hashes do adaptador de origem
+(`SPMIDDLE/host-adapters/modern-script-editor/`). Sem eles o snippet
+`FullBleed` carrega uma página sem o wrapper real e o painel volta a ficar
+preso na coluna de ~1200px.
+
 Passo 2 — ativar **somente o painel administrativo**, deixando a página pública
 intocada:
 
 ```sh
 node scripts/deploy-sharepoint.mjs --version 0.17.15 \
   --web /teams/camap-agp --session <id> \
-  --activate-existing --admin-only --skip-provision
+  --activate-existing --admin-only --mse-layout FullBleed --skip-provision
 ```
 
 Não passe `--public-page` aqui: `--admin-only` é exclusivo com
@@ -113,6 +134,17 @@ resolvido.
 - `--admin-only` é **exclusivo**: combiná-lo com `--pages` ou com
   `--public-page` é rejeitado com erro, para que uma ambiguidade nunca publique
   o site público por engano.
+- `--mse-layout FullBleed` é o que faz a **única** página escrita
+  (`Administrator.aspx`) receber o snippet com
+  `<div data-spmiddle-host data-spmiddle-layout="FullBleed">` e o
+  `<link rel="stylesheet" data-minijoomla-mse-layout>` para
+  `host/spmiddle-layout/layout.css` (`scripts/deploy-sharepoint.mjs:349-350`).
+  Sem a flag, o snippet legado **sem wrapper** é preservado — e é exatamente
+  esse o sintoma do painel preso na coluna de ~1200px. A flag só é aplicada a
+  páginas em `publishPages()`; com `--admin-only`, a página pública não é
+  nem localizada. Valores aceitos: apenas `FullBleed` ou `Contained`
+  (`scripts/deploy-sharepoint.mjs:98-99`) — qualquer outro aborta com
+  `TypeError` **antes** de qualquer contato com o host.
 - Sem `--admin-only`/`--pages`, o comportamento é o de sempre (página pública +
   `Administrator.aspx`). Trocar o host do site público pertence a outra frente e
   não é feito aqui.
