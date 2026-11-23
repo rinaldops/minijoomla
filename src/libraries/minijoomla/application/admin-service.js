@@ -814,6 +814,17 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
      */
     const stateCounts = new Map(columnFacets.state.map((option) => [option.value, option]));
     columnFacets.state = ARTICLE_STATES.map((state) => stateCounts.get(state) ?? { value: state, label: state, count: 0, empty: false });
+    /*
+     * A lixeira é medida SEM o recorte padrão de visibilidade: `stateVisible`
+     * esconderia justamente as linhas que o usuário recebe ao escolher "Na
+     * lixeira", e o menu anunciaria 0 para um estado que tem artigos — o
+     * mesmo defeito do item anterior, só na contagem. Os demais estados já
+     * são contados sobre o recorte real.
+     */
+    const trashedOption = columnFacets.state.find((option) => option.value === 'Trashed');
+    if (trashedOption) {
+      trashedOption.count = rows.filter((row) => stateOf(row) === 'Trashed').length;
+    }
     return {
       rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '', categoryPath: categoryPaths[String(row.categoryId)] ?? '' })), total: filtered.length, totalBase, page, pageCount, limit,
       columnFacets,
@@ -976,6 +987,12 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
          */
         const stateCounts = new Map(columnFacets.state.map((option) => [option.value, option]));
         columnFacets.state = TAXONOMY_STATES.map((state) => stateCounts.get(state) ?? { value: state, label: state, count: 0, empty: false });
+        // Mesma regra da listagem de artigos: a lixeira é contada sobre o
+        // conjunto real, não sobre o recorte padrão que a esconde.
+        const trashedOption = columnFacets.state.find((option) => option.value === 'Trashed');
+        if (trashedOption) {
+          trashedOption.count = rows.filter((row) => stateVisible(row, 'Trashed')).length;
+        }
         const totalBase = rows.filter((row) => stateVisible(row, undefined) && matchesTerm(row)).length;
         const result = visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
         /*

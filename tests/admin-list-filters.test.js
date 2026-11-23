@@ -1194,9 +1194,42 @@ async function runArticleChainTests() {
       assert.equal(Number(draftOption.count), expected.Draft, 'a contagem de "Despublicado" é a do conjunto completo');
       assert.equal(Number(archivedOption.count), expected.Archived, 'a contagem de "Arquivado" é a do conjunto completo');
 
+      /*
+       * Achado 10: o painel precisava OFERECER "Na lixeira" já na listagem
+       * padrão, mesmo com a lixeira oculta e com contagem 0 — senão o filtro
+       * não tinha como ser escolhido. E a opção "*" do `state=*` NÃO pode
+       * virar uma linha do menu: ela é "tudo", não um valor.
+       */
+      const trashedOption = optionByLabel('Na lixeira');
+      assert.ok(trashedOption, 'o painel de Estado oferece "Na lixeira" a partir da listagem padrão');
+      assert.equal(trashedOption.checked, false, 'a lixeira abre DESMARCADA quando não há filtro (não é o padrão)');
+      assert.equal(Number(trashedOption.count), expected.Trashed, 'mesmo oculta, a contagem da lixeira é a real');
+      assert.equal(optionByLabel('*'), undefined, 'o curinga `state=*` nunca aparece como opção do menu');
+
+      // Com `state=*` na URL o painel abre com TODAS as opções marcadas,
+      // inclusive a lixeira — antes ele abria vazio, sem como editar o recorte.
+      await app.router.navigate('#/articles?state=*');
+      await fake.dispatch('document', 'click', { target: fake.element('toggle:state') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const starHtml = fake.layerHtml('.admin-colfilter-layer');
+      wirePanelControls(fake, starHtml, 'state');
+      const starBoxes = (fake.panelOptionBoxes?.() ?? []);
+      const starByLabel = (label) => starBoxes.find((box) => String(box.label ?? '') === label);
+      ['Publicado', 'Despublicado', 'Arquivado', 'Na lixeira'].forEach((label) => {
+        assert.equal(starByLabel(label)?.checked, true, `com state=*, "${label}" abre marcado`);
+      });
+      // Volta ao recorte padrão para o resto da cadeia (2) e (3).
+      await app.router.navigate('#/articles');
+      await fake.dispatch('document', 'click', { target: fake.element('toggle:state') });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const restoreHtml = fake.layerHtml('.admin-colfilter-layer');
+      wirePanelControls(fake, restoreHtml, 'state');
+
       // (2) Desmarcar "Arquivado" e aplicar grava a forma multi-valor.
-      archivedOption.checked = false;
-      await fake.dispatch(`panelopt:${archivedOption.value}`, 'change');
+      const restoredArchived = (fake.panelOptionBoxes?.() ?? []).find((box) => String(box.label ?? '') === 'Arquivado');
+      assert.ok(restoredArchived, 'o painel restaurado reexpõe "Arquivado"');
+      restoredArchived.checked = false;
+      await fake.dispatch(`panelopt:${restoredArchived.value}`, 'change');
       const before = navigations.length;
       await fake.dispatch('panelok', 'click');
       await new Promise((resolve) => setTimeout(resolve, 0));

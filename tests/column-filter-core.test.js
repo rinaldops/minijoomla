@@ -14,6 +14,7 @@ import {
   URL_LENGTH_LIMIT,
   urlFitsLimit,
   renderColumnFilterPanel,
+  renderColumnFilterButton,
   bindColumnFilters,
   placePanel
 } from '../src/administrator/components/com_minijoomla/column-filter.js';
@@ -266,6 +267,13 @@ export async function runColumnFilterCoreTests() {
     'o curinga `state=*` nunca vira uma opção de faceta com contagem falsa');
   assert.deepEqual(baseFacets.state.map((option) => option.value), ['Published', 'Draft', 'Archived', 'Trashed'],
     'a faceta de Estado oferece sempre a lista canônica completa, na ordem canônica');
+  // A contagem anunciada tem de ser a do que o usuário RECEBE ao escolher o
+  // estado, não a do recorte que o esconde: "Na lixeira (0)" ao lado de uma
+  // linha na lixeira é a mesma mentira, um passo adiante.
+  const trashedFacet = baseFacets.state.find((option) => option.value === 'Trashed');
+  assert.equal(trashedFacet.count, baseRows.filter((row) => row.state === 'Trashed').length,
+    'a contagem de "Na lixeira" mede as linhas reais da lixeira');
+  assert.equal(trashedFacet.count, 1, 'a fixture comprova: há uma linha na lixeira');
   const trashedOnly = await realService.articles.query({ state: '~m:Trashed' });
   assert.equal(trashedOnly.total, 1, 'escolher "Na lixeira" no painel traz só a linha na lixeira');
   assert.ok(trashedOnly.rows.every((row) => row.state === 'Trashed'), 'nenhuma linha fora da lixeira sobra');
@@ -288,8 +296,8 @@ export async function runColumnFilterCoreTests() {
   const categoriaFacets = (await realService.categories.query({})).columnFacets;
   assert.deepEqual(categoriaFacets.state.map((option) => option.value), ['Published', 'Unpublished', 'Trashed'],
     'a faceta de Estado da taxonomia oferece a lista canônica inteira');
-  assert.equal(categoriaFacets.state.find((option) => option.value === 'Trashed').count, 0,
-    'a contagem de "Na lixeira" na taxonomia continua sendo a do recorte real');
+  assert.equal(categoriaFacets.state.find((option) => option.value === 'Trashed').count, 1,
+    'a contagem de "Na lixeira" na taxonomia mede as linhas reais, não o recorte que as esconde');
 
   // --- contrato de seletores --------------------------------------------
   const panelHtml = renderColumnFilterPanel({
@@ -303,13 +311,24 @@ export async function runColumnFilterCoreTests() {
     ],
     sortActions: [{ key: 'title', dir: 'asc', label: 'Título' }]
   }, 0);
-  // O gatilho do menu vive no cabeçalho da tabela (render-list.js), não no
-  // painel: aqui só exigimos os seletores que o próprio painel emite.
-  assertSelectorsPresent(panelHtml, 'painel da coluna', { except: ['data-colfilter-toggle'] });
-
-  // O botão é emitido pelo módulo do núcleo? Não: ele vive em
-  // render-list.js. O contrato é que o painel e o ligador falem a mesma
-  // língua, e é isso que o teste acima garante.
+  /*
+   * O painel sozinho não emite o gatilho: ele é desenhado no cabeçalho, pelo
+   * botão de coluna. Cobrar os dois juntos é o que o achado 10 pede — antes o
+   * `data-colfilter-toggle` era simplesmente EXCLUÍDO da checagem, então um
+   * botão que perdesse o atributo deixaria o menu inalcançável sem que nenhum
+   * teste reclamasse.
+   */
+  const triggerHtml = renderColumnFilterButton({
+    key: 'state',
+    column: 'state',
+    label: 'Estado',
+    values: ['Published'],
+    options: [
+      { value: 'Published', label: 'Publicado', count: 3 },
+      { value: 'Trashed', label: 'Na lixeira', count: 1 }
+    ]
+  }, 0);
+  assertSelectorsPresent(panelHtml + triggerHtml, 'painel da coluna com o gatilho do cabecalho');
   assert.ok(panelHtml.includes('aria-modal="false"'), 'o painel é não modal');
   assert.ok(panelHtml.includes('role="dialog"'));
   assert.ok(panelHtml.includes('value="Published" checked'), 'a seleção atual vem marcada');
