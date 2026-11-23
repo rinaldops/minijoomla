@@ -118,6 +118,16 @@ function createFakeDocumentRef({ elements = {} } = {}) {
    * resolve seletores de atributo por endereço filho, e registra os itens
    * de `querySelectorAll` sob `<chave-pai>|<seletor>`.
    */
+  /*
+   * O HTML renderizado é a única fonte de verdade sobre o que existe na
+   * página. `element()` o consulta para não inventar elementos que o markup
+   * não contém (achado 10): sem isso, um botão que perdesse o atributo
+   * continuaria "encontrado" pelo duplo e o teste passaria mentindo.
+   * A consulta é por substring do atributo no markup, que é o que um seletor
+   * de atributo faz num DOM de verdade.
+   */
+  const htmlCarries = (needle) => documentRef.body._html.includes(needle);
+
   function element(key) {
     if (!registry.has(key)) {
       registry.set(key, {
@@ -135,7 +145,8 @@ function createFakeDocumentRef({ elements = {} } = {}) {
           if (!attr) return null;
           const address = `attr:${attr[1]}=${attr[2] ?? ''}`;
           const children = registry.get(`${key}|${selector}`);
-          return children?.length ? children[0] : element(`${key}|${address}`);
+          if (children?.length) return children[0];
+          return element(`${key}|${address}`);
         },
         querySelectorAll: (selector) => registry.get(`${key}|${selector}`) ?? [],
         setAttribute: (attribute, value) => { const node = registry.get(key); node.attributes = { ...node.attributes, [attribute]: String(value ?? '') }; },
@@ -235,6 +246,17 @@ function createFakeDocumentRef({ elements = {} } = {}) {
       return node?.innerHTML ?? '';
     },
     get activeElement() { return activeElement; },
+    /*
+     * Achado 10: prova de PRESENÇA no HTML renderizado. O duplo materializa
+     * qualquer elemento sob demanda, então `element(seletor)` devolver um nó
+     * não prova que o markup o contém — um botão que perdesse o atributo
+     * continuaria "encontrado". Este helper responde o que o navegador
+     * responderia: o atributo está no HTML?
+     */
+    htmlCarries,
+    // Contagem de ocorrências de um trecho no HTML renderizado: prova que uma
+    // coluna/atributo aparece (e quantas vezes), sem depender do duplo.
+    htmlCount: (needle) => documentRef.body._html.split(needle).length - 1,
     // A lista de listeners é copiada antes de iterar: um handler pode
     // re-renderizar a tela e registrar novos listeners no MESMO elemento,
     // e iterar o array vivo faria o dispatch nunca terminar.
@@ -967,6 +989,46 @@ async function runExtensionColumnTests() {
       assert.match(String(before[0]), /sort=title/, 'a ordenação escolhida é preservada');
       assert.ok(!/page=/.test(String(before[0])), 'a página anterior é descartada ao trocar o filtro');
 
+      /*
+       * Bloqueio 2: o menu de coluna precisa gravar a forma MULTI-VALOR
+       * (`~m:`), senão escolher um segundo valor SUBSTITUI o primeiro e o
+       * usuário nunca consegue somar dois recortes. O valor único antigo
+       * continua legível, mas não é mais o que o menu escreve.
+       */
+      // Dois valores na URL: a lista traz as linhas dos DOIS valores.
+      await app.router.navigate('#/moduleInstances?col_position=' + encodeURIComponent('~m:sidebar-right,sidebar-left'));
+      const multiHtml = fake.documentRef.body.innerHTML;
+      const multiRows = [...multiHtml.matchAll(/<tr>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
+      const shownMods = multiRows.filter((row) => /Selecionar Mod [AB]/.test(row));
+      assert.equal(shownMods.length, 2, 'a forma multi-valor soma os dois valores em vez de trocar um pelo outro');
+      // E o botão da coluna sinaliza a lista inteira como filtro ativo.
+      const multiButton = /data-colfilter-column="position"[^>]*data-colfilter-values="([^"]*)"/.exec(multiHtml);
+      assert.ok(multiButton, 'o botão da coluna Position marca o filtro multi-valor como ativo');
+      assert.match(decodeURIComponent(multiButton[1]), /sidebar-right[\s\S]*sidebar-left/, 'o botão reflete os dois valores selecionados');
+
+      /*
+       * Bloqueio 3: o vocabulário canônico de estado de plugin é
+       * enabled/disabled, com rótulos humanos — e duas opções multi-valor
+       * selecionadas trazem as linhas dos dois estados, não só a última.
+       */
+      const pluginStates = [
+        { id: 5, title: 'Plg A', key: 'plg_a', group: 'content', ordering: 1, enabled: true, version: '1.0' },
+        { id: 6, title: 'Plg B', key: 'plg_b', group: 'content', ordering: 2, enabled: false, version: '1.1' }
+      ];
+      const pluginAdmin = createFakeAdminService({ domains: { plugins: pluginStates } });
+      const pluginFake = createFakeDocumentRef();
+      pluginFake.setWireOnRender((body, html) => wireColumnFilters(pluginFake, html));
+      const pluginApp = await mountApp(pluginAdmin, storage, pluginFake.documentRef);
+      try {
+        await pluginApp.router.navigate('#/plugins?state=' + encodeURIComponent('~m:enabled,disabled'));
+        const bothBody = /<tbody[\s\S]*?<\/tbody>/.exec(pluginFake.documentRef.body.innerHTML)?.[0] ?? '';
+        assert.ok(/Selecionar Plg A/.test(bothBody) && /Selecionar Plg B/.test(bothBody), 'os dois estados de plugin coexistem na mesma URL multi-valor');
+        await pluginApp.router.navigate('#/plugins?state=disabled');
+        const disabledBody = /<tbody[\s\S]*?<\/tbody>/.exec(pluginFake.documentRef.body.innerHTML)?.[0] ?? '';
+        assert.ok(/Selecionar Plg B/.test(disabledBody), 'um estado só traz a linha daquele estado');
+        assert.ok(!/Selecionar Plg A/.test(disabledBody), 'o estado não escolhido some da listagem de plugins');
+      } finally { pluginApp.stop(); }
+
       await app.router.navigate('#/plugins?state=enabled');
       const pluginHtml = fake.documentRef.body.innerHTML;
       assert.match(pluginHtml, /data-colfilter-column="state"/, 'a lista de plugins oferece filtro por coluna');
@@ -1171,6 +1233,14 @@ async function runArticleChainTests() {
       await app.router.navigate('#/articles');
       const html = fake.documentRef.body.innerHTML;
       assert.match(html, /data-colfilter-toggle[^>]*data-colfilter-column="state"/, 'a lista de artigos oferece o menu da coluna Estado');
+      /*
+       * Achado 10: a asserção de presença tem de ser feita no HTML, não pela
+       * devolução do duplo. O fake cria qualquer nó sob demanda, então
+       * "o duplo achou o botão" não prova que a página o renderizou; o
+       * `htmlCarries` lê a mesma fonte que o navegador leria.
+       */
+      assert.ok(fake.htmlCarries('data-colfilter-toggle'), 'o atributo do botão do filtro está no HTML renderizado, e não só no duplo');
+      assert.ok(fake.htmlCount('data-colfilter-toggle') >= 1, 'há pelo menos um botão de filtro de coluna no markup');
       assert.match(html, /Publicado/, 'o botão da coluna Estado resolve o rótulo em português');
 
       // (1) O painel mostra os três rótulos exigidos, com as contagens

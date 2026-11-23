@@ -430,9 +430,19 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   function pluginFiltered(rows, params) {
     const term = String(params.q ?? '').trim().toLowerCase();
     const enabledBar = ['true', 'false'].includes(String(params.enabled ?? '').trim()) ? String(params.enabled).trim() : '';
+      /*
+       * A barra manda `enabled=true|false`; o MENU DA COLUNA manda
+       * `state=enabled|disabled` (é a chave canônica da coluna Estado em
+       * `CANONICAL_COLUMNS.plugins`). Ler só `params.enabled` fazia o filtro
+       * de coluna abrir, navegar e não filtrar nada — a lista continuava
+       * mostrando habilitados e desabilitados juntos. As duas grafias
+       * alimentam o MESMO conceito; a barra tem precedência porque é o
+       * filtro equivalente visível na tela.
+       */
+      const enabledColumn = enabledBar ? '' : (params.state ?? params.enabled);
     return rows.filter((row) => (!params.group || row.group === params.group)
       && (!enabledBar || Boolean(row.enabled) === (enabledBar === 'true'))
-      && matchesColumn(enabledBar ? '' : params.enabled, row.enabled ? 'enabled' : 'disabled', { ignoreCase: false })
+        && matchesColumn(enabledColumn, row.enabled ? 'enabled' : 'disabled', { ignoreCase: false })
       && matchesColumn(params.title, row.title)
       && matchesColumn(params.key, row.key, { ignoreCase: false })
       && (!term || `${row.title} ${row.key}`.toLowerCase().includes(term)));
