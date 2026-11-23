@@ -1950,6 +1950,193 @@ async function runPanelKeyboardTests() {
   console.log('ok - teclado do painel: espaco dispara change na arvore e as setas pulam o que esta escondido');
 }
 
+/*
+ * Adendo 1, item 5: a barra de lote é CONTEXTUAL. Antes ela era um bloco
+ * fixo de ~100px acima da tabela, visível mesmo sem nada selecionado. O
+ * contrato agora é: zero linhas marcadas → a barra não existe na tela;
+ * uma ou mais → uma linha só, com o contador ao vivo e "Posição/Categoria
+ * de destino" apenas para a ação correspondente.
+ *
+ * O teste dirige o aplicativo REAL e olha o `hidden` do nó que o usuário vê,
+ * porque um teste só de HTML provaria o estado inicial e nunca a transição.
+ */
+async function runBatchBarTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const rows = [
+      { id: 1, title: 'Alfa', alias: 'alfa', state: 'Published' },
+      { id: 2, title: 'Beta', alias: 'beta', state: 'Published' }
+    ];
+    const admin = createFakeAdminService({
+      domains: {
+        articles: rows,
+        categories: [{ id: 10, title: 'Institucional', alias: 'institucional', parentId: null, state: 'Published' }],
+        tags: []
+      }
+    });
+    admin.articles.query = async () => ({
+      rows, total: rows.length, totalBase: rows.length, page: 1, limit: 20,
+      facets: { authors: [], languages: [] }, columnFacets: {}
+    });
+    admin.categories.treeOptions = async () => [{ value: '10', label: 'Institucional' }];
+    admin.articles.batch = async () => ({ succeeded: rows.map((row) => ({ id: row.id })), failed: [] });
+    const fake = createFakeDocumentRef();
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/articles');
+      const bar = fake.element('[data-ext-batchbar]');
+      // O endereco da contagem e o mesmo que `syncBatchBar` resolve em
+      // `bar.querySelector('[data-ext-batch-count]')`: o fake chaveia por
+      // `<pai>|attr:<nome>=`.
+      const count = () => fake.element('[data-ext-batchbar]|attr:data-ext-batch-count=');
+      const target = () => fake.element('[data-ext-batchbar]|attr:data-ext-batch-category-field=');
+
+      // Sem seleção a barra não existe na tela: `hidden` no nó real, e não
+      // uma classe cosmética que um teste de HTML poderia acidentalmente
+      // satisfazer sem que nada mude para o usuário.
+      assert.equal(bar.hidden, true, 'sem seleção a barra de lote fica escondida');
+
+      // Uma seleção revela a barra e o contador passa a refletir as linhas
+      // marcadas. O gesto é o `change` da caixa "selecionar todos", o mesmo
+      // caminho que o navegador percorre.
+      const inputs = [
+        { value: '1', checked: false, dataset: { extId: '1' } },
+        { value: '2', checked: false, dataset: { extId: '2' } }
+      ];
+      fake.setList('[data-ext-select]', inputs);
+      fake.element('[data-ext-select-all]').checked = true;
+      await fake.dispatch('[data-ext-select-all]', 'change');
+      assert.equal(bar.hidden, false, 'com seleção a barra aparece');
+      assert.match(String(count().textContent), /^2 selecionado\(s\)$/, `o contador reflete as duas linhas: ${count().textContent}`);
+      // "selecionar todos" marcou as duas linhas de verdade.
+      assert.ok(inputs.every((input) => input.checked), '"selecionar todos" marca as linhas visíveis');
+
+      // "Categoria de destino" é condicional à ação de mover.
+      // O gesto real é o `change` do próprio `<select name="batchAction">`
+      // (que sobe por bubbling até o listener da barra); `bindBatch` o
+      // registra em `form.querySelector('[name="batchAction"]')`, que neste
+      // fake resolve para o endereço global `name:batchAction` — o MESMO nó
+      // que `syncBatchBar` lê pelo `form` da barra.
+      const action = fake.element('name:batchAction');
+      action.value = 'publish';
+      await fake.dispatch('name:batchAction', 'change');
+      assert.equal(target().hidden, true, '"Categoria de destino" não aparece para ação que não move');
+      action.value = 'move';
+      await fake.dispatch('name:batchAction', 'change');
+      assert.equal(target().hidden, false, '"Categoria de destino" aparece quando a ação é mover');
+
+      // Limpar a seleção zera o contador e esconde a barra de novo. O
+      // listener é direto no botão (`[data-ext-clear-selection]`), então o
+      // gesto é o `click` nesse endereço — não um clique delegado no
+      // documento.
+      await fake.dispatch('[data-ext-clear-selection]', 'click');
+      assert.equal(bar.hidden, true, 'limpar a seleção esconde a barra');
+      assert.match(String(count().textContent), /^0 selecionado\(s\)$/, 'limpar a seleção zera o contador');
+      assert.ok(inputs.every((input) => !input.checked), 'limpar a seleção desmarca as linhas');
+      assert.equal(fake.element('[data-ext-select-all]').checked, false, 'limpar a seleção desmarca "selecionar todos"');
+    } finally { app.stop(); }
+  });
+
+  // A mesma barra contextual existe nas listas de extensões. O alvo
+  // condicional lá se chama "Posição de destino" e o botão de limpar é
+  // `[data-ext-batch-clear]`: os atributos NÃO são os mesmos de
+  // `content-pages.js`, então este trecho prova cada lista pelo seu próprio
+  // contrato em vez de assumir que os dois módulos compartilham markup.
+  const moduleRows = [
+    { id: 101, title: 'Mod A', type: 'mod_a', position: 'sidebar-right', state: 'Published' },
+    { id: 102, title: 'Mod B', type: 'mod_b', position: 'sidebar-left', state: 'Published' }
+  ];
+  const admin = createFakeAdminService({ domains: { moduleInstances: moduleRows } });
+  admin.moduleInstances.catalog = async () => [{ key: 'mod_a', title: 'Tipo A' }, { key: 'mod_b', title: 'Tipo B' }];
+  admin.moduleInstances.positions = async () => ({ template: 'cassiopeia', positions: ['sidebar-right', 'sidebar-left'], all: ['sidebar-right', 'sidebar-left'] });
+  admin.moduleInstances.batch = async (items, action) => ({ succeeded: items.map((item) => item.id), failed: [], action });
+  const fake = createFakeDocumentRef();
+  const app = await mountApp(admin, createFakeStorage(), fake.documentRef);
+  try {
+    await app.router.navigate('#/moduleInstances');
+    const bar = fake.element('[data-ext-batchbar]');
+    const count = () => fake.element('[data-ext-batchbar]|attr:data-ext-batch-count=');
+    const target = () => fake.element('[data-ext-batchbar]|attr:data-ext-batch-target-field=');
+
+    assert.equal(bar.hidden, true, 'modulos: sem seleção a barra fica escondida');
+    const inputs = [
+      { value: '101', checked: false, dataset: { extId: '101' } },
+      { value: '102', checked: false, dataset: { extId: '102' } }
+    ];
+    fake.setList('[data-ext-select]', inputs);
+    fake.element('[data-ext-select-all]').checked = true;
+    await fake.dispatch('[data-ext-select-all]', 'change');
+    assert.equal(bar.hidden, false, 'modulos: com seleção a barra aparece');
+    assert.match(String(count().textContent), /^2 selecionado\(s\)$/, `modulos: contador reflete as linhas: ${count().textContent}`);
+
+    const action = fake.element('name:batchAction');
+    action.value = 'publish';
+    await fake.dispatch('name:batchAction', 'change');
+    assert.equal(target().hidden, true, 'modulos: "Posição de destino" não aparece para ação que não move');
+    action.value = 'move';
+    await fake.dispatch('name:batchAction', 'change');
+    assert.equal(target().hidden, false, 'modulos: "Posição de destino" aparece ao mover');
+
+    await fake.dispatch('[data-ext-batch-clear]', 'click');
+    assert.equal(bar.hidden, true, 'modulos: limpar a seleção esconde a barra');
+    assert.ok(inputs.every((input) => !input.checked), 'modulos: limpar a seleção desmarca as linhas');
+  } finally { app.stop(); }
+
+  console.log('ok - barra de lote contextual: some sem selecao, aparece com uma linha e mostra o alvo so quando move');
+}
+
+/*
+ * Adendo 1, item 2: em produção os botões de filtro de Título, Alias e
+ * Categoria não apareciam na lista de Artigos. Os três são colunas de
+ * primeira classe (`columnsForDomain('articles')`), então cada um precisa
+ * do próprio botão no cabeçalho — e o `href` da paginação não pode carregar
+ * `page=undefined` quando a lista já está na primeira página.
+ */
+async function runArticleColumnButtonsTests() {
+  const storage = createFakeStorage();
+  await withStorage(storage, async () => {
+    const rows = Array.from({ length: 45 }, (_, index) => ({
+      id: index + 1,
+      title: `Artigo ${String(index + 1).padStart(2, '0')}`,
+      alias: `artigo-${index + 1}`,
+      state: 'Published',
+      categoryId: 10
+    }));
+    const admin = createFakeAdminService({
+      domains: {
+        articles: rows,
+        categories: [{ id: 10, title: 'Institucional', alias: 'institucional', parentId: null, state: 'Published' }],
+        tags: []
+      }
+    });
+    admin.articles.query = async () => ({
+      rows: rows.slice(0, 20), total: rows.length, totalBase: rows.length, page: 1, limit: 20,
+      facets: { authors: [], languages: [] },
+      columnFacets: {
+        title: [{ value: 'Artigo 01', label: 'Artigo 01', count: 1 }],
+        alias: [{ value: 'artigo-1', label: 'artigo-1', count: 1 }],
+        categoryId: [{ value: '10', label: 'Institucional', count: 45 }]
+      }
+    });
+    admin.categories.treeOptions = async () => [{ value: '10', label: 'Institucional' }];
+    const fake = createFakeDocumentRef();
+    const app = await mountApp(admin, storage, fake.documentRef);
+    try {
+      await app.router.navigate('#/articles');
+      const html = fake.documentRef.body.innerHTML;
+      const toggles = [...html.matchAll(/data-colfilter-key="([^"]+)"/g)].map((match) => match[1]);
+      for (const key of ['title', 'alias', 'categoryId']) {
+        assert.ok(toggles.includes(key), `a coluna "${key}" oferece o próprio botão de filtro (tem: ${toggles.join(', ')})`);
+      }
+
+      // `page: undefined` na primeira página NÃO pode virar texto no href.
+      assert.ok(!/page=undefined/.test(html), `nenhum link carrega page=undefined: ${(html.match(/href="[^"]*page=undefined[^"]*"/) ?? [''])[0]}`);
+      assert.ok(!/undefined/.test(html), 'nenhum "undefined" vaza para o HTML renderizado');
+    } finally { app.stop(); }
+  });
+  console.log('ok - artigos: Titulo, Alias e Categoria tem botao de filtro proprio e nenhum link carrega page=undefined');
+}
+
 export async function runAdminListFiltersTests() {
   await runListMemoryTests();
   await runMemoryScopeTests();
@@ -1969,5 +2156,7 @@ export async function runAdminListFiltersTests() {
   await runFacetWiringRegressionTests();
   await runEditRoundTripTests();
   await runPanelKeyboardTests();
+  await runBatchBarTests();
+  await runArticleColumnButtonsTests();
   console.log('ok - filtros administrativos persistentes e por coluna');
 }

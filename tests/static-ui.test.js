@@ -192,5 +192,43 @@ export async function runStaticUiTests() {
 
   const adminCss = await readFile(new URL('../src/media/templates/administrator/atum/css/template.css', import.meta.url), 'utf8');
   checkAdminAtum(adminCss);
+  checkStickyListChrome(adminCss);
   console.log('ok - admin Joomla/Atum palette, contrast, focus and responsive CSS (TinyMCE vendor skin unchanged)');
+}
+
+/*
+ * As colunas fixas (seleção + Título) e a barra de lote contextual só têm
+ * efeito se a folha de estilo apontar para as classes que o renderizador
+ * REALMENTE emite. `render-list.js` emite `admin-col-<coluna>` (e
+ * `admin-col-title` para o título), e `extension-pages.js` emite o
+ * `admin-col-check` da coluna de seleção — nenhuma delas é `admin-col-select`.
+ * Este teste trava esse contrato para que uma renomeação futura não deixe o
+ * `position:sticky` silenciosamente sem alvo.
+ */
+function checkStickyListChrome(css) {
+  const rule = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*');
+    return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+  };
+  const checkCell = rule('.admin-list thead th.admin-col-check, .admin-list tbody td.admin-col-check');
+  assert.match(checkCell, /position:\s*sticky/, 'a coluna de seleção fica fixa');
+  assert.match(checkCell, /left:\s*0/, 'a coluna de seleção fica no limite esquerdo');
+
+  const titleCell = rule('.admin-list thead th.admin-col-title, .admin-list tbody th.admin-col-title');
+  assert.match(titleCell, /position:\s*sticky/, 'a coluna Título fica fixa');
+  // A largura da coluna de seleção é declarada UMA vez, em `.admin-shell`:
+  // repetir o número literal no `left` faria as duas medidas divergirem em
+  // qualquer ajuste posterior.
+  assert.match(titleCell, /left:\s*var\(--admin-check-col-width\)/, 'o Título encosta depois da coluna de seleção');
+  // A largura é declarada UMA vez, como custom property, e o próprio `left`
+  // acima a consome — é isso que impede as duas medidas de divergirem.
+  assert.match(css, /--admin-check-col-width:\s*4rem/, 'a largura reservada é medida em `.admin-shell`');
+
+  // A barra de lote contextual: escondida de verdade (`[hidden]`) e fixa no
+  // topo enquanto o usuário rola a lista.
+  const batchbar = rule('.admin-batchbar');
+  assert.match(batchbar, /position:\s*sticky/, 'a barra de lote acompanha a rolagem');
+  assert.match(batchbar, /top:\s*0/, 'a barra de lote fica no topo');
+  assert.match(rule('.admin-batchbar[hidden]'), /display:\s*none/, 'a barra some quando não há seleção');
+  assert.match(rule('.admin-batchbar-count'), /font-variant-numeric:\s*tabular-nums/, 'o contador não "pula" ao mudar de dígito');
 }
