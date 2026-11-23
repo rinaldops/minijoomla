@@ -89,6 +89,11 @@ function assertSelectorsPresent(html, context, { except = [] } = {}) {
 }
 
 export async function runColumnFilterCoreTests() {
+  await runColumnFilterCoreAssertions();
+  await runPanelPlacementTests();
+}
+
+async function runColumnFilterCoreAssertions() {
   // --- linhas da tabela canônica -----------------------------------------
   // O contrato de Artigos é fechado: as oito colunas filtráveis, na ordem em
   // que a listagem as oferece. Um `>= 7` deixaria passar a perda silenciosa de
