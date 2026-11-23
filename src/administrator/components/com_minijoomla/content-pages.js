@@ -13,7 +13,7 @@ import { renderCategoriesTable } from '../com_categories/tmpl/categories/default
 import { renderTagsTable } from '../com_tags/tmpl/tags/default.js';
 import { renderMediaFiles, formatMediaSize as formatSize } from '../com_media/tmpl/media/default.js';
 import { plusIcon } from './icons.js';
-import { bindColumnFilters, columnsForDomain, canonicalKey, parseMulti } from './column-filter.js';
+import { bindColumnFilters, columnsForDomain, canonicalKey, parseMulti, facetValueLabel } from './column-filter.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const status = '<p class="admin-form-status admin-management-status" role="status" aria-live="polite" aria-atomic="true" data-ext-status></p>';
@@ -22,10 +22,18 @@ const status = '<p class="admin-form-status admin-management-status" role="statu
  * A lista se recarrega depois de um lote, e a recarga re-renderiza
  * `[data-ext-status]` do zero. Sem guardar o recado, a única pista de que a
  * ação funcionou seria o estado das linhas mudar — indistinguível de um
- * filtro. Por isso o texto fica em memória até a próxima renderização
- * consumi-lo uma única vez.
+ * filtro. Por isso o texto sobrevive à recarga e é consumido uma única vez
+ * pela renderização seguinte.
+ *
+ * O recado mora no ROUTER, não no módulo: `createContentPages` é
+ * re-instantiado a cada renderização (a recarga destrói a instância que
+ * produziu o recado), mas o router é único por aplicação. Guardá-lo no
+ * módulo faria o recado vazar de uma aplicação/tela para a seguinte — um
+ * lote antigo anunciado numa lista que não tinha nada a ver com ele.
+ * As chaves ficam em `Symbol` para não colidir com a API do router.
  */
-let pendingBatchStatus = '';
+const PENDING_STATUS = Symbol('minijoomla.pendingBatchStatus');
+const PENDING_PATH = Symbol('minijoomla.pendingBatchPath');
 
 const ARTICLE_STATE_OPTIONS = [['', '— Estado (exceto lixeira) —'], ['Published', 'Publicados'], ['Draft', 'Despublicados'], ['Archived', 'Arquivados'], ['Trashed', 'Na lixeira'], ['*', 'Todos']];
 const TAXONOMY_STATE_OPTIONS = [['', '— Estado (exceto lixeira) —'], ['Published', 'Publicados'], ['Unpublished', 'Despublicados'], ['Trashed', 'Na lixeira'], ['*', 'Todos']];
@@ -45,6 +53,62 @@ const MANAGEMENT_PARAMS = {
   categories: [],
   tags: []
 };
+
+/*
+ * Frente C3: chaves da barra que também têm coluna filtrável na tabela.
+ *
+ * `extra` são controles de barra que NÃO viram coluna de propósito (ex.:
+ * `limit`, itens por página). Eles entram aqui como exceção explícita para
+ * que `hasColumn` os trate como "sem coluna" e eles continuem visíveis — no
+ * painel "Mais filtros" quando não estão ativos — mesmo que o catálogo de
+ * colunas ganhe um campo homônimo.
+ */
+function contentBarColumnKeys(domain, extra = []) {
+  const keys = columnsForDomain(domain).map((entry) => entry.key);
+  return keys.filter((key) => !extra.includes(key));
+}
+
+/*
+ * Frente C2: o que a barra de filtros ativos precisa descrever.
+ *
+ * São exatamente os filtros ATIVOS — os de coluna e os da barra do topo —,
+ * com o rótulo HUMANO do valor (o mesmo mapa de facetas do painel do
+ * cabeçalho), para que a barra e o menu nunca discordem sobre como um valor
+ * se chama. `rawValues` guarda a grafia da URL, que é o que o "×" precisa
+ * remover.
+ */
+function activeFiltersFor(domain, source, params = {}, barFields = []) {
+  const facets = source?.columnFacets ?? {};
+  const columns = columnsForDomain(domain);
+  const labelFor = (entry, value) => {
+    const facet = (facets[entry.key] ?? []).find((item) => String(item.value) === String(value));
+    // `facets[].label` é o rótulo da LINHA (caminho de categoria, texto livre);
+    // o rótulo HUMANO de um valor enumerado vive em FACET_VALUE_LABELS e é a
+    // MESMA fonte que o painel do cabeçalho usa — sem isto o chip diria
+    // "Estado: Published" enquanto o menu diz "Publicado".
+    return facetValueLabel(domain, entry.key, value) ?? facet?.label ?? value;
+  };
+  const fromColumns = columns.flatMap((entry) => {
+    const raw = params[entry.key] ?? entry.aliases.map((alias) => params[alias]).find((value) => value !== undefined && value !== null && value !== '');
+    if (raw === undefined || raw === null || raw === '') return [];
+    const rawValues = parseMulti(String(raw)).map(String);
+    return [{ key: entry.key, label: entry.label, values: rawValues.map((value) => (value === '' ? 'Vazio' : labelFor(entry, value))), rawValues }];
+  });
+  /*
+   * Um campo da barra que também é coluna já foi descrito acima pela lista
+   * canônica; descrevê-lo duas vezes duplicaria o chip.
+   */
+  const fromBar = barFields.flatMap((field) => {
+    if (field.type === 'search') return [];
+    if (columns.some((entry) => entry.key === field.name)) return [];
+    const value = params[field.name];
+    if (value === undefined || value === null || value === '') return [];
+    const rawValues = parseMulti(String(value)).map(String);
+    const labels = new Map((field.options ?? []).map(([option, label]) => [String(option), label]));
+    return [{ key: field.name, label: field.label, values: rawValues.map((item) => labels.get(item) ?? item), rawValues }];
+  });
+  return [...fromColumns, ...fromBar];
+}
 
 /*
  * Colunas filtráveis de cada listagem de conteúdo, na forma que os
@@ -75,6 +139,7 @@ function columnFiltersFor(domain, source, params = {}) {
 
 export function createContentPages({ adminService, documentRef, router, shell, mediaService, clock = () => new Date(), isCurrent = () => true }) {
   const link = (path, params) => router.link(path, params);
+  let currentPath = '';
 
   /*
    * Estado da LISTA que precisa sobreviver a abrir/criar/duplicar/
@@ -120,19 +185,61 @@ export function createContentPages({ adminService, documentRef, router, shell, m
   const navigate = (...args) => isCurrent() ? router.navigate(...args) : undefined;
   const reload = (location) => navigate(link(location.path, location.params));
 
+  /*
+   * Recado do último lote desta aplicação (ver `PENDING_STATUS`). O texto e o
+   * destino vivem no router para atravessar a recarga, que re-instancia
+   * estas páginas.
+   */
+  const armBatchStatus = (message) => {
+    router[PENDING_STATUS] = message;
+    router[PENDING_PATH] = currentPath;
+  };
+
   function selectedIds() {
     return Array.from(body().querySelectorAll?.('[data-ext-select]') ?? []).filter((input) => input.checked).map((input) => input.value);
   }
 
   function bindSelectAll() {
     const all = body().querySelector?.('[data-ext-select-all]');
-    all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); });
+    all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); syncBatchBar(); }); });
+    for (const input of Array.from(body().querySelectorAll?.('[data-ext-select]') ?? [])) {
+      input.addEventListener?.('change', () => { if (!isCurrent()) return; syncBatchBar(); });
+    }
+    syncBatchBar();
   }
 
+  /*
+   * Adendo 1, item 5: a barra de lote é contextual. Com zero linhas marcadas
+   * ela não existe na tela; com uma ou mais, aparece em UMA linha logo acima
+   * da tabela. O contador é o mesmo nó que o `aria-live` anuncia, então não
+   * há como os dois divergirem.
+   */
+  function syncBatchBar() {
+    if (!isCurrent()) return;
+    const bar = body().querySelector?.('[data-ext-batchbar]');
+    if (!bar) return;
+    const count = selectedIds().length;
+    bar.hidden = count === 0;
+    const label = bar.querySelector?.('[data-ext-batch-count]');
+    if (label) label.textContent = `${count} selecionado(s)`;
+    const form = bar.querySelector?.('[data-ext-batch]');
+    // "Categoria de destino" só faz sentido para a ação de mover.
+    const action = form?.querySelector?.('[name="batchAction"]')?.value ?? '';
+    const category = bar.querySelector?.('[data-ext-batch-category-field]');
+    if (category) category.hidden = action !== 'move';
+  }
+
+  /*
+   * Consome o recado do lote anterior. Só entrega se ele foi produzido para
+   * ESTE destino: um recado pendente de outra tela (o usuário navegou antes de
+   * a recarga acontecer) é descartado em vez de anunciado onde não faz sentido.
+   */
   function flushBatchStatus() {
-    if (!pendingBatchStatus) return;
-    const message = pendingBatchStatus;
-    pendingBatchStatus = '';
+    const message = router[PENDING_STATUS];
+    const target = router[PENDING_PATH];
+    router[PENDING_STATUS] = '';
+    router[PENDING_PATH] = '';
+    if (!message || target !== currentPath) return;
     report(message);
   }
 
@@ -166,21 +273,50 @@ export function createContentPages({ adminService, documentRef, router, shell, m
      * extensão que re-renderizam por outro caminho) continua funcionando.
      */
     async function batchReport(result, location, { redirect } = {}) {
+      /*
+       * Tela obsoleta: o lote terminou depois de uma navegação/recarga, então
+       * este resultado não descreve mais o que está na tela. Reportar aqui
+       * escreveria a mensagem numa renderização que já morreu (e o status
+       * pendente vazaria para a próxima tela). Mesma guarda do caminho de
+       * erro abaixo.
+       */
+      if (!isCurrent()) return undefined;
       if (!result.failed.length) {
-        pendingBatchStatus = `${result.succeeded.length} item(ns) atualizado(s).`;
+        armBatchStatus(`${result.succeeded.length} item(ns) atualizado(s).`);
         return redirect ? redirect(location) : reload(location);
       }
-      pendingBatchStatus = `${result.succeeded.length} atualizado(s), ${result.failed.length} com falha: ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`;
-        throw Object.assign(new Error(pendingBatchStatus), { partialBatch: true, succeeded: result.succeeded.length });
+      armBatchStatus(`${result.succeeded.length} atualizado(s), ${result.failed.length} com falha: ${result.failed.map((failure) => extensionErrorMessage(failure, failure.message)).join(' ')}`);
+      throw Object.assign(new Error(router[PENDING_STATUS]), { partialBatch: true, succeeded: result.succeeded.length });
   }
 
+  /*
+   * A busca lê os valores do DOCUMENTO, não só do `<form>`: os filtros que
+   * saíram da barra (Frente C3) moram no painel "Mais filtros", que é um
+   * bloco IRMÃO do formulário — fora dele, `form.querySelector` não os
+   * acharia e submeter a busca apagaria silenciosamente o recorte que o
+   * usuário tinha aplicado. `[name]` continua sendo a chave de leitura, então
+   * o painel e a barra seguem o mesmo contrato.
+   */
   function bindFilter(location, names) {
     const form = body().querySelector?.('[data-ext-filter]');
+    const scope = body();
     form?.addEventListener?.('submit', async (event) => {
       event?.preventDefault?.();
       if (!isCurrent()) return;
-      const params = Object.fromEntries(names.map((name) => [name, form.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
-      for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
+      const params = Object.fromEntries(names.map((name) => [name, scope.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
+      /*
+       * Preserva o que NÃO é campo do formulário — `sort`/`dir` e,
+       * principalmente, os filtros de coluna (`col_*`/canônicos) aplicados
+       * pelo menu: reconstruir a query só com os campos da barra apagava os
+       * filtros que o usuário tinha acabado de escolher no menu da coluna.
+       * Os campos do formulário continuam sendo a fonte da verdade; os
+       * demais só sobrevivem.
+       */
+      for (const [key, value] of Object.entries(location.params ?? {})) {
+        if (names.includes(key) || value === undefined || value === null || value === '') continue;
+        if (key === 'page') continue;
+        params[key] = value;
+      }
       await navigate(link(location.path, params));
     });
   }
@@ -203,8 +339,13 @@ export function createContentPages({ adminService, documentRef, router, shell, m
           // Falha total: nada recarrega, então o recado precisa dizer também
           // que NENHUM item foi alterado — senão "1 com falha" não distingue
           // "todos falharam" de "alguns passaram".
-          pendingBatchStatus = `${error.message} Nenhum item foi atualizado.`;
-          report(pendingBatchStatus);
+          armBatchStatus(`${error.message} Nenhum item foi atualizado.`);
+          report(router[PENDING_STATUS]);
+          // Não houve recarga para consumir o recado, então ele é descartado
+          // aqui: deixá-lo armado faria a PRÓXIMA renderização de `/articles`
+          // (mesmo destino) reanunciar uma falha que já foi mostrada.
+          router[PENDING_STATUS] = '';
+          router[PENDING_PATH] = '';
         }
       return undefined;
     }
@@ -212,6 +353,14 @@ export function createContentPages({ adminService, documentRef, router, shell, m
 
   function bindBatch(location, run, { needsCategory = false } = {}) {
     const form = body().querySelector?.('[data-ext-batch]');
+    form?.querySelector?.('[name="batchAction"]')?.addEventListener?.('change', () => { if (!isCurrent()) return; syncBatchBar(); });
+    body().querySelector?.('[data-ext-clear-selection]')?.addEventListener?.('click', () => {
+      if (!isCurrent()) return;
+      body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = false; });
+      const all = body().querySelector?.('[data-ext-select-all]');
+      if (all) { all.checked = false; all.indeterminate = false; }
+      syncBatchBar();
+    });
     form?.addEventListener?.('submit', async (event) => {
       event?.preventDefault?.();
       if (!isCurrent()) return;
@@ -226,8 +375,13 @@ export function createContentPages({ adminService, documentRef, router, shell, m
   }
 
   function batchForm(actions, categoryOptions) {
-    const category = categoryOptions ? `<label for="admin-batch-category">Categoria de destino</label><select id="admin-batch-category" name="batchCategory">${options([['', '— Categoria —'], ...categoryOptions.map((option) => [option.value, option.label])], '')}</select>` : '';
-    return `<form class="admin-batch" data-ext-batch aria-label="Ações em lote"><label for="admin-batch-action">Ações em lote</label><select id="admin-batch-action" name="batchAction">${options([['', '— Selecione —'], ...Object.entries(actions)], '')}</select>${category}<button type="submit" class="admin-btn">Aplicar aos selecionados</button></form>`;
+    const category = categoryOptions ? `<label for="admin-batch-category" data-ext-batch-category-field hidden>Categoria de destino</label><select id="admin-batch-category" name="batchCategory" data-ext-batch-category-field hidden>${options([['', '— Categoria —'], ...categoryOptions.map((option) => [option.value, option.label])], '')}</select>` : '';
+    /*
+     * `hidden` no primeiro render: a barra nasce escondida porque a página
+     * abre sem seleção. `syncBatchBar()` a revela quando o usuário marca
+     * algo. O `<span>` do contador é o mesmo que o `aria-live` lê.
+     */
+    return `<div class="admin-batchbar" data-ext-batchbar role="region" aria-label="Ações em lote" hidden><span class="admin-batchbar-count" data-ext-batch-count aria-live="polite">0 selecionado(s)</span><form data-ext-batch><select name="batchAction" aria-label="Ação em lote">${options([['', '— Selecione —'], ...Object.entries(actions)], '')}</select>${category}<button type="submit" class="admin-btn">Aplicar</button></form><button type="button" class="admin-btn admin-btn-ghost" data-ext-clear-selection>Limpar seleção</button></div>`;
   }
 
   // ---------- Artigos (com_content) ----------
@@ -242,7 +396,7 @@ export function createContentPages({ adminService, documentRef, router, shell, m
     const etags = new Map(result.rows.map((row) => [String(row.id), row.etag]));
     const inTrash = params.state === 'Trashed';
     const now = clock();
-    const filters = filterBar('admin-articles-filter', [
+    const articlesFilters = [
       { name: 'q', label: 'Buscar por título, alias, nota ou id:N', type: 'search', value: params.q },
       { name: 'state', label: 'Estado', value: params.state, options: ARTICLE_STATE_OPTIONS },
       { name: 'categoryId', label: 'Categoria', value: params.categoryId, options: [['', '— Categoria —'], ...categoryOptions.map((option) => [String(option.value), option.label])] },
@@ -251,8 +405,17 @@ export function createContentPages({ adminService, documentRef, router, shell, m
       { name: 'tag', label: 'Tag', value: params.tag, options: [['', '— Tag —'], ...tagRows.map((tag) => [tag.name, tag.name])] },
       { name: 'language', label: 'Idioma', value: params.language, options: [['', '— Idioma —'], ...result.facets.languages.map((language) => [language, language])] },
       { name: 'limit', label: 'Itens por página', value: params.limit || String(result.limit), options: PAGE_LIMITS.map((limit) => [String(limit), `${limit} por página`]) }
-    ]);
-    const table = renderArticlesTable(result, { link, params, now, columnFilters: columnFiltersFor('articles', result, params), returnParams: listState(params, {}, 'articles') });
+    ];
+    const filters = filterBar('admin-articles-filter', articlesFilters, 'Filtrar', { columnKeys: contentBarColumnKeys('articles', ['limit']) });
+    const table = renderArticlesTable(result, {
+      link, params, now,
+      columnFilters: columnFiltersFor('articles', result, params),
+      returnParams: listState(params, {}, 'articles'),
+      // Frente C2: `limit` é parâmetro de paginação, não filtro de conteúdo, e
+      // já aparece no seletor "Itens por página" — fora da barra de ativos.
+      activeFilters: activeFiltersFor('articles', result, params, articlesFilters.filter((field) => field.name !== 'limit')),
+      totalLabel: `${result.total} de ${result.totalBase ?? result.total} itens`
+    });
     const actions = { ...ARTICLE_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) };
     const html = page('articles', 'Artigos', [{ label: 'Artigos' }], `${status}${filters}${batchForm(actions, categoryOptions)}${table}${pagination(result, (number) => link('/articles', { ...params, page: String(number) }))}`,
               `<a class="admin-btn admin-btn-success" href="${esc(link('/articles/new', listState(params, {}, 'articles')))}">${plusIcon()}Novo</a>`);
@@ -282,13 +445,16 @@ export function createContentPages({ adminService, documentRef, router, shell, m
     const rows = await service.query(params);
     const etags = new Map(rows.map((row) => [String(row.id), row.etag]));
     const inTrash = params.state === 'Trashed';
-    const filters = filterBar(`admin-${cfg.domain}-filter`, [
+    const taxonomyFilters = [
       { name: 'q', label: 'Buscar por título, alias ou id:N', type: 'search', value: params.q },
       { name: 'state', label: 'Estado', value: params.state, options: TAXONOMY_STATE_OPTIONS }
-    ]);
+    ];
+    const filters = filterBar(`admin-${cfg.domain}-filter`, taxonomyFilters, 'Filtrar', { columnKeys: contentBarColumnKeys(cfg.domain) });
+    const facets = rows.columnFacets ? rows : { columnFacets: {} };
+    const taxonomyBar = activeFiltersFor(cfg.domain, facets, params, []);
     const table = cfg.domain === 'categories'
-          ? renderCategoriesTable(rows, { link, columnFilters: columnFiltersFor('categories', rows, params), returnParams: listState(params, {}, 'categories') })
-          : renderTagsTable(rows, { link, columnFilters: columnFiltersFor('tags', rows, params), returnParams: listState(params, {}, 'tags') });
+          ? renderCategoriesTable(rows, { link, columnFilters: columnFiltersFor('categories', rows, params), returnParams: listState(params, {}, 'categories'), activeFilters: taxonomyBar, totalLabel: `${rows.total ?? rows.length} de ${rows.totalBase ?? rows.total ?? rows.length} itens` })
+          : renderTagsTable(rows, { link, columnFilters: columnFiltersFor('tags', rows, params), returnParams: listState(params, {}, 'tags'), activeFilters: taxonomyBar, totalLabel: `${rows.total ?? rows.length} de ${rows.totalBase ?? rows.total ?? rows.length} itens` });
     const html = page(cfg.domain, cfg.label, [{ label: cfg.label }], `${status}${filters}${batchForm({ ...TAXONOMY_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) })}${table}`,
               `<a class="admin-btn admin-btn-success" href="${esc(link(`/${cfg.domain}/new`, listState(params, {}, cfg.domain)))}">${plusIcon()}Novo</a>`);
     const bind = () => {
@@ -357,6 +523,9 @@ export function createContentPages({ adminService, documentRef, router, shell, m
 
   async function render(location) {
     const path = location.path;
+    // Destino desta renderização; é o que amarra o recado do lote à listagem
+    // que o pediu (ver `pendingBatchPath`).
+    currentPath = path;
     if (path === '/articles' && adminService.articles?.query) return articleListPage(location);
     if (path === '/categories' && adminService.categories?.query) return taxonomyListPage(location, { domain: 'categories', label: 'Categorias' });
     if (path === '/tags' && adminService.tags?.query) return taxonomyListPage(location, { domain: 'tags', label: 'Tags' });

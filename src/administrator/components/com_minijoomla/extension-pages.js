@@ -30,6 +30,25 @@ import { plusIcon, saveIcon, closeIcon, checkIcon, banIcon, trashIcon, moduleIco
 import { bindColumnFilters, columnsForDomain, parseMulti } from './column-filter.js';
 
 const PAGE_SIZE = 20;
+
+/*
+ * Casamento de um valor de coluna com o parâmetro da URL. O menu de coluna
+ * grava SEMPRE a forma múltipla (`~m:a,b`, ver column-filter.js), enquanto a
+ * barra de filtros ainda manda o valor cru. Comparar o parâmetro inteiro
+ * como escalar (`row.x === params.x`) só funcionava para a barra: com dois
+ * valores escolhidos no menu o parâmetro vira `~m:component,module`, que não
+ * é igual a nenhuma linha e a lista saía VAZIA. Dentro de uma coluna os
+ * valores são OU, como no AutoFiltro.
+ */
+function matchesColumn(rawValue, value, { ignoreCase = true } = {}) {
+  const selected = parseMulti(rawValue ?? '');
+  if (!selected.length) return true;
+  if (selected.includes('*')) return true;
+  const normalize = (input) => (ignoreCase ? String(input ?? '').toLocaleLowerCase() : String(input ?? ''));
+  const wanted = normalize(value);
+  return selected.some((option) => (option === '' ? wanted === '' : normalize(option) === wanted));
+}
+
 export const STATE_LABELS = { published: 'Publicado', unpublished: 'Despublicado', trashed: 'Na lixeira' };
 export const ASSIGNMENT_LABELS = { all: 'Em todas as páginas', none: 'Em nenhuma página', only: 'Apenas nas páginas selecionadas', except: 'Em todas, exceto as selecionadas' };
 export const ROUTE_LABELS = { home: 'Página inicial', category: 'Blog de categoria', article: 'Artigo', search: 'Busca', archive: 'Arquivo' };
@@ -148,11 +167,40 @@ export function pagination({ page, pageCount }, href) {
   return `<nav class="admin-pagination" aria-label="Páginas"><ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul></nav>`;
 }
 
-export function filterBar(id, fields, label = 'Filtrar') {
-  const controls = fields.map((field) => field.type === 'search'
+/*
+ * Barra de filtros da listagem (Frente C3).
+ *
+ * Um filtro que JÁ tem coluna filtrável na tabela não se repete aqui: dois
+ * controles para o mesmo parâmetro davam dois estados de tela para o mesmo
+ * recorte, e podiam discordar entre si. Ele sai da barra e passa a viver só
+ * no menu do cabeçalho — a query da URL continua sendo lida normalmente.
+ *
+ * O que NÃO tem coluna (Tag, Idioma, itens por página em Artigos) não pode
+ * virar filtro de coluna, então não pode simplesmente sumir: ele vai para o
+ * painel "Mais filtros", atrás de um botão. O painel nasce ABERTO quando um
+ * desses filtros está ativo — fechado, o recorte aplicado ficaria invisível
+ * e sem pista de como desfazê-lo.
+ *
+ * `columnKeys` são as chaves canônicas com coluna (ver `columnsForDomain`);
+ * sem ele o comportamento antigo é preservado integralmente.
+ */
+export function filterBar(id, fields, label = 'Filtrar', { columnKeys = [] } = {}) {
+  const hasColumn = (field) => columnKeys.includes(field.name);
+  const control = (field) => field.type === 'search'
     ? `<label for="${id}-${field.name}">${esc(field.label)}</label><input type="search" id="${id}-${field.name}" name="${field.name}" value="${esc(field.value)}">`
-    : `<label for="${id}-${field.name}" class="visually-hidden">${esc(field.label)}</label><select id="${id}-${field.name}" name="${field.name}">${options(field.options, field.value)}</select>`).join('');
-  return `<form class="admin-searchbar" role="search" data-ext-filter="${id}">${controls}<button type="submit" class="admin-btn admin-btn-primary">${esc(label)}</button></form>`;
+    : `<label for="${id}-${field.name}" class="visually-hidden">${esc(field.label)}</label><select id="${id}-${field.name}" name="${field.name}">${options(field.options, field.value)}</select>`;
+  /*
+   * A busca textual nunca vai para o painel: ela é a porta de entrada da
+   * barra e continuaria visível mesmo sem coluna correspondente.
+   */
+  const main = fields.filter((field) => field.type === 'search' || !hasColumn(field));
+    const extra = fields.filter((field) => field.type !== 'search' && !hasColumn(field));
+  const active = extra.some((field) => String(field.value ?? '') !== '');
+  const more = extra.length
+    ? `<button type="button" class="admin-morefilters-toggle" data-morefilters-toggle aria-expanded="${active ? 'true' : 'false'}" aria-controls="${id}-morefilters">Mais filtros</button>`
+      + `<div class="admin-morefilters" id="${id}-morefilters" data-morefilters${active ? '' : ' hidden'}>${extra.map(control).join('')}</div>`
+    : '';
+  return `<form class="admin-searchbar" role="search" data-ext-filter="${id}">${main.map(control).join('')}<button type="submit" class="admin-btn admin-btn-primary">${esc(label)}</button></form>${more}`;
 }
 
 export function stateIcon(state, label) {
@@ -176,6 +224,21 @@ export function assignmentSummary(row = {}) {
 
 export function createExtensionPages({ adminService, documentRef, router, shell, isCurrent = () => true }) {
   const link = (path, params) => router.link(path, params);
+  /*
+   * Link de VOLTA que preserva o recorte da listagem. As telas de edição
+   * levam a query nos próprios `location.params`; o "Cancelar" dos formulários
+   * precisa reenviá-la, senão sair sem salvar descarta os filtros por coluna,
+   * a busca, a ordenação e a página em que o usuário estava.
+   */
+  const backLink = (path, location) => link(path, listParams(location));
+  /*
+   * `link` para os formulários de edição: as telas de edição usam o mesmo
+   * `link` para fatos DIFERENTES — o "Cancelar" do rodapé (que deve voltar com
+   * o recorte) e links internos do formulário (que apontam para a própria
+   * edição e não devem carregar filtro de listagem). Somente o primeiro
+   * recebe a query; os demais continuam limpos.
+   */
+  const listLinkFor = (location, listPath) => (path, params) => (path === listPath ? link(path, { ...listParams(location), ...params }) : link(path, params));
   const home = () => ({ label: 'Painel de controle', href: link('/') });
   const page = (activeKey, pageTitle, crumbs, bodyHtml, toolbarActionsHtml = '') => shell({ activeKey, pageTitle, breadcrumbItems: [home(), ...crumbs], bodyHtml, toolbarActionsHtml, link });
   const body = () => documentRef.body;
@@ -212,10 +275,14 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       if (!isCurrent()) return;
       const params = Object.fromEntries(names.map((name) => [name, form.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
       // Trocar um filtro não pode jogar fora a ordenação escolhida nem os
-      // filtros de coluna (`col_<campo>`), que o usuário montou pelo menu
-      // do cabeçalho e não têm campo correspondente na barra.
-      for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
-      for (const [key, value] of Object.entries(location.params ?? {})) if (key.startsWith('col_') && value) params[key] = value;
+            // filtros de coluna, que o usuário montou pelo menu do cabeçalho e não
+            // têm campo correspondente na barra. O menu grava a chave CANÔNICA
+            // (`state`, `template`…) e URLs antigas ainda trazem o alias `col_*`;
+            // filtrar por prefixo `col_` sozinho descartava a forma canônica.
+            for (const [key, value] of Object.entries(location.params ?? {})) {
+              if (names.includes(key) || key === 'page' || value === undefined || value === null || value === '') continue;
+              params[key] = value;
+            }
       await navigate(link(location.path, params));
     });
   }
@@ -235,13 +302,21 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
    * filtro equivalente da barra (`state`, `position`, `type`…), que pode
    * conviver na mesma URL. As listagens de extensões, porém, sempre leram
    * os nomes sem prefixo; sem esta sobreposição o menu abria, navegava e
-   * não filtrava nada. Aqui `col_<nome>` tem precedência sobre `<nome>`.
+      * não filtrava nada.
+      *
+      * A chave CANÔNICA vence o alias `col_*`, e não o contrário: é a mesma
+      * precedência de `canonicalizeParams` (column-filter.js) e a única
+      * coerente com os links novos, que já emitem a chave canônica. Invertê-la
+      * fazia um `col_*` legado remanescente na URL sobrescrever silenciosamente
+      * o filtro que o menu acabou de gravar.
    */
   function listParams(location) {
     const raw = location.params ?? {};
     const params = { ...raw };
     for (const [key, value] of Object.entries(raw)) {
-      if (key.startsWith('col_') && value !== undefined && value !== '') params[key.slice(4)] = value;
+         if (!key.startsWith('col_') || value === undefined || value === '') continue;
+         const canonical = key.slice(4);
+         if (!Object.hasOwn(params, canonical)) params[canonical] = value;
     }
     return params;
   }
@@ -251,10 +326,26 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
      * consome: objetos `{ value, label, count }`. Pares `[valor, rótulo]` são
      * o formato da barra de filtros, não do painel: entregá-los aqui faria o
      * painel renderizar uma linha por valor com `value`/`label` indefinidos.
+       *
+       * Regra do AutoFiltro: as opções da coluna X são os valores distintos de
+       * X nas linhas que passam por TODOS os filtros ativos, EXCETO o da própria
+       * coluna X — inclusive a busca `q` e os filtros da barra. `base` já chega
+       * filtrada por tudo que é alheio à coluna; `own` remove só o valor da
+       * própria coluna da lista de parâmetros antes de reaplicar o predicado.
      */
-    function uniqueValues(rows, pick) {
+      function uniqueValues(rows, pick, options = {}) {
+      const { base = rows, predicate = null, params = {}, key = '', aliases = [] } = options;
+      const scope = Object.keys(params).length
+        ? (() => {
+          const copy = { ...params };
+          delete copy[key];
+          for (const alias of aliases) delete copy[alias];
+          return copy;
+        })()
+        : null;
+      const source = predicate && scope ? base.filter((row) => predicate(row, scope)) : base;
     const seen = new Map();
-    for (const row of Array.isArray(rows) ? rows : []) {
+      for (const row of Array.isArray(source) ? source : []) {
       const value = String(pick(row) ?? '').trim();
         if (!value) continue;
         const current = seen.get(value);
@@ -272,7 +363,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
    * do menu. `value` é lido com `parseMulti`, aceitando tanto o valor
    * literal quanto a lista multi-valor `~m:a,b`.
    */
-  function columnFiltersFor(domain, rows, params = {}) {
+  function columnFiltersFor(domain, rows, params = {}, match = null) {
     return columnsForDomain(domain).map((entry) => ({
       key: entry.key,
       column: entry.column,
@@ -289,13 +380,120 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
           ?? entry.aliases.map((alias) => params[alias]).find((value) => value !== undefined && value !== null && value !== '')
           ?? ''
         ),
-      options: uniqueValues(rows, (row) => row[entry.key])
+        options: uniqueValues(rows, (row) => row[entry.key], match ? {
+          base: rows,
+                  /*
+                   * `match` é o MESMO predicado da listagem (`moduleFiltered`,
+                   * `pluginFiltered`, `styleFiltered`) — a assinatura dele é
+                   * `(rows, params)`, não `(row, params)`. Chamá-lo com uma linha
+                   * fazia `rows.filter is not a function` e a listagem inteira caía
+                   * no cartão de falha, sem tabela nem filtros. Aqui o escopo é
+                   * reaplicado sobre o conjunto, devolvendo as linhas que sobram.
+                   */
+                  predicate: (row, scope) => match([row], scope).length > 0,
+          params,
+          key: entry.key,
+          aliases: entry.aliases
+        } : {})
     }));
+  }
+
+  function moduleFiltered(rows, params) {
+    const term = String(params.q ?? '').trim().toLowerCase();
+    return rows.filter((row) => {
+      const state = moduleState(row);
+      /*
+       * Estado: a barra manda `published`/`unpublished`/`trashed`/`*` e o
+       * menu manda o mesmo em forma múltipla. Sem valor, o padrão do domínio
+       * esconde a lixeira (não é "todos"); com `*`, mostra tudo.
+       */
+      const rawState = String(params.state ?? '').trim();
+      const stateOk = rawState === '*' || parseMulti(rawState).includes('*') ? true
+        : parseMulti(rawState).length ? parseMulti(rawState).some((option) => option === state)
+        : state !== 'trashed';
+      // `state` e `position` são compartilhados pelo menu da coluna e pela
+      // barra de filtros; `title`/`type` só existem no menu, porque a busca
+      // livre (`q`) cruza título e nota e não isola a coluna.
+      return stateOk && matchesColumn(params.position, row.position, { ignoreCase: false }) && matchesColumn(params.type, row.extensionKey)
+        && matchesColumn(params.title, row.title)
+        && (!term || `${row.title} ${row.note ?? ''}`.toLowerCase().includes(term));
+    });
+  }
+
+  /*
+   * Predicado único de Plugins: a lista e as facetas usam ESTA função, senão
+   * o menu ofereceria valores que a lista não devolve (ou o contrário).
+   * `enabled` (barra, valores `true`/`false`) e `state` (menu da coluna,
+   * `enabled`/`disabled` na forma múltipla) são o mesmo conceito em duas
+   * grafias; a barra tem precedência porque é o filtro equivalente.
+   */
+  function pluginFiltered(rows, params) {
+    const term = String(params.q ?? '').trim().toLowerCase();
+    const enabledBar = ['true', 'false'].includes(String(params.enabled ?? '').trim()) ? String(params.enabled).trim() : '';
+    return rows.filter((row) => (!params.group || row.group === params.group)
+      && (!enabledBar || Boolean(row.enabled) === (enabledBar === 'true'))
+      && matchesColumn(enabledBar ? '' : params.enabled, row.enabled ? 'enabled' : 'disabled', { ignoreCase: false })
+      && matchesColumn(params.title, row.title)
+      && matchesColumn(params.key, row.key, { ignoreCase: false })
+      && (!term || `${row.title} ${row.key}`.toLowerCase().includes(term)));
+  }
+
+  /*
+   * Predicado único de Estilos de template: a barra manda `template` (chave
+   * crua) e o menu da coluna manda `template`/`style` na forma múltipla —
+   * `matchesColumn` cobre as duas. O filtro por `col_*` saiu: `listParams`
+   * passou a deixar a chave canônica prevalecer, então o alias nunca é o
+   * valor efetivo, e filtrar por ele deixava a lista vazia.
+   */
+  function styleFiltered(styles, params) {
+    return styles
+      .filter((style) => matchesColumn(params.template, style.template, { ignoreCase: false }))
+      .filter((style) => matchesColumn(params.style, style.title));
   }
 
   function bindSelectAll() {
     const all = body().querySelector?.('[data-ext-select-all]');
-    all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); });
+      all?.addEventListener?.('change', () => { if (!isCurrent()) return; body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = Boolean(all.checked); }); syncBatchBar(); });
+      for (const input of Array.from(body().querySelectorAll?.('[data-ext-select]') ?? [])) {
+        input.addEventListener?.('change', () => { if (!isCurrent()) return; syncBatchBar(); });
+      }
+      syncBatchBar();
+    }
+
+    /*
+     * Adendo 1, item 5: barra de lote contextual, em uma linha, escondida
+     * enquanto nada está marcado. O contador é o próprio nó anunciado pelo
+     * `aria-live`, então tela e leitor de tela nunca divergem.
+     */
+    function syncBatchBar() {
+      if (!isCurrent()) return;
+      const bar = body().querySelector?.('[data-ext-batchbar]');
+      if (!bar) return;
+      const count = selectedIds().length;
+      bar.hidden = count === 0;
+      const label = bar.querySelector?.('[data-ext-batch-count]');
+      if (label) label.textContent = `${count} selecionado(s)`;
+      const action = bar.querySelector?.('[name="batchAction"]')?.value ?? '';
+      // "Posição de destino" só se aplica à ação de mover.
+      const target = bar.querySelector?.('[data-ext-batch-target-field]');
+      if (target) target.hidden = action !== 'move';
+    }
+
+    function bindBatchBar() {
+          // Trocar a ação em lote precisa revelar/esconder o campo de destino na
+          // hora: sem este listener "Posição de destino" só apareceria na próxima
+          // renderização — isto é, nunca, porque a página não recarrega enquanto o
+          // usuário só mexe no `<select>`. Em `content-pages.js` o mesmo
+          // `syncBatchBar` é disparado pelo `change` do select.
+          body().querySelector?.('[data-ext-batch]')?.querySelector?.('[name="batchAction"]')
+            ?.addEventListener?.('change', () => { if (!isCurrent()) return; syncBatchBar(); });
+      body().querySelector?.('[data-ext-batch-clear]')?.addEventListener?.('click', () => {
+        if (!isCurrent()) return;
+        body().querySelectorAll?.('[data-ext-select]')?.forEach?.((input) => { input.checked = false; });
+        const all = body().querySelector?.('[data-ext-select-all]');
+        if (all) { all.checked = false; all.indeterminate = false; }
+        syncBatchBar();
+      });
   }
 
   function bindActions(handlers) {
@@ -372,17 +570,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     const params = listParams(location);
     const [rows, catalog, positions] = await Promise.all([adminService.moduleInstances.list(), adminService.moduleInstances.catalog(), adminService.moduleInstances.positions()]);
     const types = new Map(catalog.map((type) => [type.key, type]));
-    const term = String(params.q ?? '').trim().toLowerCase();
-    const filtered = rows.filter((row) => {
-      const state = moduleState(row);
-      const stateOk = params.state === '*' ? true : params.state ? state === params.state : state !== 'trashed';
-      // `state` e `position` são compartilhados pelo menu da coluna e pela
-      // barra de filtros; `title` só existe no menu, porque a busca livre
-      // (`q`) cruza título e nota e não isola a coluna.
-      return stateOk && (!params.position || row.position === params.position) && (!params.type || row.extensionKey === params.type)
-        && (!params.title || String(row.title) === String(params.title))
-        && (!term || `${row.title} ${row.note ?? ''}`.toLowerCase().includes(term));
-    }).sort((a, b) => String(a.position).localeCompare(String(b.position)) || (Number(a.ordering) || 0) - (Number(b.ordering) || 0) || Number(a.id) - Number(b.id));
+    const filtered = moduleFiltered(rows, params).sort((a, b) => String(a.position).localeCompare(String(b.position)) || (Number(a.ordering) || 0) - (Number(b.ordering) || 0) || Number(a.id) - Number(b.id));
     const paged = paginate(filtered, params.page);
     const snapshots = (await Promise.all(paged.pageRows.map((row) => adminService.moduleInstances.get(row.id)))).filter(Boolean);
     const etags = new Map(snapshots.map((row) => [String(row.id), row.etag]));
@@ -392,20 +580,21 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       { name: 'position', label: 'Posição', value: params.position, options: [['', '— Posição —'], ...positions.all.map((position) => [position, position])] },
       { name: 'type', label: 'Tipo de módulo', value: params.type, options: [['', '— Tipo de módulo —'], ...catalog.map((type) => [type.key, type.title])] }
     ]);
-    const batch = `<form class="admin-batch" data-ext-batch aria-label="Ações em lote"><label for="admin-batch-action">Ações em lote</label><select id="admin-batch-action" name="batchAction">${options([['', '— Selecione —'], ...Object.entries(BATCH_LABELS)], '')}</select><label for="admin-batch-position">Posição de destino</label><select id="admin-batch-position" name="batchPosition">${options([['', '— Posição —'], ...positions.all.map((position) => [position, position])], '')}</select><button type="submit" class="admin-btn">Aplicar aos selecionados</button></form>`;
+    const batch = `<div class="admin-batchbar" data-ext-batchbar role="region" aria-label="Ações em lote" hidden><span class="admin-batchbar-count" data-ext-batch-count aria-live="polite">0 selecionado(s)</span><form data-ext-batch><select name="batchAction" aria-label="Ação em lote">${options([['', '— Selecione —'], ...Object.entries(BATCH_LABELS)], '')}</select><label for="admin-batch-position" data-ext-batch-target-field hidden>Posição de destino</label><select id="admin-batch-position" name="batchPosition" data-ext-batch-target-field hidden>${options([['', '— Posição —'], ...positions.all.map((position) => [position, position])], '')}</select><button type="submit" class="admin-btn">Aplicar</button></form><button type="button" class="admin-btn admin-btn-ghost" data-ext-batch-clear>Limpar seleção</button></div>`;
     const table = renderModulesTable(snapshots, {
       link,
       types,
       positions,
       columnFormId: 'admin-moduleInstances',
-            columnFilters: columnFiltersFor('modules', rows, params)
+            columnFilters: columnFiltersFor('modules', rows, params, moduleFiltered)
     });
     const toolbar = `<a class="admin-btn admin-btn-success" href="${esc(link('/moduleInstances/select'))}">${plusIcon()}Novo</a><a class="admin-btn admin-btn-ghost" href="${esc(link('/templates/positions'))}">Pré-visualizar posições</a>`;
     const html = page('moduleInstances', 'Módulos do site', [{ label: 'Módulos do site' }], `${renderModuleInstanceHelp(link)}${status}${filters}${batch}${table}${pagination(paged, (number) => link('/moduleInstances', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
       bindFilter(location, ['q', 'state', 'position', 'type']);
-      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'modules', filters: columnFiltersFor('modules', rows, params) });
+      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'modules', filters: columnFiltersFor('modules', rows, params, moduleFiltered) });
       bindSelectAll();
+      bindBatchBar();
             flushBatchStatus();
       const run = async (ids, action, extra) => runBatch((batchIds, batchAction, batchExtra) => adminService.moduleInstances.batch(batchIds.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), batchAction, batchExtra), ids, action, extra, location);
       bindActions({
@@ -431,6 +620,14 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
 
   async function moduleEditPage(location, idSegment) {
     const isNew = idSegment === 'new';
+      /*
+       * A tela de edição carrega a query da listagem (filtros por coluna,
+       * busca, ordenação, página) em `location.params`. Salvar, cancelar ou
+       * excluir precisa VOLTAR com esse estado, senão o usuário perde o
+       * recorte ao gravar e a lista reaparece inteira. `listParams` limpa o
+       * que é só de leitura, restando exatamente o que viaja de volta.
+       */
+      const backParams = listParams(location);
     const record = isNew ? null : await adminService.moduleInstances.get(Number(idSegment));
     if (!isNew && !record) return null;
     const [catalog, positions, menu, categories] = await Promise.all([
@@ -450,9 +647,9 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     normalizeParamValues([...typeDefinitions, ...MODULE_ADVANCED_PARAMS], settings);
     const legacyScope = !isNew && !values.assignment;
     const legacyPlan = legacyScope ? planLegacyModuleAssignment(values) : null;
-    const form = renderModuleForm({ isNew, typeKey, type, catalog, values, positions, menu, categories, settings, paramValues, state, tokens, initialDates, legacyScope, legacyPlan, link });
+    const form = renderModuleForm({ isNew, typeKey, type, catalog, values, positions, menu, categories, settings, paramValues, state, tokens, initialDates, legacyScope, legacyPlan, link: listLinkFor(location, '/moduleInstances') });
     const title = isNew ? 'Módulos: Novo' : `Módulos: Editar — ${values.title}`;
-    const html = page('moduleInstances', title, [{ label: 'Módulos do site', href: link('/moduleInstances') }, { label: isNew ? 'Novo' : String(values.title) }], status + form);
+    const html = page('moduleInstances', title, [{ label: 'Módulos do site', href: backLink('/moduleInstances', location) }, { label: isNew ? 'Novo' : String(values.title) }], status + form);
     const bind = () => {
       body().querySelector?.('[data-ext-type-select]')?.addEventListener?.('change', (event) => {
         if (!isCurrent()) return;
@@ -514,8 +711,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
           } else {
             await adminService.moduleInstances.update(record.id, input, { etag: record.etag });
           }
-          report('Módulo salvo.');
-          await navigate(link('/moduleInstances'));
+          report('Módulo salvo.'); await navigate(link('/moduleInstances', backParams));
         } catch (error) { report(extensionErrorMessage(error, 'Não foi possível salvar o módulo.')); }
       });
     };
@@ -541,16 +737,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     const params = listParams(location);
     const rows = await (adminService.plugins.catalog ?? adminService.plugins.list)();
     const groups = [...new Set([...PLUGIN_GROUPS, ...adminService.plugins.groups(rows)])];
-    const term = String(params.q ?? '').trim().toLowerCase();
-    const filtered = rows.filter((row) => (!params.group || row.group === params.group)
-      && (!['true', 'false'].includes(params.enabled) || Boolean(row.enabled) === (params.enabled === 'true'))
-      // Filtros do menu de coluna: `state` e `key` só existem lá, porque o
-      // `enabled` da barra aceita "Habilitados/Desabilitados" em bloco e a
-      // busca livre cruza título e elemento.
-      && (!params.state || (params.state === 'enabled') === Boolean(row.enabled))
-      && (!params.title || String(row.title) === String(params.title))
-      && (!params.key || String(row.key) === String(params.key))
-      && (!term || `${row.title} ${row.key}`.toLowerCase().includes(term)));
+    const filtered = pluginFiltered(rows, params);
     const paged = paginate(filtered, params.page);
     const snapshots = (await Promise.all(paged.pageRows.map((row) => (row.virtual ? row : adminService.plugins.get(row.id).then((fresh) => fresh && row.native ? { ...fresh, description: fresh.description || row.description } : fresh))))).filter(Boolean);
     const etags = new Map(snapshots.map((row) => [String(row.id), row.etag]));
@@ -559,18 +746,19 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       { name: 'group', label: 'Grupo', value: params.group, options: [['', '— Grupo —'], ...groups.map((group) => [group, group])] },
       { name: 'enabled', label: 'Estado', value: params.enabled, options: [['', '— Estado —'], ['true', 'Habilitados'], ['false', 'Desabilitados']] }
     ]);
-    const batch = `<div class="admin-batch" role="group" aria-label="Ações em lote"><button type="button" class="admin-btn admin-btn-success" data-ext-action="batch-enable">Habilitar selecionados</button><button type="button" class="admin-btn admin-btn-danger" data-ext-action="batch-disable">Desabilitar selecionados</button></div>`;
+    const batch = `<div class="admin-batchbar" data-ext-batchbar role="region" aria-label="Ações em lote" hidden><span class="admin-batchbar-count" data-ext-batch-count aria-live="polite">0 selecionado(s)</span><button type="button" class="admin-btn admin-btn-success" data-ext-action="batch-enable">Habilitar selecionados</button><button type="button" class="admin-btn admin-btn-danger" data-ext-action="batch-disable">Desabilitar selecionados</button><button type="button" class="admin-btn admin-btn-ghost" data-ext-batch-clear>Limpar seleção</button></div>`;
     const table = renderPluginsTable(snapshots, {
       link,
       columnFormId: 'admin-plugins',
-            columnFilters: columnFiltersFor('plugins', rows, params)
+            columnFilters: columnFiltersFor('plugins', rows, params, pluginFiltered)
     });
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/installer'))}">${plusIcon()}Instalar</a>`;
     const html = page('plugins', 'Plugins', [{ label: 'Plugins' }], `${status}${filters}${batch}${table}${pagination(paged, (number) => link('/plugins', { ...location.params, page: String(number) }))}`, toolbar);
     const bind = () => {
       bindFilter(location, ['q', 'group', 'enabled', 'state', 'title', 'key']);
-      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'plugins', filters: columnFiltersFor('plugins', rows, params) });
+      bindColumnFilters({ location, link, navigate, scope: body(), domain: 'plugins', filters: columnFiltersFor('plugins', rows, params, pluginFiltered) });
       bindSelectAll();
+      bindBatchBar();
             flushBatchStatus();
       const run = async (ids, action) => {
         if (!ids.length) { report('Selecione ao menos um plugin.'); return; }
@@ -585,11 +773,14 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     return { html, bind };
   }
 
-  async function pluginEditPage(id) {
+  async function pluginEditPage(location, id) {
     const plugin = await adminService.plugins.get(Number(id));
     if (!plugin) return null;
-    const form = renderPluginForm(plugin, { link });
-    const html = page('plugins', `Plugins: ${plugin.title}`, [{ label: 'Plugins', href: link('/plugins') }, { label: String(plugin.title) }], status + form);
+      // Mesma razão de `moduleEditPage`: a gravação volta para a listagem com o
+      // recorte que o usuário tinha, não com a lista inteira.
+      const backParams = listParams(location);
+    const form = renderPluginForm(plugin, { link: listLinkFor(location, '/plugins') });
+    const html = page('plugins', `Plugins: ${plugin.title}`, [{ label: 'Plugins', href: backLink('/plugins', location) }, { label: String(plugin.title) }], status + form);
     const bind = () => {
       const formElement = body().querySelector?.('[data-ext-form="plugin"]');
       bindSubmit(formElement, async () => {
@@ -597,8 +788,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
           const ordering = formElement.querySelector?.('[name="ordering"]')?.value;
           const input = { enabled: Boolean(formElement.querySelector?.('[name="enabled"]')?.checked), ordering: ordering === '' || ordering === undefined ? 0 : Number(ordering) };
           if (plugin.definitions.length) input.params = readParamInputs(formElement, plugin.definitions);
-          await adminService.plugins.update(plugin.id, input, { etag: plugin.etag });
-          await navigate(link('/plugins'));
+          await adminService.plugins.update(plugin.id, input, { etag: plugin.etag }); await navigate(link('/plugins', backParams));
         } catch (error) { report(extensionErrorMessage(error, 'Não foi possível salvar o plugin.')); }
       });
     };
@@ -610,22 +800,24 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   async function styleListPage(location) {
     const params = listParams(location);
     const { etag, styles, catalog } = await adminService.templateStyles.list();
-    // `col_template` (menu da coluna) tem precedência sobre `template` (barra)
-    // porque `listParams` já sobrepõe; os dois podem conviver na URL.
+        // O menu de coluna grava as chaves canônicas (`template`, `style`) desde
+        // que `listParams` passou a deixar a canônica prevalecer sobre o alias
+        // `col_*`; filtrar por `col_template`/`col_style` deixava a lista vazia.
+        // `template` ainda é compartilhada com a barra de filtros, que manda o
+        // valor cru — `matchesColumn` cobre as duas formas.
     const templateTitle = new Map(catalog.map((template) => [String(template.key), template.title]));
-    const filtered = styles
-      .filter((style) => !params.template || style.template === params.template)
-      .filter((style) => !params.col_template || style.template === params.col_template)
-      .filter((style) => !params.col_style || String(style.title) === String(params.col_style));
+    const filtered = styleFiltered(styles, params);
     const filters = filterBar('admin-styles-filter', [{ name: 'template', label: 'Template', value: params.template, options: [['', '— Template —'], ...catalog.map((template) => [template.key, template.title])] }]);
     const toolbar = `<a class="admin-btn admin-btn-ghost" href="${esc(link('/templates'))}">Templates registrados</a>`;
         // Estilo e Template têm menus INDEPENDENTES, no mesmo padrão das
         // demais listas: cada um filtra só a sua coluna e os dois podem
         // ficar ativos ao mesmo tempo. O rótulo do Template vem do
         // catálogo (o valor filtrado é a chave), senão o menu mostraria
-        // a chave crua.
-        const columnFilters = columnFiltersFor('styles', styles, params).map((filter) => filter.key === 'template'
-          ? { ...filter, label: 'Template', options: catalog.map((template) => [template.key, template.title]) }
+                // a chave crua. A opção é um objeto `{ value, label }` — o painel
+                // normaliza `[valor, rótulo]` para `{ value: [valor, rótulo] }`,
+                // o que renderizava a linha com valor e rótulo indefinidos.
+        const columnFilters = columnFiltersFor('styles', styles, params, styleFiltered).map((filter) => filter.key === 'template'
+                  ? { ...filter, label: 'Template', options: catalog.map((template) => ({ value: String(template.key), label: String(template.title), count: styles.filter((style) => style.template === template.key).length })) }
           : { ...filter, label: 'Estilo' });
     const table = renderTemplateStylesTable(filtered, {
       link,
@@ -645,19 +837,20 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     return { html, bind };
   }
 
-  async function styleEditPage(id) {
+  async function styleEditPage(location, id) {
     const style = await adminService.templateStyles.get(id);
     if (!style) return null;
-    const form = renderTemplateStyleForm(style, { link });
-    const html = page('templateStyles', `Templates: Editar estilo — ${style.title}`, [{ label: 'Estilos de template', href: link('/templates/styles') }, { label: String(style.title) }], status + form);
+      // Idem: o estilo salvo volta para a listagem filtrada, não para a lista crua.
+      const backParams = listParams(location);
+    const form = renderTemplateStyleForm(style, { link: listLinkFor(location, '/templates/styles') });
+    const html = page('templateStyles', `Templates: Editar estilo — ${style.title}`, [{ label: 'Estilos de template', href: backLink('/templates/styles', location) }, { label: String(style.title) }], status + form);
     const bind = () => {
       const formElement = body().querySelector?.('[data-ext-form="style"]');
       bindSubmit(formElement, async () => {
         try {
           const input = { title: formElement.querySelector?.('[name="title"]')?.value ?? '' };
           if (style.definitions.length) input.params = readParamInputs(formElement, style.definitions);
-          await adminService.templateStyles.save(style.id, input, { etag: style.etag });
-          await navigate(link('/templates/styles'));
+          await adminService.templateStyles.save(style.id, input, { etag: style.etag }); await navigate(link('/templates/styles', backParams));
         } catch (error) { report(extensionErrorMessage(error, 'Não foi possível salvar o estilo.')); }
       });
     };
@@ -769,12 +962,12 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
     if (adminService.plugins?.list && adminService.plugins.available !== false) {
       if (path === '/plugins') return pluginListPage(location);
       const match = path.match(/^\/plugins\/(\d+)$/);
-      if (match) return pluginEditPage(match[1]);
+      if (match) return pluginEditPage(location, match[1]);
     }
     if (adminService.templateStyles?.list) {
       if (path === '/templates/styles') return styleListPage(location);
       const match = path.match(/^\/templates\/styles\/([a-z0-9][a-z0-9_-]{0,80})$/i);
-      if (match) return styleEditPage(match[1]);
+      if (match) return styleEditPage(location, match[1]);
     }
     if (adminService.componentOptions?.list) {
       if (path === '/options') return optionsListPage();
@@ -788,6 +981,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   async function render(location) {
     try { return await renderPage(location); }
     catch (error) {
+
       if (error?.name !== 'ValidationError') {
         return { html: page(null, 'Falha no carregamento', [{ label: 'Falha no carregamento' }], '<p role="alert">Não foi possível carregar os dados administrativos. Recarregue antes de tentar novamente.</p><p>Se você acabou de executar uma ação, verifique o registro após recarregar antes de repeti-la.</p>') };
       }

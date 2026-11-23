@@ -115,8 +115,9 @@ body{margin:0;background:var(--atum-bg-light)}
 
 /* ---------- Tabela de listagem (estilo real .table/thead do Atum: cabeçalho claro, link azul, hover sutil) ---------- */
 .admin-list{width:100%;border-collapse:collapse;margin:0;background:#fff;box-shadow:var(--atum-shadow)}
-.admin-list th,.admin-list td{border-bottom:1px solid var(--atum-gray-300);padding:.75rem 1rem;text-align:left;vertical-align:middle}
-.admin-list thead th{background:var(--atum-gray-100);color:var(--atum-gray-900);font-weight:500;font-size:.85rem}
+.admin-list th,.admin-list td{border-bottom:1px solid var(--atum-gray-300);padding:.5rem .75rem;text-align:left;vertical-align:middle}
+.admin-list thead th{background:var(--atum-gray-100);color:var(--atum-gray-900);font-weight:600;font-size:.8125rem;border-bottom:2px solid var(--atum-gray-300)}
+.admin-list tbody tr{min-height:2.75rem}
 .admin-list tbody tr:hover{background:var(--atum-list-hover)}
 .admin-list tbody a:not(.admin-btn){color:var(--atum-link);font-weight:500;text-decoration:underline}
 .admin-list tbody a:not(.admin-btn):hover{color:var(--atum-link-dark)}
@@ -141,6 +142,13 @@ body{margin:0;background:var(--atum-bg-light)}
  * mínima precisa atender o `th` para valer como largura de coluna.
  * (A verificação visual final é do Validador: aqui a evidência é o DOM.)
  */
+/*
+ * Frente D: as larguras atendem `<th>` e `<td>` pela MESMA classe
+ * `admin-col-<campo>`, que os dois carregam — a largura de uma coluna passa
+ * a ter uma fonte de verdade só. `min-width` (e não `width`) porque a tabela
+ * segue em layout automático: o conteúdo longo continua podendo crescer,
+ * mas nenhum cabeçalho é espremido até quebrar entre letras.
+ */
 .admin-list thead th{white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
 .admin-list thead th.admin-col-title,
 .admin-list thead th.admin-col-alias,
@@ -148,28 +156,136 @@ body{margin:0;background:var(--atum-bg-light)}
 .admin-list thead th.admin-col-author{white-space:normal;overflow-wrap:anywhere;word-break:normal}
 .admin-list thead th.admin-col-count{min-width:7rem;text-align:center}
 .admin-list .admin-col-action{width:1%;white-space:nowrap;text-align:right}
+.admin-list .admin-col-featured,.admin-list .admin-col-state{width:4.5rem;text-align:center}
+.admin-list .admin-col-title{min-width:16rem}
+/* Duas linhas no máximo no título: o link leva o texto inteiro em `title`,
+ * então cortar aqui não esconde informação de quem usa leitor de tela (que
+ * lê o conteúdo real do link) nem de quem usa mouse (que vê o tooltip). */
+.admin-list td.admin-col-title a{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* Alias, Categoria e Autor em UMA linha com reticências + `title`: são
+ * valores de referência, não texto para ler corrido, e deixá-los quebrar
+ * era o que desalinhava a altura das linhas. */
+.admin-list .admin-col-alias,.admin-list .admin-col-category,.admin-list .admin-col-author{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-list .admin-col-alias{min-width:10rem;color:var(--atum-gray-700)}
+.admin-list .admin-col-author{width:10rem;min-width:10rem}
+.admin-list .admin-col-author a{color:var(--atum-gray-700)}
+.admin-list .admin-col-publishUp,.admin-list .admin-col-publishUp *{width:6.5rem;white-space:nowrap;overflow-wrap:normal;word-break:keep-all}
+.admin-list .admin-col-id{width:4rem;text-align:right;font-variant-numeric:tabular-nums}
 .admin-empty{border:1px solid var(--atum-border);padding:1.5rem;background:#fff;text-align:center;color:var(--atum-gray-600)}
 
+/*
+ * Frente D — coluna "Artigos" de Categorias: quatro indicadores LADO A LADO,
+ * sem quebra. Antes as contagens empilhavam e a coluna estrangulava as
+ * vizinhas. Cada indicador leva a cor da sua situação para ser reconhecível
+ * de relance e é um link para Artigos filtrado por categoria + situação.
+ */
+.admin-counts{display:flex;gap:.25rem;align-items:center;flex-wrap:nowrap}
+.admin-count{display:inline-flex;align-items:center;justify-content:center;min-width:1.75rem;height:1.5rem;padding:0 .4rem;border-radius:999px;font-size:.75rem;font-weight:600;text-decoration:none;font-variant-numeric:tabular-nums}
+.admin-list tbody .admin-count:not(.admin-btn){text-decoration:none}
+.admin-count-published{background:#e6f4ea;color:#1e6b34}
+.admin-count-draft{background:#eceff1;color:#455a64}
+.admin-count-archived{background:#fff4e5;color:#8a5300}
+.admin-count-trashed{background:#fdecea;color:#a32018}
+.admin-count-legend{margin:.5rem 0 0;font-size:.75rem;color:var(--atum-gray-600);display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+.admin-count-legend-item{display:inline-flex;align-items:center;gap:.3rem}
+.admin-count-legend-swatch{width:.75rem;height:.75rem;border-radius:3px;display:inline-block}
+.admin-count-legend-swatch.admin-count-published{background:#e6f4ea;border:1px solid #1e6b34}
+.admin-count-legend-swatch.admin-count-draft{background:#eceff1;border:1px solid #455a64}
+.admin-count-legend-swatch.admin-count-archived{background:#fff4e5;border:1px solid #8a5300}
+.admin-count-legend-swatch.admin-count-trashed{background:#fdecea;border:1px solid #a32018}
+
+/*
+ * Frente C1 — cabeçalho de coluna.
+ *
+ * O flex vive no invólucro `<div class="admin-th">`, e NUNCA no `<th>`:
+ * `display:flex` no `<th>` faz o navegador deixar de tratar a célula como
+ * célula de tabela e passar a ignorar as larguras da coluna, que era a
+ * causa do desalinhamento. Rótulo à esquerda (com `min-width:0`, sem o qual
+ * um filho de flex não encolhe e as reticências não aparecem) e botão à
+ * direita com tamanho fixo.
+ *
+ * Atenção: `admin-th` também é a classe do próprio `<th>` nas listagens
+ * cujos templates são `com_*/tmpl/*/default.js` — ali o flex precisa vir do
+ * invólucro, então este seletor só vale para o invólucro (`div.admin-th`,
+ * nunca `th.admin-th`), e um `th.admin-th` sem invólucro continua uma célula
+ * comum. Sem essa distinção a correção do alinhamento reintroduziria o bug
+ * nas listas que não passam por `renderAdminList`.
+ */
+.admin-list thead th{position:relative;padding:.5rem .75rem}
+.admin-list th.admin-th .admin-th{display:flex;align-items:center;gap:.375rem;min-height:1.75rem;width:100%}
+.admin-list div.admin-th{display:flex;align-items:center;gap:.375rem;min-height:1.75rem;width:100%}
+.admin-list .admin-th-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.admin-list .admin-th-filterable .admin-th-label{padding-inline-end:.25rem}
+.admin-list .admin-colfilter{flex:0 0 auto;margin-inline-start:0}
+/* Botão só com ícone: o texto "Filtrar <Coluna>" e o valor escolhido saíram
+ * daqui e foram para a barra de filtros ativos. Era o texto que alargava a
+ * coluna e desalinhava o cabeçalho — o valor ativo agora aparece uma vez só,
+ * num lugar onde não disputa espaço com o rótulo da coluna. */
+.admin-colfilter-toggle{display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;min-height:1.5rem;max-width:none;padding:0;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-600);font:inherit;font-size:.75rem;line-height:1;cursor:pointer}
+.admin-colfilter-toggle:hover{border-color:var(--atum-link);color:var(--atum-link)}
+.admin-colfilter-toggle.is-active{border-color:var(--atum-link);background:#e8f0fe;color:var(--atum-link)}
+.admin-colfilter-toggle.is-active svg{fill:currentColor}
+.admin-colfilter-toggle svg{width:12px;height:12px;display:block}
+
+/* ---------- Frente C2: barra de filtros ativos (entre a barra e a tabela) ---------- */
+.admin-activefilters{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0 0 .75rem;padding:.5rem .75rem;background:#fff;border:1px solid var(--atum-border);border-radius:var(--atum-radius)}
+.admin-activefilters-label{font-size:.8125rem;color:var(--atum-gray-600)}
+.admin-activefilter-chip{display:inline-flex;align-items:center;gap:.35rem;height:1.75rem;max-width:20rem;padding:0 .5rem;background:#e8f0fe;border:1px solid #b6cdf2;border-radius:999px;color:var(--atum-gray-900);font-size:.8125rem;white-space:nowrap}
+.admin-activefilter-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-activefilter-remove{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:1rem;height:1rem;padding:0;border:0;background:transparent;color:var(--atum-gray-700);font:inherit;font-size:.875rem;line-height:1;cursor:pointer}
+.admin-activefilter-remove:hover{color:#a32018}
+.admin-activefilter-clearall{margin-inline-start:.25rem;border:0;background:transparent;padding:0;font-size:.8125rem;color:var(--atum-link);cursor:pointer;text-decoration:underline}
+.admin-activefilters-total{margin-inline-start:auto;font-size:.8125rem;color:var(--atum-gray-600)}
+
+/* ---------- Frente C3: painel "Mais filtros" (recortes sem coluna na tabela) ---------- */
+.admin-morefilters-toggle{min-height:2.45rem;padding:.4rem .75rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);font:inherit;cursor:pointer}
+.admin-morefilters{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.5rem 0 .75rem;padding:.5rem .75rem;background:#fff;border:1px solid var(--atum-border);border-radius:var(--atum-radius)}
+.admin-morefilters[hidden]{display:none}
+.admin-morefilters select{min-width:0;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem;font:inherit;background:#fff;color:var(--atum-gray-700)}
+
 /* ---------- Filtro por coluna ("filtro tipo Excel" por cabeçalho) ---------- */
-/* O menu abre ancorado ao próprio <th>: a posição absoluta fica relativa ao
- * .admin-colfilter, que é inline-block dentro do cabeçalho. O menu é
- * posicionado à esquerda e pode estourar para a direita; o contêiner
- * .admin-table-wrap rola horizontalmente, então nada é cortado. */
-.admin-colfilter{position:relative;display:inline-flex;align-items:center;margin-inline-start:.35rem;vertical-align:middle}
-.admin-colfilter-toggle{display:inline-flex;align-items:center;gap:.2rem;min-height:1.6rem;max-width:9rem;padding:.1rem .35rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);font:inherit;font-size:.7rem;line-height:1.2;cursor:pointer}
-.admin-colfilter-toggle:hover{border-color:var(--atum-link)}
-.admin-colfilter-toggle:focus,.admin-colfilter-toggle:focus-visible{outline:2px solid var(--atum-link);outline-offset:2px}
-.admin-colfilter-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.admin-colfilter-caret{font-size:.6rem;line-height:1}
-.admin-colfilter.is-active .admin-colfilter-toggle{border-color:var(--atum-link);background:var(--atum-link);color:#fff;font-weight:700}
-.admin-colfilter-menu{position:absolute;z-index:30;inset-inline-start:0;top:calc(100% + .2rem);min-width:11rem;max-width:18rem;max-height:16rem;overflow-y:auto;margin:0;padding:.2rem;list-style:none;background:#fff;border:1px solid var(--atum-border);border-radius:var(--atum-radius);box-shadow:0 6px 16px rgb(0 0 0 / 18%)}
-.admin-colfilter-menu[hidden]{display:none}
-.admin-colfilter-option{display:block;width:100%;min-height:1.9rem;padding:.25rem .5rem;border:0;border-radius:var(--atum-radius);background:transparent;color:var(--atum-gray-700);font:inherit;font-size:.75rem;text-align:start;cursor:pointer}
+/*
+ * Item 3.6 — a camada e o painel. O painel é `position:absolute` dentro de
+ * uma camada de altura zero ancorada no topo do painel administrativo
+ * inteiro, não no `<th>`: dentro do `<th>` ele seria cortado pelo
+ * `overflow:auto` do `.admin-table-wrap`, e um filtro aberto na última linha
+ * ficaria inalcançável. A camada precisa de `position:relative` no
+ * contêiner; um `z-index:50` mantém o painel acima das linhas e do rodapé.
+ */
+.admin-shell [data-minijoomla-admin-root]{position:relative}
+.admin-colfilter-layer{position:absolute;left:0;top:0;width:100%;height:0;z-index:50}
+.admin-colfilter-panel{position:absolute;min-width:12rem;max-width:18rem;margin:0;padding:.5rem;background:#fff;border:1px solid var(--atum-border);border-radius:var(--atum-radius);box-shadow:0 6px 16px rgb(0 0 0 / 18%)}
+.admin-colfilter-panel.is-sized{max-height:18rem}
+.admin-colfilter-panel.is-scroll{overflow:auto}
+/*
+ * Esta dupla é OBRIGATÓRIA, não cosmética. O `[hidden]` do HTML vale apenas
+ * `display:none` no user-agent stylesheet, e QUALQUER `display` declarado no
+ * autor vence o user-agent — inclusive o `display:flex` das opções e do
+ * rodapé. Sem esta regra, `option.hidden = true` não esconde o `label` da
+ * opção e a busca do painel filtra sem efeito visível. Não dá para contar
+ * com uma regra global de `[hidden]` no SharePoint: ela não é garantida.
+ */
+.admin-colfilter-panel[hidden],
+.admin-colfilter-panel [hidden]{display:none !important}
+.admin-colfilter-title{margin:0 0 .35rem;font-size:.8125rem;font-weight:600;color:var(--atum-gray-900)}
+.admin-colfilter-clear{align-self:flex-start;margin:0 0 .35rem;padding:.15rem .4rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-link);font:inherit;font-size:.75rem;cursor:pointer}
+.admin-colfilter-clear:disabled{color:var(--atum-gray-600);cursor:default}
+.admin-colfilter-search{display:block;width:100%;min-height:2rem;margin:0 0 .35rem;padding:.3rem .5rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);font:inherit;font-size:.8rem;background:#fff;color:var(--atum-gray-700)}
+.admin-colfilter-group{margin:0;padding:0;border:0}
+.admin-colfilter-values{display:block}
+.admin-colfilter-option{display:flex;align-items:center;gap:.4rem;min-height:1.6rem;padding:.15rem .35rem;border-radius:var(--atum-radius);color:var(--atum-gray-700);font-size:.8rem;cursor:pointer}
 .admin-colfilter-option:hover{background:var(--atum-gray-100,#f3f3f3)}
-.admin-colfilter-option:focus,.admin-colfilter-option:focus-visible{outline:2px solid var(--atum-link);outline-offset:-2px}
-.admin-colfilter-option.is-selected{font-weight:700;color:var(--atum-link)}
-.admin-colfilter-headers{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:.5rem .75rem;margin:0 0 .5rem;background:#fff;border:1px solid var(--atum-border)}
-.admin-colfilter-headers-label{font-size:.8rem;color:var(--atum-gray-600)}
+.admin-colfilter-option-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-colfilter-option-count{flex:0 0 auto;color:var(--atum-gray-600);font-variant-numeric:tabular-nums}
+/* A profundidade da árvore de Categorias entra como recuo, para o filho
+ * aparecer sob o pai e não achatado no mesmo nível. */
+.admin-colfilter-option[data-colfilter-depth="1"]{padding-inline-start:1.1rem}
+.admin-colfilter-option[data-colfilter-depth="2"]{padding-inline-start:1.9rem}
+.admin-colfilter-option[data-colfilter-depth="3"]{padding-inline-start:2.7rem}
+.admin-colfilter-footer{display:flex;gap:.35rem;justify-content:flex-end;margin:.4rem 0 0}
+.admin-colfilter-footer button{min-height:1.9rem;padding:.2rem .6rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);font:inherit;font-size:.8rem;cursor:pointer}
+.admin-colfilter-footer button[data-colfilter-ok]{background:var(--atum-link);border-color:var(--atum-link);color:#fff}
+.admin-colfilter-error{margin:.35rem 0 0;font-size:.75rem;color:#a32018}
 .admin-list th .admin-colfilter{font-weight:400}
 
 /* ---------- Paginação ---------- */
@@ -281,9 +397,43 @@ body{margin:0;background:var(--atum-bg-light)}
 
 /* Extensões: módulos, plugins, estilos, opções e instalador (extension-pages.js). */
 .admin-table-wrap{overflow-x:auto}
+/*
+ * Adendo 1, item 4: mesmo com o layout FullBleed, em 1366px sobram ~970px
+ * para a tabela de Artigos. Quando a tabela rola na horizontal, a coluna de
+ * seleção e a de Título ficam presas à esquerda — sem isso o usuário perde a
+ * referência de qual linha está marcando assim que rola para ver Data/ID.
+ * A sombra vive na borda DIREITA do Título, que é a última coluna presa.
+ *
+ * `admin-col-check` e `admin-col-title` são exatamente as classes emitidas
+ * por `extension-pages.js` (`selectCell`/`selectAllCell`) e por
+ * `render-list.js` (`admin-col-<campo>` + `admin-col-title`). O `left` do
+ * Título é a largura REAL da coluna de seleção (2.5rem + 2×.75rem de
+ * padding = 4rem), declarada em `--admin-check-col-width` num único lugar
+ * para as duas regras não divergirem.
+ */
+.admin-shell{--admin-check-col-width:4rem}
+.admin-list thead th.admin-col-check,
+.admin-list tbody td.admin-col-check{position:sticky;left:0;z-index:3;background:#fff}
+.admin-list thead th.admin-col-title,
+.admin-list tbody th.admin-col-title{position:sticky;left:var(--admin-check-col-width);z-index:3;background:#fff}
+.admin-list thead th.admin-col-check,
+.admin-list thead th.admin-col-title{z-index:4}
+.admin-list tbody tr:hover td.admin-col-check,
+.admin-list tbody tr:hover th.admin-col-title{background:var(--atum-list-hover)}
+.admin-list thead th.admin-col-title{box-shadow:4px 0 4px -2px rgb(0 0 0 / 12%)}
 .admin-batch{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:0 0 .75rem;padding:.5rem .75rem;background:#fff;border:1px solid var(--atum-border)}
 .admin-batch label{font-size:.85rem}
 .admin-batch select{min-width:0;min-height:2.45rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.4rem;font:inherit;background:#fff;color:var(--atum-gray-700);max-width:100%}
+/*
+ * Adendo 1, item 5: a barra de lote é CONTEXTUAL. O bloco antigo ocupava
+ * ~100px fixos acima da tabela mesmo sem nada selecionado. Agora ela só
+ * existe quando há seleção, tem uma linha só e gruda no topo da área de
+ * conteúdo, para o "Aplicar" não sair da tela ao rolar a lista.
+ */
+.admin-batchbar{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;min-height:2.75rem;margin:0 0 .5rem;padding:.35rem .75rem;background:#e8f0fe;border-bottom:2px solid var(--atum-link);font-size:.875rem}
+.admin-batchbar-count{font-weight:600;font-variant-numeric:tabular-nums}
+.admin-batchbar select{min-width:0;min-height:2rem;border:1px solid var(--atum-control-border);border-radius:var(--atum-radius);padding:.2rem .4rem;font:inherit;font-size:.875rem;background:#fff;color:var(--atum-gray-700);max-width:100%}
+.admin-batchbar[hidden]{display:none}
 .admin-badge{display:inline-block;padding:.1rem .45rem;border-radius:var(--atum-radius);background:var(--atum-base);color:#fff;font-size:.75rem}
 .admin-badge.is-muted{background:var(--atum-gray-600);color:#fff}
 .admin-list-note,.admin-help{font-size:.8rem;color:var(--atum-gray-600)}
