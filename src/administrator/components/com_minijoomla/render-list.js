@@ -20,7 +20,7 @@
 import { escapeHtml, safeUrl } from '../../../libraries/minijoomla/security/sanitize.js';
 import { dateWindowStatus } from '../../../libraries/minijoomla/core/date-window.js';
 import { checkIcon, banIcon, archiveIcon, starIcon, starOutlineIcon, editIcon, plusIcon, clockIcon, closeIcon, warningIcon, trashIcon } from './icons.js';
-import { renderColumnFilterButton } from './column-filter.js';
+import { renderColumnFilterButton, renderActiveFilterChips } from './column-filter.js';
 
 const STATUS_STATE_ICONS = {
   Published: { className: 'is-active', label: 'Publicado', icon: checkIcon() },
@@ -83,7 +83,46 @@ export function renderArticleIndicator(row, column, now = new Date()) {
   return stateIcon(indicator.className, indicator.icon, indicator.label, true);
 }
 
-function renderCell(row, column, domain, now) {
+/*
+ * Coluna "Artigos" de Categorias (Frente D): quatro indicadores lado a lado,
+ * um por situação, cada um com o número e a cor da situação. Antes as
+ * contagens empilhavam em várias linhas e empurravam a coluna, quebrando o
+ * alinhamento das demais.
+ *
+ * Cada indicador é um LINK para Artigos já filtrado por aquela categoria e
+ * aquela situação — a contagem, sozinha, não leva a lugar nenhum. O
+ * `aria-label` diz o que o número significa ("12 artigos publicados em
+ * Agenda") porque "12" ao lado de "Publicados" não é lido como frase por
+ * leitor de tela. O `counts` vem do serviço (`countsFor`) e conta só os
+ * artigos DIRETOS da categoria — somar descendentes inflaria a contagem da
+ * categoria-pai com artigos que já são contados no filho.
+ */
+export function renderCategoryCounts(row, { link, domain, listState, label }) {
+  const counts = row?.counts;
+  if (!counts || typeof counts !== 'object') return '';
+  const situations = [
+    { key: 'Published', name: 'publicado', plural: 'publicados', label: 'Publicados' },
+    { key: 'Draft', name: 'despublicado', plural: 'despublicados', label: 'Despublicados' },
+    { key: 'Archived', name: 'arquivado', plural: 'arquivados', label: 'Arquivados' },
+    { key: 'Trashed', name: 'na lixeira', plural: 'na lixeira', label: 'Na lixeira' }
+  ];
+  return `<div class="admin-counts">${situations.map((situation) => {
+    const value = Number(counts[situation.key] ?? 0);
+    const text = `${value} ${value === 1 ? `artigo ${situation.name}` : `artigos ${situation.plural}`} em ${label ?? 'categoria'}`;
+    const href = link(`/${domain}`, { ...listState, categoryId: row.id, state: situation.key, page: undefined });
+    return `<a class="admin-count admin-count-${situation.key.toLowerCase()}" href="${safeUrl(href)}" aria-label="${escapeHtml(text)}" title="${escapeHtml(text)}">${value}<span class="visually-hidden"> ${escapeHtml(situation.label)}</span></a>`;
+  }).join('')}</div>`;
+}
+
+/* Legenda de uma linha, sob a tabela, com as quatro cores da coluna "Artigos". */
+export function renderCategoryLegend() {
+  const items = [['Published', 'Publicados'], ['Draft', 'Despublicados'], ['Archived', 'Arquivados'], ['Trashed', 'Na lixeira']];
+  return `<p class="admin-count-legend">Artigos por situação: ${items.map(([key, label]) => `<span class="admin-count-legend-item"><span class="admin-count-legend-swatch admin-count-${key.toLowerCase()}" aria-hidden="true"></span>${escapeHtml(label)}</span>`).join('')}</p>`;
+}
+
+function renderCell(row, column, domain, now, cellRenderers = {}) {
+  const custom = cellRenderers[column];
+  if (typeof custom === 'function') return custom(row);
   const raw = row[column];
   if (domain === 'articles' && ['state', 'featured'].includes(column)) {
     const indicator = column === 'state' ? articlePublication(row, now) : articleFeatured(row, now);
@@ -117,11 +156,42 @@ function renderCell(row, column, domain, now) {
  * domínios preservam a apresentação genérica. `now` é o snapshot único da
  * renderização: não há timer, normalização dos registros ou escrita aqui.
  */
-function renderSearchBar(searchHref, searchValue, filters = []) {
+/*
+ * A barra superior guarda só a busca textual, o seletor de itens por página
+ * e o botão Buscar. Os `<select>` que DUPLICAVAM um filtro de coluna
+ * (Estado, Categoria, Destaque, Autor em Artigos) saíram daqui — Frente C3:
+ * duas entradas para o mesmo recorte davam dois estados de tela para o mesmo
+ * parâmetro. O parâmetro da URL continua aceito e passa a valer como o
+ * filtro de coluna correspondente, aparecendo na barra de filtros ativos.
+ *
+ * O que não tem coluna na tabela (Tag, Idioma em Artigos) não pode virar
+ * filtro de coluna, então fica atrás do botão "Mais filtros". Ele nasce
+ * aberto quando um desses filtros está ativo: se o painel viesse fechado, o
+ * recorte aplicado ficaria invisível, sem nenhuma pista de como desfazê-lo.
+ */
+function renderSearchBar(searchHref, searchValue, extraFilters = []) {
   if (searchHref === undefined) return '';
   const id = 'admin-list-search';
-  const controls = filters.map((filter) => `<label for="admin-filter-${escapeHtml(filter.name)}">${escapeHtml(filter.label)}</label><select id="admin-filter-${escapeHtml(filter.name)}" name="${escapeHtml(filter.name)}">${filter.options.map(([value, label]) => `<option value="${escapeHtml(value)}"${String(filter.value ?? '') === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>`).join('');
-  return `<form class="admin-searchbar" method="get" action="${safeUrl(searchHref)}" role="search"><label for="${id}">Buscar</label><input type="search" id="${id}" name="q" value="${escapeHtml(searchValue ?? '')}" placeholder="Buscar por título...">${controls}<button type="submit" class="admin-btn admin-btn-ghost">Buscar</button></form>`;
+  const active = extraFilters.some((filter) => String(filter.value ?? '') !== '');
+  const controls = extraFilters.map((filter) => `<label for="admin-filter-${escapeHtml(filter.name)}">${escapeHtml(filter.label)}</label><select id="admin-filter-${escapeHtml(filter.name)}" name="${escapeHtml(filter.name)}">${filter.options.map(([value, label]) => `<option value="${escapeHtml(value)}"${String(filter.value ?? '') === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>`).join('');
+  const more = extraFilters.length
+    ? `<button type="button" class="admin-morefilters-toggle" data-morefilters-toggle aria-expanded="${active ? 'true' : 'false'}" aria-controls="admin-morefilters">Mais filtros</button><div class="admin-morefilters" id="admin-morefilters" data-morefilters${active ? '' : ' hidden'}>${controls}</div>`
+    : '';
+  return `<form class="admin-searchbar" method="get" action="${safeUrl(searchHref)}" role="search"><label for="${id}">Buscar</label><input type="search" id="${id}" name="q" value="${escapeHtml(searchValue ?? '')}" placeholder="Buscar por título..."><button type="submit" class="admin-btn admin-btn-ghost">Buscar</button></form>${more}`;
+}
+
+/*
+ * Barra de filtros ativos (Frente C2). O desenho é de
+ * `renderActiveFilterChips` (column-filter.js), que é a única fonte de
+ * verdade sobre os chips; aqui só se decide ONDE ela entra — entre a barra
+ * superior e a tabela.
+ *
+ * Antes, o valor escolhido vivia DENTRO do botão do cabeçalho ("Filtrar
+ * Estado: Publicado, Despublicado"), e era isso que alargava e desalinhava
+ * as colunas. O rótulo do botão virou só ícone e o valor veio para cá.
+ */
+function renderActiveFilterBar(activeFilters, totalLabel) {
+  return renderActiveFilterChips(activeFilters, totalLabel);
 }
 
 /*
@@ -165,33 +235,56 @@ function renderPagination(pagination) {
   return `<nav class="admin-pagination" aria-label="Páginas"><ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul></nav>`;
 }
 
-export function renderAdminList({ rows = [], columns, columnLabels = {}, titleField = 'title', emptyLabel = 'Nenhum registro encontrado.', editHref = () => '#', newHref, searchValue, searchHref, searchFilters = [], columnFilters = [], columnFormId, rowActions = () => '', pagination, domain, now = new Date() } = {}) {
+export function renderAdminList({ rows = [], columns, columnLabels = {}, titleField = 'title', emptyLabel = 'Nenhum registro encontrado.', editHref = () => '#', newHref, searchValue, searchHref, searchFilters = [], columnFilters = [], activeFilters, activeFilterClearHref, total, totalBase, totalLabel, cellRenderers = {}, tableFooter = '', columnFormId, rowActions = () => '', pagination, domain, now = new Date() } = {}) {
   const items = Array.isArray(rows) ? rows : [];
   const activeColumns = Array.isArray(columns) && columns.length ? columns : [titleField];
   const newLink = newHref ? `<p class="admin-list-actions"><a class="admin-new-link admin-btn admin-btn-success" href="${safeUrl(newHref)}">${plusIcon()}Novo</a></p>` : '';
-  const searchBar = renderSearchBar(searchHref, searchValue, searchFilters);
+  /*
+   * Frente C3: um `<select>` da barra superior só permanece ali quando NÃO
+   * existe coluna correspondente. `columnFilters` é a lista dos recortes que
+   * já têm coluna; o que casa com ela sai da barra e passa a viver no
+   * cabeçalho. O critério é por `name`/`key`/`column`, porque o nome do
+   * parâmetro da URL nem sempre é o nome do campo (`categoryId` vs
+   * `category`).
+   */
+  const hasColumn = (filter) => columnFilters.some((column) => [column.name, column.key, column.column].filter(Boolean).includes(filter.name));
+  const searchBar = renderSearchBar(searchHref, searchValue, searchFilters.filter((filter) => !hasColumn(filter)));
+  const activeBar = renderActiveFilterBar(activeFilters ?? columnFilters, totalLabel);
   const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
     const headerCells = activeColumns.map((column, index) => {
     const filter = filterFor(column);
-      return `<th scope="col" class="admin-th${filter ? ' admin-th-filterable' : ''}"><span class="admin-th-label">${escapeHtml(columnLabels[column] ?? column)}</span>${filter ? renderColumnFilter(filter, index) : ''}</th>`;
+          /*
+           * Frente C1: o invólucro é um `<div class="admin-th">` com flex, NUNCA
+           * o próprio `<th>`. `display:flex` no `<th>` faz o navegador deixar de
+           * tratar a célula como tabela, e o `width`/`min-width` da coluna passa
+           * a ser ignorado — era isso que desalinhava os cabeçalhos. À esquerda o
+           * rótulo (`flex:1 1 auto`, `min-width:0`, que permite a reticência), à
+           * direita o botão (`flex:0 0 auto`). A classe `admin-col-<campo>`
+           * carrega a largura da coluna e vale igual para o `<th>` e o `<td>`,
+           * para não haver duas fontes de verdade sobre largura (Frente D).
+           */
+          const cellClass = `admin-th admin-col-${escapeHtml(String(column))}${filter ? ' admin-th-filterable' : ''}`;
+          const label = escapeHtml(columnLabels[column] ?? column);
+          return `<th scope="col" class="${cellClass}"><div class="admin-th"><span class="admin-th-label">${label}</span>${filter ? renderColumnFilter(filter, index) : ''}</div></th>`;
   }).join('');
-    const headRow = `<tr>${headerCells}<th scope="col" class="admin-th"><span class="admin-th-label">Ação</span></th></tr>`;
+        const headRow = `<tr>${headerCells}<th scope="col" class="admin-th admin-col-action"><div class="admin-th"><span class="admin-th-label">Ação</span></div></th></tr>`;
   if (!items.length) {
     const empty = `<p class="admin-empty" role="status">${escapeHtml(emptyLabel)}</p>`;
       const emptyTable = `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><thead>${headRow}</thead></table></div>`;
-      return `${newLink}${searchBar}${emptyTable}${empty}`;
+      return `${newLink}${searchBar}${activeBar}${emptyTable}${empty}`;
   }
   const body = items.map((row) => {
     const href = safeUrl(editHref(row.id));
     const title = String(row[titleField] ?? '').trim() || `Registro ${row.id ?? ''}`.trim();
     const editLabel = escapeHtml(`Editar: ${title}`);
     const cells = activeColumns.map((column) => column === titleField
-      ? `<th scope="row"><a href="${href}" aria-label="${editLabel}">${escapeHtml(title)}</a></th>`
-      : `<td>${renderCell(row, column, domain, now)}</td>`).join('');
+          ? `<th scope="row" class="admin-col-${escapeHtml(String(column))}"><a href="${href}" aria-label="${editLabel}" title="${escapeHtml(title)}">${escapeHtml(title)}</a></th>`
+          : `<td class="admin-col-${escapeHtml(String(column))}">${renderCell(row, column, domain, now, cellRenderers)}</td>`).join('');
     return `<tr>${cells}<td class="admin-col-action"><a class="admin-btn admin-btn-ghost" href="${href}" aria-label="${editLabel}">${editIcon()}Editar</a>${rowActions(row)}</td></tr>`;
   }).join('');
     const table = `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><thead>${headRow}</thead><tbody>${body}</tbody></table></div>${renderPagination(pagination)}`;
-      return `${newLink}${searchBar}${table}`;
+      return `${newLink}${searchBar}${activeBar}${table}${tableFooter}`;
 }
 
 export { filterIcon, filterActiveIcon } from './icons.js';
+export { renderActiveFilterChips } from './column-filter.js';

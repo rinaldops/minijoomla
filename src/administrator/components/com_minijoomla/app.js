@@ -46,7 +46,7 @@ import { loadTemplateRevisionPage } from '../com_templates/template-revision-pag
 import { loadSampleDataPage } from '../../modules/mod_sampledata/mod_sampledata.js';
 import { renderAdminForm, readAdminFormValues } from './render-form.js';
 import { renderArticleAdminForm } from '../com_content/tmpl/article/edit.js';
-import { renderAdminList } from './render-list.js';
+import { renderAdminList, renderCategoryCounts, renderCategoryLegend } from './render-list.js';
 import { renderAdminShell } from '../../templates/atum/index.js';
 import { ADMIN_CAPABILITIES, managementFilters, filterManagementRows, renderCapabilities, renderManagementActions, renderNativeComponents } from './extension-management.js';
 import { BUILTIN_MODULE_KEYS } from '../../../libraries/minijoomla/application/extension-input.js';
@@ -58,14 +58,14 @@ import { dashboardIcon, articleIcon, categoryIcon, tagIcon, menuIcon, moduleIcon
 const DOMAIN_KEYS = Object.keys(ADMIN_DOMAINS);
 const LIST_COLUMNS = {
   articles: ['title', 'alias', 'featured', 'state'],
-  categories: ['title', 'alias'],
+  categories: ['title', 'alias', 'counts'],
   tags: ['name', 'alias', 'state'],
   menu: ['title', 'path', 'published'],
   extensions: ['title', 'key', 'type', 'enabled'],
   templates: ['title', 'key', 'version', 'enabled'],
   moduleInstances: ['title', 'extensionKey', 'position', 'ordering', 'scopeKind', 'scopeRoute', 'enabled']
 };
-const COLUMN_LABELS = { version: 'Versão', title: 'Título', alias: 'Alias', featured: 'Destaque', state: 'Estado', name: 'Nome', path: 'Caminho', published: 'Publicado', key: 'Chave', type: 'Tipo', enabled: 'Habilitado', extensionKey: 'Tipo de módulo', position: 'Posição', ordering: 'Ordem', scopeKind: 'Escopo', scopeRoute: 'Rota' };
+const COLUMN_LABELS = { version: 'Versão', title: 'Título', alias: 'Alias', featured: 'Destaque', state: 'Estado', name: 'Nome', path: 'Caminho', published: 'Publicado', key: 'Chave', type: 'Tipo', enabled: 'Habilitado', extensionKey: 'Tipo de módulo', position: 'Posição', ordering: 'Ordem', scopeKind: 'Escopo', scopeRoute: 'Rota', counts: 'Artigos' };
 // Presentation-only overrides: shared schemas, filters and persisted enums stay unchanged.
 const DOMAIN_LABELS = { moduleInstances: 'Módulos do site', extensions: 'Extensões registradas' };
 const EXTENSION_TYPE_LABELS = { Module: 'Módulo', Plugin: 'Plugin' };
@@ -327,17 +327,34 @@ const ICON_COLUMN_VALUES = {
  * ao botão ("Filtrar coluna Título"), então menu e cabeçalho nunca
  * divergem.
  */
-function columnFilterDefinitions(domain, rows, params = {}) {
+function columnFilterDefinitions(domain, rows, params = {}, searchTerm = '') {
+  /*
+   * Regra do AutoFiltro: as opções da coluna X saem das linhas que passam
+   * por TODOS os filtros ativos, EXCETO o da própria coluna X — a busca `q`
+   * incluída. Antes a contagem saía de `managementRows` cru (com os filtros
+   * de gerenciamento aplicados, mas sem a busca e sem os demais filtros de
+   * coluna), então o menu oferecia valores que a lista não devolvia e o
+   * contador não batia com o que estava na tela.
+   */
+  const term = String(searchTerm ?? '').trim().toLocaleLowerCase();
+  const titleField = ADMIN_DOMAINS[domain]?.titleField ?? 'title';
+  const matchesSearch = (row) => !term || String(row[titleField] ?? '').toLocaleLowerCase().includes(term);
   return columnsForDomain(domain).map((entry) => {
+    const ownSkip = (row, paramsForRow) => filterColumnValues(domain, [row], { ...paramsForRow, [entry.key]: undefined, [entry.column]: undefined }).length > 0;
+    const scoped = rows.filter((row) => matchesSearch(row) && ownSkip(row, params));
     const counts = new Map();
-    for (const row of rows) {
+    let emptyCount = 0;
+    for (const row of scoped) {
       const value = row[entry.key];
-      if (value === undefined || value === null || value === '') continue;
+      if (value === undefined || value === null || value === '') { emptyCount += 1; continue; }
       const text = String(value);
       counts.set(text, (counts.get(text) ?? 0) + 1);
     }
     const labels = ICON_COLUMN_VALUES[entry.key] ?? {};
     const options = [...counts.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((value) => ({ value, label: labels[value] ?? value, count: counts.get(value) }));
+    // "(Vazias)" entra quando há linhas sem valor, com valor `''` (item 6 do
+    // Adendo 2: `''` é ausência; `0`/`false` NÃO são).
+    if (emptyCount) options.push({ value: '', label: 'Vazias', count: emptyCount });
     /*
      * O valor ativo é lido tanto pela chave canônica quanto pelos nomes
      * legados da coluna (`col_title`): a URL antiga continua valendo, e o
@@ -385,7 +402,8 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
    * o próprio valor escolhido e não haveria como trocar ou limpar).
    */
   const managementRows = filterManagementRows(domain, rows, params);
-  const { pageRows, pageCount, currentPage } = filterAndPaginate(filterColumnValues(domain, managementRows, params), config, searchTerm, pageNumber);
+  const filteredRows = filterColumnValues(domain, managementRows, params);
+  const { pageRows, pageCount, currentPage } = filterAndPaginate(filteredRows, config, searchTerm, pageNumber);
   const filters = managementFilters(domain, params).map((filter) => domain === 'extensions' && filter.name === 'type'
     ? { ...filter, options: filter.options.map(([value]) => [value, value ? extensionTypeLabel(value) : 'Módulo / Plugin']) } : filter);
   const filterParams = Object.fromEntries(filters.filter((filter) => filter.value).map((filter) => [filter.name, filter.value]));
@@ -407,7 +425,44 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
     ...columnFilterParams(domain, params),
     q: searchTerm, sort: params.sort, dir: params.dir, limit: params.limit
   });
-  const columnFilters = columnFilterDefinitions(domain, managementRows, params);
+  const columnFilters = columnFilterDefinitions(domain, managementRows, params, searchTerm);
+  /*
+   * Frente C2: a barra de filtros ativos descreve exatamente o que está
+   * recortando a lista — os filtros de coluna ativos e os de gerenciamento
+   * que viraram coluna. Os rótulos vêm do mesmo mapa de facetas usado no
+   * cabeçalho, para a barra e o painel nunca discordarem sobre como um valor
+   * se chama. `totalBase` é o total SEM filtro de coluna; compará-lo com o
+   * total exibido é o que mostra quanto o filtro está escondendo.
+   */
+  const activeFilters = filters.filter((filter) => filter.value).map((filter) => {
+    const values = parseMulti(String(filter.value)).map(String);
+    const options = columnFilters.find((column) => column.key === filter.name || column.column === filter.name)?.options ?? [];
+    const labels = new Map(options.map((option) => [String(option.value), option.label]));
+    return {
+      key: filter.name,
+      label: filter.label,
+      values: values.map((value) => labels.get(value) ?? value),
+      rawValues: values
+    };
+  });
+  /*
+   * `activeFilterClearHref` foi removido nesta rodada: a barra canônica
+   * ("Limpar todos" em `renderActiveFilterChips`) decide sozinha o que
+   * preservar — q/sort/dir/limit — e o link calculado aqui, sobre `listState`,
+   * divergia dessa regra e nunca era lido por ninguém.
+   */
+  /*
+   * `totalBase` é o denominador do "N de M": o recorte da tela SEM filtro de
+   * coluna, mas COM os filtros de gerenciamento e a busca — `managementRows`
+   * já traz os primeiros, só faltava a busca. Antes valia
+   * `managementRows.length`, que ignorava o termo digitado: a lista mostrava
+   * "3 de 20" mesmo com a busca já reduzida a 3, escondendo o efeito dos
+   * filtros de coluna.
+   */
+  const searchTermLower = String(searchTerm ?? '').trim().toLocaleLowerCase();
+  const totalBase = searchTermLower
+    ? managementRows.filter((row) => String(row[config.titleField] ?? '').toLocaleLowerCase().includes(searchTermLower)).length
+    : managementRows.length;
   const body = renderAdminList({
     domain, now,
     rows: domain === 'extensions' ? pageRows.map((row) => ({ ...row, etag: row.etag, type: extensionTypeLabel(row.type) })) : pageRows,
@@ -416,6 +471,13 @@ function renderDomainListPage(domain, rows, link, { searchTerm, pageNumber, para
     editHref: (id) => link(`/${domain}/${id}`, listState),
     searchValue: searchTerm, searchHref: link(`/${domain}`, listState),
     searchFilters: filters,
+    activeFilters,
+    total: filteredRows.length, totalBase,
+    totalLabel: `${filteredRows.length} de ${totalBase} ${domain === 'articles' ? 'artigos' : 'itens'}`,
+    cellRenderers: domain === 'categories'
+      ? { counts: (row) => renderCategoryCounts(row, { link, domain: 'articles', listState, label: String(row.title ?? '').trim() }) }
+      : {},
+    tableFooter: domain === 'categories' ? renderCategoryLegend() : '',
     columnFilters,
     columnFormId: `admin-${domain}-colfilter`,
     rowActions: (row) => renderManagementActions(domain, row),

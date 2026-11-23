@@ -1,7 +1,7 @@
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
 import { formatDate } from '../../../../../libraries/minijoomla/core/format.js';
 import { selectAllCell, selectionCell } from '../../../com_minijoomla/extension-pages.js';
-import { renderArticleIndicator, renderColumnFilter } from '../../../com_minijoomla/render-list.js';
+import { renderArticleIndicator, renderColumnFilter, renderActiveFilterChips } from '../../../com_minijoomla/render-list.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 /*
@@ -12,7 +12,7 @@ const esc = (value) => escapeHtml(String(value ?? ''));
  */
 const dateText = (value) => formatDate(value);
 
-export function renderArticlesTable(result, { link, params = {}, now = new Date(), columnFilters = [], returnParams = {} } = {}) {
+export function renderArticlesTable(result, { link, params = {}, now = new Date(), columnFilters = [], returnParams = {}, activeFilters = [], totalLabel = '' } = {}) {
   /*
    * Estado vazio AINDA renderiza o cabeçalho: sem ele, um filtro que não
    * casa com nada deixava o usuário preso — não havia mais como trocar o
@@ -69,5 +69,5 @@ export function renderArticlesTable(result, { link, params = {}, now = new Date(
       + `<td class="admin-col-nowrap">${dateText(row.publishUp) || '—'}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
   const headers = [header('featured', 'Destaque'), header('state', 'Estado'), header('title', 'Título'), header('alias', 'Alias'), header('category', 'Categoria', undefined, undefined, undefined, 'categoryId'), header('author', 'Autor'), header('publishUp', 'Data'), header('id', 'ID')].join('');
-        return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${headers}</tr></thead><tbody>${rows}</tbody></table>${result.rows.length ? '' : emptyNotice}</div>`;
+        return `${renderActiveFilterChips(activeFilters, totalLabel)}<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Artigos — ${esc(result.total)} encontrado(s)</caption><thead><tr>${selectAllCell}${headers}</tr></thead><tbody>${rows}</tbody></table>${result.rows.length ? '' : emptyNotice}</div>`;
 }

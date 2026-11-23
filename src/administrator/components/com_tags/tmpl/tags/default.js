@@ -6,7 +6,7 @@
  */
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
 import { selectionCell, selectAllCell, stateIcon } from '../../../com_minijoomla/extension-pages.js';
-import { renderColumnFilter } from '../../../com_minijoomla/render-list.js';
+import { renderColumnFilter, renderActiveFilterChips } from '../../../com_minijoomla/render-list.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublished: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' };
@@ -15,7 +15,7 @@ const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublishe
  * Mesmo contrato opcional da listagem de categorias: sem `columnFilters`,
  * a tabela renderiza como antes.
  */
-export function renderTagsTable(rows, { link, columnFilters = [], returnParams = {} } = {}) {
+export function renderTagsTable(rows, { link, columnFilters = [], returnParams = {}, activeFilters = [], totalLabel = '' } = {}) {
   const items = Array.isArray(rows) ? rows : [];
   const filterFor = (column) => columnFilters.find((filter) => filter.column === column || filter.key === column);
   /*
@@ -34,7 +34,7 @@ export function renderTagsTable(rows, { link, columnFilters = [], returnParams =
     return `<th scope="col" class="${esc(classes)}"${fullLabel ? ` title="${esc(fullLabel)}"` : ''}><span class="admin-th-label">${esc(label)}${fullLabel ? `<span class="visually-hidden"> (${esc(fullLabel)})</span>` : ''}</span>${filter ? renderColumnFilter(filter, column) : ''}</th>`;
   };
   const head = `${selectAllCell}${header('state', 'Estado')}${header('name', 'Nome')}${header('alias', 'Alias')}${header('counts', 'Artigos', 'Artigos com a tag', 'admin-col-count')}${header('id', 'ID')}`;
-  if (!items.length) return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead></table><p class="admin-empty" role="status">Nenhum registro em "Tags" encontrado.</p></div>`;
+  if (!items.length) return `${renderActiveFilterChips(activeFilters, totalLabel)}<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead></table><p class="admin-empty" role="status">Nenhum registro em "Tags" encontrado.</p></div>`;
   const tableRows = items.map((row) => {
     const title = String(row.name ?? '').trim() || `Tag ${row.id}`;
     const state = row.state || 'Published';
@@ -46,5 +46,5 @@ export function renderTagsTable(rows, { link, columnFilters = [], returnParams =
     const counts = `<a class="admin-badge${total ? '' : ' is-muted'}" href="${esc(link('/articles', { tag: row.name }))}" aria-label="${esc(`${total} artigo(s) com a tag ${row.name}`)}">${esc(total)}</a>`;
     return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/tags/${row.id}`, returnParams))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-alias">${esc(row.alias)}</td><td class="admin-col-count">${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-    return `<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    return `${renderActiveFilterChips(activeFilters, totalLabel)}<div class="admin-table-wrap"><table class="admin-list" data-colfilter-form><caption class="visually-hidden">Tags</caption><thead><tr>${head}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }
