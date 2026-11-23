@@ -186,7 +186,22 @@ export function countsByValue(rows, read) {
   export const FACET_VALUE_LABELS = {
     articles: {
       state: { order: ['Published', 'Draft', 'Archived', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft', 'Archived'] },
-      featured: { order: ['1', '0'], labels: { 1: 'Em destaque', 0: 'Sem destaque' } }
+      featured: { order: ['1', '0'], labels: { 1: 'Em destaque', 0: 'Sem destaque' } },
+      /*
+       * Data de publicação: o valor é `AAAA-MM`, mas o rótulo é o mês por
+       * extenso em português ("novembro de 2026"), como no AutoFiltro. A
+       * ordem é DECRESCENTE (mês mais recente primeiro); `facetValueOrder`
+       * não cobre isso, então a comparação é feita aqui pelo próprio valor,
+       * que em `AAAA-MM` já é cronologicamente ordenável como texto. Datas
+       * futuras ficariam misturadas — aceitável, porque a lista é de meses
+       * e o mais recente é o que interessa.
+       */
+      publishUp: {
+        labels: null,
+        format: (value) => monthLabelPt(value),
+        order: null,
+        descending: true
+      }
     },
     categories: {
       state: { order: ['Published', 'Draft', 'Trashed'], labels: { Published: 'Publicado', Draft: 'Despublicado', Trashed: 'Na lixeira' }, defaultSet: ['Published', 'Draft'] }
@@ -203,18 +218,49 @@ export function countsByValue(rows, read) {
      */
     extensions: {
       type: { order: ['component', 'module', 'plugin', 'template', 'language', 'library', 'package'], labels: { component: 'Componente', module: 'Módulo', plugin: 'Plugin', template: 'Template', language: 'Idioma', library: 'Biblioteca', package: 'Pacote' } }
+    },
+    /*
+     * Módulos e Plugins têm vocabulário PRÓPRIO de estado, que não é o do
+     * Joomla de conteúdo: os módulos usam `published`/`unpublished`/
+     * `trashed` (minúsculas, ver `moduleState`) e os plugins usam
+     * `enabled`/`disabled`. Sem estas tabelas os menus mostravam o
+     * identificador cru ("unpublished", "disabled").
+     */
+    modules: {
+      state: { order: ['published', 'unpublished', 'trashed'], labels: { published: 'Publicado', unpublished: 'Despublicado', trashed: 'Na lixeira' }, defaultSet: ['published', 'unpublished'] }
+    },
+    plugins: {
+      state: { order: ['enabled', 'disabled'], labels: { enabled: 'Habilitado', disabled: 'Desabilitado' } }
     }
   };
+
+  const MONTHS_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  /*
+   * "2026-11" → "novembro de 2026". O valor da URL continua sendo o
+   * `AAAA-MM` (comparável e estável); só o RÓTULO é humano.
+   */
+  export function monthLabelPt(value) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(value ?? ''));
+    if (!match) return String(value ?? '');
+    const month = MONTHS_PT[Number(match[2]) - 1];
+    return month ? `${month} de ${match[1]}` : String(value);
+  }
 
   export function facetValueLabel(domain, key, value) {
     const table = FACET_VALUE_LABELS[domain]?.[key];
     if (!table) return null;
+    if (typeof table.format === 'function') return table.format(value);
     return table.labels?.[value] ?? null;
   }
 
   export function facetValueOrder(domain, key, values) {
-    const order = FACET_VALUE_LABELS[domain]?.[key]?.order;
+    const table = FACET_VALUE_LABELS[domain]?.[key];
+    const order = table?.order;
     const list = [...values];
+    // Datas: cronologia decrescente (mês mais recente primeiro). Em
+    // `AAAA-MM` a comparação textual já é cronológica.
+    if (table?.descending) return list.sort((a, b) => String(b).localeCompare(String(a)));
     if (!order) return list;
     return list.sort((a, b) => {
       const ia = order.indexOf(String(a));
@@ -264,7 +310,7 @@ function renderValueRow(filter, value, label, count, selected, { tree = false, d
   const depthAttribute = tree ? ` data-colfilter-depth="${escapeHtml(String(depth))}"` : '';
   return `<label class="admin-colfilter-option" data-colfilter-option data-colfilter-value="${escapeHtml(value)}"${depthAttribute}${indent}>`
     + `<input type="checkbox" value="${escapeHtml(value)}"${selected ? ' checked' : ''}>`
-    + `<span class="admin-colfilter-option-label"${filter.tree && label !== value ? ` title="${escapeHtml(label)}"` : ''}>${escapeHtml(label)}</span>`
+    + `<span class="admin-colfilter-option-label" data-colfilter-option-label${filter.tree && label !== value ? ` title="${escapeHtml(label)}"` : ''}>${escapeHtml(label)}</span>`
     + `<span class="admin-colfilter-option-count" aria-hidden="true">${escapeHtml(String(count))}</span></label>`;
 }
 
@@ -331,6 +377,14 @@ export function renderColumnFilterPanel(filter, index = 0) {
    * desabilitado, sugerindo que não havia nada para confirmar.
    */
   const checked = (option) => {
+    /*
+     * `state=*` (e equivalentes) não é o valor de uma opção: é o
+     * "selecionar tudo" do painel escrito na URL. Comparar `'*'` com as
+     * opções reais não marcava nenhuma caixa, e o usuário via o painel
+     * VAZIO enquanto a lista mostrava tudo — sem forma de editar o
+     * recorte. Tratado aqui, no ponto único de seleção.
+     */
+    if (selected.has('*')) return true;
     if (selected.size) return selected.has(option.value);
     if (filter.unfiltered === false) return false;
     /*
@@ -483,6 +537,51 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
     navigate(href);
     return { ok: true };
   };
+
+  /*
+   * Frente C2: os botões da barra de filtros ativos. O "×" de um chip remove
+   * só o próprio filtro; "Limpar todos" remove os filtros de coluna e os da
+   * barra do topo, mas preserva `q`, `sort`, `dir` e `limit`. Sem este
+   * binding os botões apareciam e não faziam nada — a barra é HTML puro.
+   */
+  on(doc, 'click', (event) => {
+    const target = event?.target;
+    const bar = target?.closest?.('[data-activefilters]');
+    if (!bar) return;
+    event.preventDefault?.();
+    const remove = target.closest('[data-activefilter-remove]');
+    if (remove) {
+      const key = remove.getAttribute?.('data-activefilter-remove') ?? '';
+      applyFilter(key, []);
+      return;
+    }
+    if (!target.closest?.('[data-activefilter-clearall]')) return;
+    const keep = new Set(['q', 'sort', 'dir', 'limit', 'page']);
+    const next = {};
+    for (const [name, value] of Object.entries(location.params ?? {})) if (keep.has(name)) next[name] = value;
+    next.page = undefined;
+    navigate(link(location.path, next));
+  });
+
+  /*
+   * Frente C3: o botão "Mais filtros" abre/fecha o painel que guarda os
+   * filtros da barra que NÃO têm coluna (Tag, Idioma em Artigos). Sem este
+   * binding o painel nunca abria e o filtro ficava inalcançável. Cada
+   * listagem tem o seu painel, identificado por `aria-controls` — e como o
+   * `documentRef.body.innerHTML` é trocado por inteiro a cada navegação, a
+   * busca é feita a cada clique em vez de guardada.
+   */
+  on(doc, 'click', (event) => {
+    const toggle = event?.target?.closest?.('[data-morefilters-toggle]');
+    if (!toggle) return;
+    event.preventDefault?.();
+    const id = toggle.getAttribute?.('aria-controls') ?? '';
+    const panel = id ? doc.getElementById?.(id) ?? doc.querySelector?.(`[id="${id}"]`) : null;
+    if (!panel) return;
+    const open = panel.hidden === true;
+    panel.hidden = !open;
+    toggle.setAttribute?.('aria-expanded', open ? 'true' : 'false');
+  });
 
   const panels = [];
   containers.forEach((toggle, index) => {
@@ -686,13 +785,25 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
           if (!box || boxes().indexOf(box) === -1) return;
           event.preventDefault?.();
           box.checked = !box.checked;
+          /*
+           * Espaço numa caixa de árvore precisa AVISAR o resto do painel:
+           * os filhos herdam o estado da mãe e o tri-estado dos pais é
+           * recalculado no listener de `change`. Chamar só `syncTristate()`
+           * marcava a caixa e deixava os descendentes intocados com o
+           * contador/`change` desatualizados.
+           */
+          box.dispatchEvent?.(new Event('change', { bubbles: true }));
           syncTristate();
         });
         dialog.addEventListener?.('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault?.(); close(); }
     });
-    // Tab a partir do último controle (ou Shift+Tab do primeiro) CANCELA:
-    // é um painel não modal, o foco não fica preso.
+    /*
+     * Tab nas BORDAS do painel devolve o foco à página, na ordem natural
+     * (sem `preventDefault`): o painel é não modal, então o foco não pode
+     * ficar preso. Fechar aqui era errado — bastava tabular até o fim para
+     * perder as seleções que o usuário estava montando.
+     */
     dialog.addEventListener?.('keydown', (event) => {
       if (event.key !== 'Tab') return;
       const focusables = Array.from(dialog.querySelectorAll?.('button:not([disabled]), input:not([disabled]), a[href]') ?? []);
@@ -700,8 +811,8 @@ export function bindColumnFilters({ location = { path: '/', params: {} }, link, 
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const active = doc.activeElement;
-      if (!event.shiftKey && active === last) { event.preventDefault?.(); close(); }
-      if (event.shiftKey && active === first) { event.preventDefault?.(); close(); }
+      if (!event.shiftKey && active === last) { close(); return; }
+      if (event.shiftKey && active === first) { close(); }
     });
 
     position();
