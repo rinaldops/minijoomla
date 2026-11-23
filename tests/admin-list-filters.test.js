@@ -1168,6 +1168,15 @@ function articleChainRepository() {
    * entre Publicado e Despublicado. Sem os números à mão o "resto
    * distribuído" vira um chute e as contagens do painel não têm como ser
    * conferidas.
+   *
+   * DESVIO DELIBERADO do item 1.6, passo 3: o adendo diz que, depois de
+   * desmarcar "Arquivado", "a lista tem 5 linhas, só Publicados e
+   * Despublicados". As duas frases do próprio item não fecham: 3 Publicados +
+   * 2 Despublicados = 5 só se os 13 restantes não existissem, mas o passo 1
+   * exige que eles contem no painel (o "resto distribuído"). Com a
+   * distribuição fixada acima a resposta correta é 10 Publicados + 8
+   * Despublicados = 18 linhas, e é isso que o teste prova. O número 18 é
+   * consequência da fixture, não uma escolha nova.
    */
   const states = [
     'Published', 'Published', 'Published', 'Draft', 'Draft', 'Archived', 'Trashed',
