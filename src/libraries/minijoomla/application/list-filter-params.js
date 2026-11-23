@@ -147,15 +147,36 @@ export function buildColumnFacets(rows, dimensions, params = {}, { matches = () 
      */
     const labelMap = labels?.[dimension.key];
     const depthMap = depths?.[dimension.key];
+    // Os mapas aceitam `Map` e objeto simples: o serviço monta o de
+    // profundidade como `Map` e o de rótulos como objeto. Ler com `?.get?.()`
+    // só cobria o primeiro e deixava o rótulo cair no ID cru.
+    const readMap = (map, value) => (map instanceof Map ? map.get(value) : map?.[value]);
+    /*
+     * A ordem de uma dimensão em ÁRVORE é a da própria árvore (pai antes
+     * dos filhos), não a alfabética do rótulo: com o caminho completo,
+     * "Institucional › Avisos › Extra" ordena ANTES de "Solto", mas o neto
+     * precisa vir logo depois do pai para a indentação por profundidade
+     * desenhar níveis coerentes. `depths` carrega essa ordem na chave.
+     */
+    const order = depthMap instanceof Map ? [...depthMap.keys()] : [];
+    const position = new Map(order.map((value, index) => [value, index]));
     facets[dimension.key] = [...counts.entries()]
       .map(([value, count]) => ({
         value,
-        label: value === EMPTY_VALUE ? '(Vazias)' : (labelMap?.get?.(value) ?? value),
+        label: value === EMPTY_VALUE ? '(Vazias)' : (readMap(labelMap, value) ?? value),
         count,
         empty: value === EMPTY_VALUE,
-        ...(depthMap ? { depth: depthMap.get?.(value) ?? 0 } : {})
+        ...(depthMap ? { depth: readMap(depthMap, value) ?? 0 } : {})
       }))
-      .sort((a, b) => (a.empty === b.empty ? a.label.localeCompare(b.label, 'pt-BR') : a.empty ? 1 : -1));
+      .sort((a, b) => {
+        if (a.empty !== b.empty) return a.empty ? 1 : -1;
+        if (position.size) {
+          const ai = position.get(a.value) ?? Number.MAX_SAFE_INTEGER;
+          const bi = position.get(b.value) ?? Number.MAX_SAFE_INTEGER;
+          if (ai !== bi) return ai - bi;
+        }
+        return a.label.localeCompare(b.label, 'pt-BR');
+      });
   }
   return facets;
 }
