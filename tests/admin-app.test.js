@@ -310,7 +310,9 @@ export async function runAdminAppTests() {
   const appSearch = createAdminApplication({ adminService: adminWithMany, documentRef: fakeSearch.documentRef, autoStart: false });
   appSearch.router.routes = [{ name: 'admin', pattern: /^.*$/, keys: [] }];
   await appSearch.router.navigate('#/articles?q=blog');
-  assert.match(fakeSearch.documentRef.body.innerHTML, /href="#\/articles\/101"/);
+  // O link de edição carrega a query da lista (q=blog) para que salvar/cancelar
+    // volte à mesma listagem filtrada; a URL nua é justamente o defeito corrigido.
+    assert.match(fakeSearch.documentRef.body.innerHTML, /href="#\/articles\/101\?q=blog"/);
   assert.ok(!fakeSearch.documentRef.body.innerHTML.includes('href="#/articles/102"'));
   assert.ok(!fakeSearch.documentRef.body.innerHTML.includes('href="#/articles/103"'));
   assert.match(fakeSearch.documentRef.body.innerHTML, /value="blog"/);

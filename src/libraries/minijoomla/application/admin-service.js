@@ -402,7 +402,7 @@ const lower = (value) => String(value ?? '').toLocaleLowerCase();
 const tagNames = (value) => String(value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
 const stateOf = (row) => row?.state || 'Published';
 const PAGE_LIMITS = [10, 20, 50, 100];
-const ARTICLE_SORTS = ['title', 'category', 'author', 'publishUp', 'featured', 'state', 'id'];
+const ARTICLE_SORTS = ['title', 'alias', 'category', 'author', 'publishUp', 'featured', 'state', 'id'];
 const ARTICLE_BATCH_PATCHES = Object.freeze({
   publish: { state: 'Published' }, unpublish: { state: 'Draft' }, archive: { state: 'Archived' }, trash: { state: 'Trashed' },
   // Joomla restaura da lixeira como "não publicado".
@@ -538,6 +538,28 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     const titles = new Map(categoryList.map((row) => [row.id, row.title]));
     const categoryScope = params.categoryId ? new Set([Number(params.categoryId), ...descendantIds(categoryList, params.categoryId)]) : null;
     const term = String(params.q ?? '').trim();
+    /*
+     * Filtros POR COLUNA (dropdown estilo Excel). São aplicados sobre o
+     * conjunto COMPLETO, antes de ordenar/paginar, e combinam entre si e
+     * com os filtros de barra (`q`, `state`, ...).
+     *
+     * SEMÂNTICA: um dropdown escolhe UM valor discreto, então compara por
+     * IGUALDADE exata e insensível a caixa. Substring aqui confundiria nomes
+     * que contêm outros (o alias `gol` casaria com `goleiro`). O valor é
+     * comparado INTEIRO, nunca partido por vírgula: um autor como
+     * `Silva, Joao` é um valor legítimo e precisa casar por inteiro. Como o
+     * `<select>` é de escolha única, não há OR dentro da coluna; colunas
+     * diferentes se combinam com AND.
+     * A busca textual `q` continua por substring — ela é livre, não uma
+     * escolha de lista.
+     */
+    const lowerExact = (value) => lower(String(value ?? '').trim());
+    const matchExact = (value, wanted) => !wanted || lowerExact(value) === wanted;
+    const matchCategory = (id) => !categoryFilter || (id !== undefined && id !== null && String(id) === categoryFilter);
+    const titleFilter = lowerExact(params.fTitle);
+    const aliasFilter = lowerExact(params.fAlias);
+    const categoryFilter = String(params.fCategory ?? '').trim();
+    const authorFilter = lowerExact(params.fAuthor);
     const filtered = rows.filter((row) => {
       const state = stateOf(row);
       if (params.state === '*' ? false : params.state ? state !== params.state : state === 'Trashed') return false;
@@ -546,6 +568,65 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       if (params.author && row.author !== params.author) return false;
       if (params.language && row.language !== params.language) return false;
       if (params.tag && !tagNames(row.tags).some((name) => lower(name) === lower(params.tag))) return false;
+      if (!matchExact(row.title, titleFilter)) return false;
+      if (!matchExact(row.alias, aliasFilter)) return false;
+      // Categoria por ID, não por título: categorias homônimas são entidades
+      // distintas e um filtro textual as confundiria.
+      if (!matchCategory(row.categoryId)) return false;
+      if (!matchExact(row.author, authorFilter)) return false;
+      return matchesSearch(row, term, ['title', 'alias', 'note']);
+    });
+    /*
+     * As opções de um dropdown alimentam a coluna correspondente, então
+     * precisam ser calculadas assim:
+     *
+     * 1. aplicam todos os DEMAIS filtros (de barra e de coluna), para que
+     *    toda opção oferecida produza resultado junto do que já está ativo;
+     * 2. IGNORAM o filtro da própria coluna, para que depois de escolher
+     *    `Título A` o usuário possa trocar direto para `Título B` sem antes
+     *    limpar — usar `filtered` aqui deixaria só a opção já escolhida;
+     * 3. incluem a seleção ativa da própria coluna mesmo quando os demais
+     *    filtros a esvaziaram, senão o `<select>` perde a opção marcada e o
+     *    usuário não consegue voltar ao estado anterior.
+     *
+     * Note que cada facet recebe apenas a seleção ativa DA SUA coluna: o
+     * valor ativo de outra coluna já entra pelo filtro correspondente em
+     * `filteredWithout` e não pode ser unido à mão.
+     */
+    const facetValues = (except, pick, active) => [...new Set([
+      ...filteredWithout(except).map(pick).filter(Boolean),
+      active
+    ].filter(Boolean))].sort((a, b) => lower(a).localeCompare(lower(b)));
+    /*
+     * A Categoria é o único facet com valor canônico distinto do rótulo:
+     * `value` é o id (chave de filtro) e `label` é o título exibido. Sem
+     * isso, categorias homônimas dividiriam uma opção e o filtro casaria
+     * por texto em vez de por entidade.
+     */
+    const categoryFacet = () => {
+      const seen = new Map();
+      for (const row of filteredWithout('fCategory')) {
+        const id = row.categoryId;
+        if (id === undefined || id === null) continue;
+        if (!seen.has(String(id))) seen.set(String(id), titles.get(id) ?? `Categoria ${id}`);
+      }
+      if (categoryFilter && !seen.has(categoryFilter)) seen.set(categoryFilter, titles.get(Number(categoryFilter)) ?? `Categoria ${categoryFilter}`);
+      return [...seen.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => lower(a.label).localeCompare(lower(b.label)) || (Number(a.value) - Number(b.value)));
+    };
+    const filteredWithout = (except) => rows.filter((row) => {
+      const state = stateOf(row);
+      if (params.state === '*' ? false : params.state ? state !== params.state : state === 'Trashed') return false;
+      if (categoryScope && !categoryScope.has(Number(row.categoryId))) return false;
+      if (['1', '0'].includes(String(params.featured ?? '')) && Boolean(row.featured) !== (String(params.featured) === '1')) return false;
+      if (params.author && row.author !== params.author) return false;
+      if (params.language && row.language !== params.language) return false;
+      if (params.tag && !tagNames(row.tags).some((name) => lower(name) === lower(params.tag))) return false;
+      if (except !== 'fTitle' && !matchExact(row.title, titleFilter)) return false;
+      if (except !== 'fAlias' && !matchExact(row.alias, aliasFilter)) return false;
+      if (except !== 'fCategory' && !matchCategory(row.categoryId)) return false;
+      if (except !== 'fAuthor' && !matchExact(row.author, authorFilter)) return false;
       return matchesSearch(row, term, ['title', 'alias', 'note']);
     });
     const sort = ARTICLE_SORTS.includes(params.sort) ? params.sort : 'id';
@@ -558,7 +639,20 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     const pageRows = await snapshots(articleCrud, filtered.slice((page - 1) * limit, page * limit));
     return {
       rows: pageRows.map((row) => ({ ...row, etag: row.etag, categoryTitle: titles.get(row.categoryId) ?? '' })), total: filtered.length, page, pageCount, limit,
-      facets: { authors: [...new Set(rows.map((row) => row.author).filter(Boolean))].sort(), languages: [...new Set(rows.map((row) => row.language).filter(Boolean))].sort() }
+      /*
+       * Facets alimentam os dropdowns por coluna. Derivam do conjunto
+       * VISÍVEL (filtros de barra + por coluna, antes da paginação) unido
+       * às escolhas ativas, de modo que toda opção oferecida produz
+       * resultado e a seleção atual nunca desaparece do `<select>`.
+       */
+      facets: {
+        authors: facetValues('fAuthor', (row) => row.author, params.fAuthor),
+        languages: facetValues(null, (row) => row.language, params.language),
+        aliases: facetValues('fAlias', (row) => row.alias, params.fAlias),
+        categories: categoryFacet().map(({ label }) => label),
+        categoryOptions: categoryFacet(),
+        titles: facetValues('fTitle', (row) => row.title, params.fTitle)
+      }
     };
   }
 
@@ -645,7 +739,7 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
     }
   };
 
-  function createTaxonomy(domain, base, normalize, { titleField, aliasField, deletionGuard, countsFor }) {
+  function createTaxonomy(domain, base, normalize, { titleField, aliasField, deletionGuard, countsFor, titleFilterKey = titleField === 'name' ? 'fName' : 'fTitle' }) {
     const rowsOf = async () => (repositories[domain] ? listAll(requireRepository(repositories, domain)) : []);
     async function guardParent(id, parentId) {
       if (parentId === null || parentId === undefined) return;
@@ -671,9 +765,37 @@ export function createAdminService(repositories, { pluginManager, initialSiteCon
       async query(params = {}) {
         const [rows, articleList] = await Promise.all([rowsOf(), articleRows()]);
         const term = String(params.q ?? '').trim();
-        const visible = treeOrder(rows, titleField).filter(({ row }) => (params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed') && matchesSearch(row, term, [titleField, aliasField]));
-        const fresh = await snapshots(base, visible.map(({ row }) => row));
-        return visible.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
+        const lowerExact = (value) => lower(String(value ?? '').trim());
+        const matchExact = (value, wanted) => !wanted || lowerExact(value) === wanted;
+        const titleFilter = lowerExact(params[titleFilterKey]);
+        const aliasFilter = lowerExact(params.fAlias);
+        /*
+         * Mesma semântica dos filtros por coluna de artigos, adaptada à
+         * taxonomia: `q` continua sendo busca livre por substring, enquanto
+         * `f<Título>`/`fAlias` são escolhas exatas alimentadas pelos facets.
+         * O filtro da própria coluna é ignorado ao calcular o próprio facet
+         * (senão só sobraria a opção já escolhida) e a seleção ativa é
+         * sempre reincluída (senão o `<select>` perderia a opção marcada).
+         */
+        const visibleOf = (except) => treeOrder(rows, titleField).filter(({ row }) => {
+          if (!(params.state === '*' ? true : params.state ? stateOf(row) === params.state : stateOf(row) !== 'Trashed')) return false;
+          if (except !== titleFilterKey && !matchExact(row[titleField], titleFilter)) return false;
+          if (except !== 'fAlias' && !matchExact(row[aliasField], aliasFilter)) return false;
+          return matchesSearch(row, term, [titleField, aliasField]);
+        });
+        const chosen = visibleOf(null);
+        const facetValues = (except, pick, active) => [...new Set([
+          ...visibleOf(except).map(({ row }) => pick(row)).filter(Boolean),
+          active
+        ].filter(Boolean))].sort((a, b) => lower(a).localeCompare(lower(b)));
+        const fresh = await snapshots(base, chosen.map(({ row }) => row));
+        const result = chosen.map(({ depth }, index) => ({ ...fresh[index], etag: fresh[index].etag, depth, counts: countsFor(fresh[index], articleList) }));
+        const titles = facetValues(titleFilterKey, (row) => row[titleField], params[titleFilterKey]);
+        const aliases = facetValues('fAlias', (row) => row[aliasField], params.fAlias);
+        // `facets` alimenta os dropdowns por coluna; cada uma recebe a chave
+        // canônica da coluna que controla (`fTitle` em categorias, `fName` em
+        // tags) para que o cabeçalho e o serviço concordem no nome do campo.
+        return { rows: result, facets: { [titleFilterKey]: titles, titles, aliases } };
       },
       /** Opções de pai indentadas, sem o item e seus descendentes (impede ciclos) nem itens na lixeira. */
       async treeOptions({ excludeId, current } = {}) {

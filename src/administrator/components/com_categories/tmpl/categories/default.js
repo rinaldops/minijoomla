@@ -5,13 +5,19 @@
  * continuam no coordenador (com_minijoomla/content-pages.js).
  */
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
-import { selectionCell, selectAllCell, stateIcon } from '../../../com_minijoomla/extension-pages.js';
+import { selectionCell, selectAllCell, stateIcon, columnFilterSelect } from '../../../com_minijoomla/extension-pages.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const COUNT_STATES = ['Published', 'Draft', 'Archived', 'Trashed'];
 const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublished: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' };
 
-export function renderCategoriesTable(rows, { link } = {}) {
+/*
+ * `params` é o estado de lista (filtros, ordenação, página). O enlace de
+ * edição o carrega para que Salvar/Cancelar no formulário voltem à listagem
+ * filtrada, e os dropdowns por coluna leem `facets` — calculados pelo
+ * serviço sobre o conjunto completo — para não encolherem com a página atual.
+ */
+export function renderCategoriesTable(rows, { link, params = {}, facets = {} } = {}) {
   const items = Array.isArray(rows) ? rows : [];
   if (!items.length) return '<p class="admin-empty" role="status">Nenhum registro em "Categorias" encontrado.</p>';
   const tableRows = items.map((row) => {
@@ -22,7 +28,8 @@ export function renderCategoriesTable(rows, { link } = {}) {
       : `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="toggle-state" data-ext-id="${esc(row.id)}" aria-label="${state === 'Published' ? 'Despublicar' : 'Publicar'} ${esc(title)}">${stateIcon(state === 'Published' ? 'published' : 'unpublished', STATE_LABELS[state] ?? state)}</button>`;
     const indent = row.depth ? `<span aria-hidden="true">${'— '.repeat(row.depth)}</span><span class="visually-hidden">Nível ${row.depth + 1}: </span>` : '';
     const counts = COUNT_STATES.map((key) => `<a class="admin-badge${row.counts[key] ? '' : ' is-muted'}" href="${esc(link('/articles', { categoryId: row.id, state: key }))}" title="${esc(STATE_LABELS[key])}" aria-label="${esc(`${row.counts[key]} artigo(s): ${STATE_LABELS[key]}`)}">${esc(row.counts[key])}</a>`).join(' ');
-    return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/categories/${row.id}`))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-nowrap">${esc(row.alias)}</td><td>${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
+    return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/categories/${row.id}`, params))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-nowrap">${esc(row.alias)}</td><td>${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-  return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Categorias</caption><thead><tr>${selectAllCell}<th scope="col">Estado</th><th scope="col">Título</th><th scope="col">Alias</th><th scope="col">Artigos (publicados, despublicados, arquivados, lixeira)</th><th scope="col">ID</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+  const header = (key, label, filter) => `<th scope="col">${esc(label)}${filter ? columnFilterSelect('admin-categories-col', { ...filter, selected: params[filter.name] }) : ''}</th>`;
+  return `<form data-ext-column-filter-form="admin-categories-col" aria-label="Filtros por coluna" hidden></form><div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Categorias</caption><thead><tr>${selectAllCell}<th scope="col">Estado</th>${header('title', 'Título', { name: 'fTitle', label: 'Título', values: facets.titles ?? [] })}${header('alias', 'Alias', { name: 'fAlias', label: 'Alias', values: facets.aliases ?? [] })}<th scope="col">Artigos (publicados, despublicados, arquivados, lixeira)</th><th scope="col">ID</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }

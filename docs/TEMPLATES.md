@@ -131,7 +131,107 @@ Contrato do pacote instalado:
 3. Registrar manifesto no painel (`/installer` ou `/templates/discover`).
 4. Selecionar template ativo e editar estilos.
 
-### 7) O que garante × o que não garante
+### 7) Revisão oficial de um template já registrado
+
+O registro inicial continua sendo feito por manifesto. Para uma release
+posterior de um template externo já registrado, o caminho oficial é o
+`template-revision-service` (não a descoberta novamente e não um PATCH raw
+artesanal). A revisão publica primeiro uma pasta imutável/versionada e então
+atualiza seletivamente o registro existente, preservando sua identidade e a
+configuração do site.
+
+Interface pública:
+
+```js
+createTemplateRevisionService({ admin, repositories, files, webUrl })
+// -> { prepare, commit, rollback }
+```
+
+`prepare({ templateId, candidate, isCurrent })` é somente leitura e exige
+`templateId` inteiro. O `candidate` contém obrigatoriamente
+`{ baseUrl, manifestPath, inventoryPath, inventoryHash }`; o hash do inventário
+é um pin externo ao próprio arquivo. O inventário não precisa conter hash de si
+mesmo: não há autorreferência circular. O serviço captura o template e a
+configuração do site, incluindo `expectedETag: { template, config }`, e lê
+manifesto/inventário/assets por `files` sem importar ou executar o entrypoint.
+A preparação só retorna `status: 'ready'` quando:
+
+- a key é a mesma e `positions` e `paramDefinitions` são equivalentes exatos,
+  inclusive ordem e campos futuros relevantes;
+- entrypoint e styles apontam para a mesma origem/base do host e para a nova
+  pasta versionada, sem traversal, credenciais ou esquemas indevidos;
+- o manifesto, o entrypoint, cada style e todos os demais arquivos declarados
+  estão representados no inventário; cada entrada comprova `path`, `bytes` e
+  `sha256`, e o digest externo `inventoryHash` confere; o inventário não
+  inclui a si próprio como entrada;
+- o snapshot preserva o JSON wire bruto original de `Styles`, inclusive o
+  formato legacy de lista CSS, o envelope e metadata futura, e guarda os hashes
+  dos assets legacy atuais, sem reserialização destrutiva;
+- essa verificação é somente de integridade dos arquivos declarados: não é
+  fechamento transitivo nem análise AST de imports JS/CSS.
+
+O retorno `ready` contém `reason: 'ready'`, `plan`,
+`snapshot: { template, siteConfig, assets }` e
+`expectedETag: { template, config }`. `plan` e o receipt são serializáveis,
+mas ficam ligados à instância/sessão do serviço e não constituem journal
+durável. Qualquer alteração de identidade, slots, parâmetros, base, bytes ou
+hash faz a preparação falhar antes de escrita.
+
+`commit({ plan, confirm: true, expectedETag: { template, config }, isCurrent })`
+relê o template e a configuração, revalida manifesto/inventário/bytes e só então
+faz **uma** escrita de
+`repositories.templates.update(id, { version, entryPointUrl, styles }, { etag: template })`.
+Não altera `MiniJoomlaSiteConfig`, posições, parâmetros, enabled, key ou outras
+listas. O patch preserva o metadata do envelope `Styles`; não reconstrói nem
+descarta chaves futuras. Após a escrita, o readback do registro e de seu novo
+ETag é obrigatório, mas `null`, `204`, timeout ou erro depois do dispatch da
+escrita permanece `uncertain` e não pode ser repetido automaticamente, mesmo
+que um readback pareça favorável. O retorno confirmado é
+`{ status: 'committed', plan, committedAt, postUpdateETag, rollback }`.
+
+`rollback({ rollback, confirm: true, expectedETag: { template, config }, isCurrent })`
+somente pode restaurar o snapshot de uma revisão própria. Deve reler o registro,
+comparar o ETag do commit (`template`), id/key e os bytes/URLs atuais; divergência
+bloqueia a operação. O rollback também é um PATCH seletivo exclusivo do
+registro, restaurando o wire bruto legacy de `Styles` e sem escrita de SiteConfig.
+Nunca usar ETag `*`. Como não existe transação cross-list, `null`, `204`, timeout
+ou erro depois do dispatch permanece `uncertain`, sem retry automático, ainda que
+um readback posterior pareça favorável; exige leitura/decisão explícita antes de
+qualquer ação.
+
+Operações retornam resultados estruturados, sem transformar falhas em sucesso:
+
+| Fase | Sucesso | Bloqueios sem nova escrita |
+| --- | --- | --- |
+| `prepare` | `ready` | `unavailable`, `validation-failed`, `concurrency-conflict` |
+| `commit` | `committed` | `confirmation-required`, `validation-failed`, `concurrency-conflict`, `uncertain` |
+| `rollback` | `rolled-back` | `confirmation-required`, `validation-failed`, `concurrency-conflict`, `uncertain` |
+
+
+#### Retenção operacional da sessão
+
+A sessão mantém no máximo **16 planos/recibos** em estados que ainda podem
+participar de I/O (incluindo prepares pendentes e recibos de rollback utilizáveis).
+O 17º prepare é `unavailable` **antes** de novas leituras ou downloads; não há
+eviction para abrir espaço. Um commit bem-sucedido transforma o plano em recibo
+e conserva o slot até o rollback terminar. Estados terminais, inclusive
+`uncertain`, liberam o payload operacional e não podem ser reutilizados para
+replay; em particular, um rollback utilizável nunca é removido por eviction.
+
+A sessão retém no máximo **128 tokens terminais** para rejeitar replay tardio.
+A eviction ocorre somente entre tokens já terminais; nunca remove um rollback
+utilizável. Não existe TTL nem journal durável: a retenção é limitada à instância
+/sessão viva, e perder a instância perde essa memória de forma deliberada.
+
+`isCurrent` deve interromper antes de qualquer nova escrita. `plan` inválido,
+key diferente, posições/paramDefinitions divergentes, inventário incompleto,
+entrypoint/style ausente do inventário, path/bytes/sha256 divergente, digest
+externo divergente, dependência ausente ou URL fora do containment são falhas
+fechadas. Integridade declarada não equivale a fechamento transitivo AST. A revisão altera somente a referência de release (`version`,
+`entryPointUrl`, `styles`); ativação do template, publicação e aceite LIVE
+continuam passos separados do Main.
+
+### 8) O que garante × o que não garante
 
 Garante:
 

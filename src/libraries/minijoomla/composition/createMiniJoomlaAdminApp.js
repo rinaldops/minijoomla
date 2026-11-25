@@ -29,6 +29,7 @@ import { createJoomlaDiscoveryService } from '../application/joomla-discovery.js
 import { createJoomlaExtensionInstaller } from '../application/joomla-extension-installer.js';
 import { createAdminPluginsRuntime } from '../application/admin-plugins.js';
 import { createSampleDataService } from '../application/sample-data-service.js';
+import { createTemplateRevisionService } from '../application/template-revision-service.js';
 import { assertJoomlaPackageAssets } from '../application/joomla-package-assets.js';
 
 /*
@@ -42,7 +43,7 @@ import { assertJoomlaPackageAssets } from '../application/joomla-package-assets.
  * imagem na origem (ver src/administrator/components/com_minijoomla/editor.js), nunca insere um
  * `data:` URI inline.
  */
-export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, pluginManager, importModule, sampleDataPackageLoader, sampleDataJournalStore,
+export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFileClientFactory, templateRevisionFileClientFactory, pluginManager, importModule, sampleDataPackageLoader, sampleDataJournalStore,
   joomlaDiscoveryRoots = [], joomlaFileClientFactory, assertAtomicExtensionKey, approvedPackageAssets, ...appOptions } = {}) {
   const app = createMiniJoomlaSharePointApp(appOptions);
   // An explicitly injected manager (including null to opt out) has precedence;
@@ -64,11 +65,15 @@ export function createMiniJoomlaAdminApp({ extensionsFileClientFactory, mediaFil
     async verifyRevision(metadata, options) { const descriptor=await xmlDiscovery.verifyRevision(metadata,options);assertJoomlaPackageAssets(approvedPackageAssets,[descriptor]);return descriptor; }
   }) : xmlDiscovery;
   const templates = fileClient ? createTemplateDiscoveryService(fileClient) : null;
+  // Explicit port, separate from discovery/upload: missing dependencies fail
+  // closed in prepare(), without fallback to a writer or automatic I/O.
+  const templateRevision = createTemplateRevisionService({ admin, repositories: app.repositories, webUrl: appOptions.webUrl,
+    files: typeof templateRevisionFileClientFactory === 'function' ? templateRevisionFileClientFactory({ webUrl: appOptions.webUrl }) : null });
   const installer = joomlaDiscoveryRoots.length ? createJoomlaExtensionInstaller({ discovery, admin, repositories: app.repositories, assertAtomicKey: assertAtomicExtensionKey }) : null;
   const discoveryWithTemplates = discovery ? Object.freeze({ ...discovery, templates, ...(installer ? { installer } : {}) }) : null;
   const media = typeof mediaFileClientFactory === 'function'
     ? createMediaUploadService(mediaFileClientFactory({ webUrl: appOptions.webUrl }))
     : null;
   const sampleData = createSampleDataService({ adminService: admin, loadPackage: sampleDataPackageLoader, journalStore: sampleDataJournalStore });
-  return Object.freeze({ ...app, admin, adminPlugins, discovery: discoveryWithTemplates, templates, media, sampleData });
+  return Object.freeze({ ...app, admin, adminPlugins, discovery: discoveryWithTemplates, templates, templateRevision, media, sampleData });
 }

@@ -63,16 +63,78 @@ export function createContentPages({ adminService, documentRef, router, shell, m
     return reload(location);
   }
 
-  function bindFilter(location, names) {
-    const form = body().querySelector?.('[data-ext-filter]');
-    form?.addEventListener?.('submit', async (event) => {
-      event?.preventDefault?.();
-      if (!isCurrent()) return;
-      const params = Object.fromEntries(names.map((name) => [name, form.querySelector?.(`[name="${name}"]`)?.value]).filter(([, value]) => value));
-      for (const keep of ['sort', 'dir']) if (location.params?.[keep]) params[keep] = location.params[keep];
-      await navigate(link(location.path, params));
-    });
-  }
+  /*
+     * Parâmetros que compõem o estado "de lista" (filtros de barra, filtros
+     * por coluna, ordenação, direção e itens por página). Qualquer navegação
+     * de/para a listagem preserva este conjunto, de modo que editar, salvar,
+     * cancelar, excluir ou aplicar ação em lote não perde a filtragem.
+     */
+    const LIST_PARAM_NAMES = ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit', 'fTitle', 'fName', 'fAlias', 'fCategory', 'fAuthor', 'sort', 'dir'];
+
+    function listState(location) {
+      return Object.fromEntries(LIST_PARAM_NAMES.map((name) => [name, location?.params?.[name]]).filter(([, value]) => value));
+    }
+
+    /*
+     * Filtros da barra. Os campos do formulário são a fonte da verdade para os
+     * nomes que ele controla: alterar tem efeito e esvaziar um campo remove o
+     * parâmetro (limpar). Apenas os parâmetros de lista que *não* pertencem ao
+     * formulário (ex.: filtros por coluna, ordenação, itens por página) são
+     * preservados do estado atual.
+     */
+    function bindFilter(location, names) {
+      const form = body().querySelector?.('[data-ext-filter]');
+      form?.addEventListener?.('submit', async (event) => {
+        event?.preventDefault?.();
+        if (!isCurrent()) return;
+        const params = {};
+        for (const keep of LIST_PARAM_NAMES) {
+          if (names.includes(keep)) continue;
+          if (location.params?.[keep]) params[keep] = location.params[keep];
+      }
+        for (const name of names) {
+          const value = form.querySelector?.(`[name="${name}"]`)?.value;
+          if (value) params[name] = value;
+        }
+        params.page = '';
+        await navigate(link(location.path, params));
+      });
+    }
+
+    /*
+     * Autofiltro por coluna (estilo Excel). Cada <select data-ext-column-filter>
+     * vive no cabeçalho da coluna e reage a `change`, aplicando imediatamente
+     * sobre o conjunto completo. Os filtros são combináveis: o valor atual de
+     * cada coluna é relido do próprio controle na hora de navegar, então vários
+     * dropdowns ativos coexistem. Ao mudar um filtro voltamos à página 1,
+     * porque o conjunto filtrado mudou e a página anterior pode não existir.
+     *
+     * Os selects ficam nos <th> da tabela, não dentro do formulário oculto que
+     * apenas os agrupa para submissão por Enter; por isso lemos os controles
+     * reais em vez de `form.querySelector`, que sempre devolveria vazio.
+     */
+    function bindColumnFilters(location, names) {
+      const form = body().querySelector?.('[data-ext-column-filter-form]');
+      const controls = Array.from(body().querySelectorAll?.('[data-ext-column-filter]') ?? []);
+      if (!form || !controls.length) return undefined;
+      const valueOf = (name) => controls.find((control) => control.name === name)?.value ?? '';
+      const submit = async () => {
+        if (!isCurrent()) return;
+        const params = {};
+        for (const [key, value] of Object.entries(listState(location))) {
+          if (!names.includes(key)) params[key] = value;
+        }
+        for (const name of names) {
+          const value = valueOf(name);
+          if (value) params[name] = value;
+      }
+        params.page = '';
+        await navigate(link(location.path, params));
+      };
+      for (const control of controls) control.addEventListener?.('change', submit);
+      form.addEventListener?.('submit', async (event) => { event?.preventDefault?.(); await submit(); });
+      return undefined;
+    }
 
   function bindBatch(location, run, { needsCategory = false } = {}) {
     const form = body().querySelector?.('[data-ext-batch]');
@@ -118,10 +180,12 @@ export function createContentPages({ adminService, documentRef, router, shell, m
     ]);
     const table = renderArticlesTable(result, { link, params, now });
     const actions = { ...ARTICLE_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) };
-    const html = page('articles', 'Artigos', [{ label: 'Artigos' }], `${status}${filters}${batchForm(actions, categoryOptions)}${table}${pagination(result, (number) => link('/articles', { ...params, page: String(number) }))}`,
-      `<a class="admin-btn admin-btn-success" href="${esc(link('/articles/new'))}">${plusIcon()}Novo</a>`);
+    const listStateParams = listState(location);
+        const html = page('articles', 'Artigos', [{ label: 'Artigos' }], `${status}${filters}${batchForm(actions, categoryOptions)}${table}${pagination(result, (number) => link('/articles', { ...params, page: String(number) }))}`,
+          `<a class="admin-btn admin-btn-success" href="${esc(link('/articles/new', listStateParams))}">${plusIcon()}Novo</a>`);
     const bind = () => {
       bindFilter(location, ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit']);
+            bindColumnFilters(location, ['fTitle', 'fAlias', 'fCategory', 'fAuthor']);
       bindSelectAll();
       const run = async (ids, action, extra) => batchReport(await adminService.articles.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action, extra), location);
       const rowOf = (id) => result.rows.find((row) => String(row.id) === String(id));
@@ -129,7 +193,10 @@ export function createContentPages({ adminService, documentRef, router, shell, m
         'toggle-state': (id) => run([id], (rowOf(id)?.state ?? 'Published') === 'Published' ? 'unpublish' : 'publish'),
         'toggle-featured': (id) => run([id], rowOf(id)?.featured ? 'unfeature' : 'feature'),
         restore: (id) => run([id], 'restore'),
-        duplicate: async (id) => { const created = await adminService.articles.duplicate(Number(id)); await navigate(link(`/articles/${created.id}`)); }
+        // Duplicar abre a COPIA no formulario levando o estado da lista: sem
+        // isso o Cancelar/Salvar da copia voltaria para a lista sem filtros,
+        // exatamente o defeito que este trabalho elimina.
+        duplicate: async (id) => { const created = await adminService.articles.duplicate(Number(id)); await navigate(link(`/articles/${created.id}`, listState(location))); }
       });
       bindBatch(location, run, { needsCategory: true });
     };
@@ -141,25 +208,32 @@ export function createContentPages({ adminService, documentRef, router, shell, m
   async function taxonomyListPage(location, cfg) {
     const params = location.params ?? {};
     const service = adminService[cfg.domain];
-    const rows = await service.query(params);
+      const result = await service.query(params);
+      const rows = result.rows;
     const etags = new Map(rows.map((row) => [String(row.id), row.etag]));
     const inTrash = params.state === 'Trashed';
     const filters = filterBar(`admin-${cfg.domain}-filter`, [
       { name: 'q', label: 'Buscar por título, alias ou id:N', type: 'search', value: params.q },
       { name: 'state', label: 'Estado', value: params.state, options: TAXONOMY_STATE_OPTIONS }
     ]);
-    const table = cfg.domain === 'categories' ? renderCategoriesTable(rows, { link }) : renderTagsTable(rows, { link });
+      // Categorias e tags usam a coluna de nome/título (`fTitle`/`fName`) mais
+      // alias, exatamente os campos que o serviço declara para cada domínio.
+      const columnFields = cfg.domain === 'categories' ? ['fTitle', 'fAlias'] : ['fName', 'fAlias'];
+      const table = cfg.domain === 'categories'
+        ? renderCategoriesTable(rows, { link, params, facets: result.facets })
+        : renderTagsTable(rows, { link, params, facets: result.facets });
     const html = page(cfg.domain, cfg.label, [{ label: cfg.label }], `${status}${filters}${batchForm({ ...TAXONOMY_ACTIONS, ...(inTrash ? TRASH_ACTIONS : {}) })}${table}`,
-      `<a class="admin-btn admin-btn-success" href="${esc(link(`/${cfg.domain}/new`))}">${plusIcon()}Novo</a>`);
+        `<a class="admin-btn admin-btn-success" href="${esc(link(`/${cfg.domain}/new`, listState(location)))}">${plusIcon()}Novo</a>`);
     const bind = () => {
       bindFilter(location, ['q', 'state']);
+        bindColumnFilters(location, columnFields);
       bindSelectAll();
       const run = async (ids, action) => batchReport(await service.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action), location);
       const rowOf = (id) => rows.find((row) => String(row.id) === String(id));
       bindActions({
         'toggle-state': (id) => run([id], (rowOf(id)?.state || 'Published') === 'Published' ? 'unpublish' : 'publish'),
         restore: (id) => run([id], 'restore'),
-        duplicate: async (id) => { const created = await service.duplicate(Number(id)); await navigate(link(`/${cfg.domain}/${created.id}`)); }
+        duplicate: async (id) => { const created = await service.duplicate(Number(id)); await navigate(link(`/${cfg.domain}/${created.id}`, listState(location))); }
       });
       bindBatch(location, run);
     };

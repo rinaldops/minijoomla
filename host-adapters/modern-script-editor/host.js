@@ -52,14 +52,15 @@ async function mountSite(root) {
 }
 
 async function mountAdmin(root) {
-  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }] = await Promise.all([
+  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }, { createSharePointTemplateRevisionFiles }] = await Promise.all([
     import('../libraries/minijoomla/composition/createMiniJoomlaAdminApp.js'),
     import('../administrator/components/com_minijoomla/app.js'),
     import('../administrator/components/com_minijoomla/editor.js'),
     import('../libraries/vendor/spmiddle/sharepoint-files/src/files.js'),
     import('../libraries/vendor/spmiddle/sharepoint-rest-browser/src/index.js'),
     import('../libraries/minijoomla/infrastructure/spmiddle-extension-guard.js'),
-    import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js')
+    import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js'),
+    import('../libraries/minijoomla/infrastructure/sharepoint-template-revision-files.js')
   ]);
   const stylesheet = document.createElement('link');
   stylesheet.rel = 'stylesheet';
@@ -88,6 +89,8 @@ async function mountAdmin(root) {
     webUrl: CONFIG.webUrl,
     transportFactory: ({ webUrl }) => createSharePointRestClient({ webUrl: webUrl || '/' }),
     extensionsFileClientFactory: GENERIC_INSTALLATION ? undefined : fileClient,
+    templateRevisionFileClientFactory: ({ webUrl }) => createSharePointTemplateRevisionFiles({ webUrl: webUrl || '/',
+      fileClient: createSharePointFileClient({ transport: toSharePointFileTransport(createSharePointRestClient({ webUrl: webUrl || '/' })), libraryPath: webUrl || '/' }) }),
     joomlaDiscoveryRoots: CONFIG.joomlaDiscoveryRoots ?? [],
     approvedPackageAssets: GENERIC_INSTALLATION ? {moduleStyles:CONFIG.moduleStyles,moduleStyleRevisions:CONFIG.moduleStyleRevisions} : undefined,
     joomlaFileClientFactory: ({ webUrl, root }) => {
@@ -105,6 +108,7 @@ async function mountAdmin(root) {
     pluginRuntime: app.adminPlugins,
     autoStart: false,
     discoveryService: app.discovery,
+    templateRevisionService: app.templateRevision,
     mediaService: app.media,
     sampleDataService: app.sampleData,
     extensionRootsService,

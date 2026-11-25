@@ -5,12 +5,18 @@
  * (com_minijoomla/content-pages.js).
  */
 import { escapeHtml } from '../../../../../libraries/minijoomla/security/sanitize.js';
-import { selectionCell, selectAllCell, stateIcon } from '../../../com_minijoomla/extension-pages.js';
+import { selectionCell, selectAllCell, stateIcon, columnFilterSelect } from '../../../com_minijoomla/extension-pages.js';
 
 const esc = (value) => escapeHtml(String(value ?? ''));
 const STATE_LABELS = { Published: 'Publicado', Draft: 'Despublicado', Unpublished: 'Despublicado', Archived: 'Arquivado', Trashed: 'Na lixeira' };
 
-export function renderTagsTable(rows, { link } = {}) {
+/*
+ * `params` carrega o estado de lista no enlace de edição e os dropdowns por
+ * coluna leem `facets` (conjunto completo), como na listagem de categorias.
+ * A coluna de nome usa `fName` porque o campo real da tag é `name`, não
+ * `title` — prometer `fTitle` aqui quebraria o filtro.
+ */
+export function renderTagsTable(rows, { link, params = {}, facets = {} } = {}) {
   const items = Array.isArray(rows) ? rows : [];
   if (!items.length) return '<p class="admin-empty" role="status">Nenhum registro em "Tags" encontrado.</p>';
   const tableRows = items.map((row) => {
@@ -21,7 +27,8 @@ export function renderTagsTable(rows, { link } = {}) {
       : `<button type="button" class="admin-btn admin-btn-ghost" data-ext-action="toggle-state" data-ext-id="${esc(row.id)}" aria-label="${state === 'Published' ? 'Despublicar' : 'Publicar'} ${esc(title)}">${stateIcon(state === 'Published' ? 'published' : 'unpublished', STATE_LABELS[state] ?? state)}</button>`;
     const indent = row.depth ? `<span aria-hidden="true">${'— '.repeat(row.depth)}</span><span class="visually-hidden">Nível ${row.depth + 1}: </span>` : '';
     const counts = `<a class="admin-badge${row.counts.count ? '' : ' is-muted'}" href="${esc(link('/articles', { tag: row.name }))}" aria-label="${esc(`${row.counts.count} artigo(s) com a tag ${row.name}`)}">${esc(row.counts.count)}</a>`;
-    return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/tags/${row.id}`))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-nowrap">${esc(row.alias)}</td><td>${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
+    return `<tr>${selectionCell(row.id, title)}<td>${toggle}</td><th scope="row" class="admin-col-title">${indent}<a href="${esc(link(`/tags/${row.id}`, params))}" aria-label="${esc(`Editar: ${title}`)}">${esc(title)}</a>${row.description ? `<div class="admin-list-note">${esc(row.description)}</div>` : ''}</th><td class="admin-col-nowrap">${esc(row.alias)}</td><td>${counts}</td><td class="admin-col-nowrap">${esc(row.id)}</td></tr>`;
   }).join('');
-  return `<div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Tags</caption><thead><tr>${selectAllCell}<th scope="col">Estado</th><th scope="col">Nome</th><th scope="col">Alias</th><th scope="col">Artigos com a tag</th><th scope="col">ID</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+  const header = (key, label, filter) => `<th scope="col">${esc(label)}${filter ? columnFilterSelect('admin-tags-col', { ...filter, selected: params[filter.name] }) : ''}</th>`;
+  return `<form data-ext-column-filter-form="admin-tags-col" aria-label="Filtros por coluna" hidden></form><div class="admin-table-wrap"><table class="admin-list"><caption class="visually-hidden">Tags</caption><thead><tr>${selectAllCell}<th scope="col">Estado</th>${header('name', 'Nome', { name: 'fName', label: 'Nome', values: facets.fName ?? [] })}${header('alias', 'Alias', { name: 'fAlias', label: 'Alias', values: facets.aliases ?? [] })}<th scope="col">Artigos com a tag</th><th scope="col">ID</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
 }

@@ -171,6 +171,71 @@ export const styles = new URL('./styles/main.css', import.meta.url);
     assert.ok(!existsSync(absentPackages), 'Core must never create or require sibling packages.');
     assert.throws(() => build('all-still-gated', { target: 'all' }), /Raiz de fontes ausente/);
     assert.throws(() => build('site-still-gated', { target: 'site' }), /Raiz de fontes ausente/);
+
+        /*
+         * Isolated `sourceRoot` + SPMIDDLE remapping (the approved fix).
+         *
+         * The isolated tree lives under `tmp`, so it never sits at the same depth
+         * as `src` relative to the sibling `SPMIDDLE`. A depth-sensitive literal
+         * resolution of `../../../../../SPMIDDLE/packages/...` would therefore
+         * leave the source root entirely, which the stage guards must still reject
+         * for a `core` target. For `all`/`site`, the specifier is remapped onto
+         * the `spmiddleRoot` packages directory instead of being resolved
+         * literally, so the isolated filter-only tree becomes stageable while the
+         * vendoring guards (containment, shape, license) stay intact.
+         */
+        const isolated = join(base, 'isolated');
+        const isolatedSource = join(isolated, 'src');
+        const isolatedPackages = join(isolated, 'SPMIDDLE', 'packages');
+        const isolatedPut = (path, text) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, text); };
+        const deepEscape = '../../../SPMIDDLE/packages/deep/src/index.js';
+        isolatedPut(join(isolatedSource, 'index.js'), `export { deep } from '${deepEscape}';`);
+        isolatedPut(join(isolatedPackages, 'deep', 'src', 'index.js'), "export { leaf } from './leaf.js';\nexport const deep = 7;");
+        isolatedPut(join(isolatedPackages, 'deep', 'src', 'leaf.js'), 'export const leaf = 1;');
+        // O guarda de licença lê o LICENSE irmão de `packages` (dirname do spmiddleRoot).
+        isolatedPut(join(dirname(isolatedPackages), 'LICENSE'), readFileSync(join(PROJECT, '..', 'SPMIDDLE', 'LICENSE')));
+        isolatedPut(join(isolatedSource, 'administrator', 'components', 'com_minijoomla', 'app.js'), "export { deep as createAdminApplication } from '../../../SPMIDDLE/packages/deep/src/index.js';");
+        isolatedPut(join(isolatedSource, 'libraries', 'minijoomla', 'composition', 'mountMiniJoomlaSite.js'), "export { deep as mountMiniJoomlaSite } from '../../../SPMIDDLE/packages/deep/src/index.js';");
+        const isolatedBuild = (name, extra = {}) => stageRelease({
+          version: '0.2.0', output: join(isolated, name), target: 'all', sourceRoot: isolatedSource, spmiddleRoot: isolatedPackages, ...extra
+        });
+        // Path/safety guards are untouched: an isolated root still may not escape.
+        assert.throws(() => isolatedBuild('escape-output', { output: PROJECT }), /fora da raiz|subpasta/);
+        assert.throws(() => isolatedBuild('escape-source', { sourceRoot: dirname(PROJECT) }), /fora da raiz/);
+        const remapped = isolatedBuild('remapped');
+        const remappedNames = new Set(remapped.manifest.files.map(({ path }) => path));
+        assert.match(readFileSync(join(remapped.output, 'index.js'), 'utf8'), /from '\.\/libraries\/vendor\/spmiddle\/deep\/src\/index\.js'/, 'the deep SPMIDDLE specifier is remapped into the vendored location');
+        assert.ok(remappedNames.has('libraries/vendor/spmiddle/deep/src/index.js'), 'the escaped package is vendored');
+        assert.ok(remappedNames.has('libraries/vendor/spmiddle/deep/src/leaf.js'), 'its transitive dependencies are followed inside the package');
+        assert.ok(remappedNames.has('libraries/vendor/spmiddle/LICENSE'), 'the SPMIDDLE license guard still applies');
+        assert.ok(remappedNames.has('administrator/components/com_minijoomla/app.js'), 'the admin entry resolves the same escape');
+        assert.ok(remappedNames.has('libraries/minijoomla/composition/mountMiniJoomlaSite.js'), 'the site composition resolves the same escape');
+        assert.ok(!existsSync(join(remapped.output, 'SPMIDDLE')), 'no source tree leaks into the staged output');
+        assert.deepEqual(remapped.manifest, isolatedBuild('remapped-repeat').manifest, 'isolated remapping is deterministic');
+        assert.ok(remapped.manifest.files.every(({ path }) => !path.includes('..')), 'no manifest path escapes the output root');
+        // The same escape stays fatal for a `core` target and for an absent package.
+        isolatedPut(join(isolatedSource, 'administrator', 'components', 'com_minijoomla', 'app.js'), "export const createAdminApplication = () => {};");
+        isolatedPut(join(isolatedSource, 'libraries', 'minijoomla', 'composition', 'mountMiniJoomlaSite.js'), "export const mountMiniJoomlaSite = () => {};");
+        isolatedPut(join(isolatedSource, 'media', 'templates', 'administrator', 'atum', 'css', 'template.css'), 'body { color: black; }');
+        // O mesmo escape continua fatal num alvo core: sem pacotes irmãos o alvo
+                // nunca abre o SPMIDDLE, então a resolução segue literal e precisa falhar
+                // (o import é alcançável a partir da entrada, independente da
+                // profundidade do `sourceRoot` isolado).
+        assert.throws(
+          () => stageRelease({ version: '0.2.0', output: join(isolated, 'core-escape'), target: 'core', sourceRoot: isolatedSource, spmiddleRoot: isolatedPackages }),
+          /Dependência ausente|fora da raiz autossuficiente/,
+          'core refuses the deep escape reachable from its entry'
+        );
+        assert.ok(!existsSync(join(isolated, 'core-escape')), 'a rejected core graph leaves no partial staging');
+        isolatedPut(join(isolatedSource, 'index.js'), "export { absent } from '../../../SPMIDDLE/packages/absent/src/index.js';");
+        assert.throws(() => isolatedBuild('absent-package'), /Dependência ausente/, 'a remapped package that does not exist still fails');
+        assert.ok(!existsSync(join(isolated, 'absent-package')), 'a rejected remap leaves no partial staging');
+        isolatedPut(join(isolatedSource, 'index.js'), "export const noEscape = 1;");
+        assert.throws(() => isolatedBuild('overlap', { output: join(isolatedSource, 'release') }), /sobrepor/, 'o destino não pode ficar dentro das fontes isoladas');
+        assert.throws(() => isolatedBuild('bad-version', { version: '1.2' }), /Versão inválida/, 'a validação de versão não depende do sourceRoot');
+        assert.throws(() => isolatedBuild('bad-target', { target: 'staging' }), /--target inválido/, 'alvos desconhecidos seguem recusados no modo isolado');
+        assert.ok(!existsSync(join(isolatedSource, 'release')) && !existsSync(join(isolated, 'bad-version')), 'um pedido inválido não deixa estágio parcial');
+        console.log('ok - isolated sourceRoot: deep SPMIDDLE imports are remapped for all/site, stay fatal for core and for absent packages, with guards, license and determinism intact');
     console.log(`ok - core staging: ${core.manifest.files.length} real files without sibling packages, GPL notices, deterministic hashes, offline loader and strict graph/containment/immutable gates`);
   } finally {
     removeTestDirectory(base);

@@ -143,6 +143,30 @@ export function filterBar(id, fields, label = 'Filtrar') {
   return `<form class="admin-searchbar" role="search" data-ext-filter="${id}">${controls}<button type="submit" class="admin-btn admin-btn-primary">${esc(label)}</button></form>`;
 }
 
+/*
+ * Filtro POR COLUNA no estilo "autofiltro" do Excel: cada coluna da
+ * tabela ganha um dropdown próprio no cabeçalho, combinável com os
+ * demais. Renderizado como um <select> dentro do <th>, ligado a um
+ * formulário único (`data-ext-column-filter`) — assim o app mantém
+ * seleção, ordenação, paginação e demais filtros ao aplicar.
+ * `field` descreve { name, label, values, selected }.
+ */
+export function columnFilterSelect(id, field) {
+  const selected = String(field.selected ?? '');
+  const hasValue = selected !== '';
+  const values = field.values ?? [];
+  /*
+   * `field.options` permite valor canônico != rótulo (a Categoria é filtrada
+   * pelo id, mas exibida pelo título): sem isso duas categorias homônimas
+   * colapsariam numa única opção e o filtro casaria pelo texto.
+   */
+  const pairs = field.options ?? values.map((value) => [value, value]);
+  const list = [['', '— Todos —'], ...pairs.filter(([value]) => value !== '')];
+  const selection = hasValue && !list.some(([value]) => String(value) === selected) ? [...list, [selected, selected]] : list;
+  return `<label class="visually-hidden" for="${esc(id)}-${esc(field.name)}">Filtrar ${esc(field.label)}</label>`
+    + `<select class="admin-col-filter${hasValue ? ' is-active' : ''}" id="${esc(id)}-${esc(field.name)}" name="${esc(field.name)}" data-ext-column-filter="${esc(field.name)}" aria-label="Filtrar por ${esc(field.label)}">${options(selection, selected)}</select>`;
+}
+
 export function stateIcon(state, label) {
   return `<span class="admin-state-icon${state === 'published' ? ' is-active' : ''}${state === 'trashed' ? ' is-trashed' : ''}" role="img" aria-label="${esc(label)}">${state === 'published' ? checkIcon() : state === 'trashed' ? trashIcon() : banIcon()}</span>`;
 }
@@ -170,6 +194,19 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
   const report = (message) => { if (!isCurrent()) return; const element = body().querySelector?.('[data-ext-status]'); if (element) element.textContent = message; };
   const navigate = (...args) => isCurrent() ? router.navigate(...args) : undefined;
   const reload = (location) => navigate(link(location.path, location.params));
+
+  /*
+   * Estado de lista que precisa sobreviver à ida e volta a um formulário:
+   * busca, filtros (de barra e por coluna), ordenação, direção e página.
+   * Só as chaves não vazias entram, senão a URL carregaria lixo como
+   * `?q=&page=`. Usado por `duplicate` para que a COPIA recém-criada
+   * volte para a lista filtrada, e não para a lista crua.
+   */
+  const LIST_STATE_KEYS = ['q', 'state', 'categoryId', 'featured', 'author', 'tag', 'language', 'limit', 'position', 'type', 'template', 'fTitle', 'fName', 'fAlias', 'fCategory', 'fAuthor', 'sort', 'dir', 'page'];
+  const listState = (location) => {
+    const params = location?.params ?? {};
+    return LIST_STATE_KEYS.reduce((carry, key) => (params[key] ? { ...carry, [key]: params[key] } : carry), {});
+  };
 
   function bindSubmit(form, save) {
     let saving = false;
@@ -253,7 +290,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       const run = async (ids, action, extra) => batchReport(await adminService.moduleInstances.batch(ids.map((id) => ({ id: Number(id), etag: etags.get(String(id)) })), action, extra), location);
       bindActions({
         publish: (id) => run([id], 'publish'), unpublish: (id) => run([id], 'unpublish'), restore: (id) => run([id], 'restore'),
-        duplicate: async (id) => { const created = await adminService.moduleInstances.duplicate(Number(id)); await navigate(link(`/moduleInstances/${created.id}`)); }
+        duplicate: async (id) => { const created = await adminService.moduleInstances.duplicate(Number(id)); await navigate(link(`/moduleInstances/${created.id}`, listState(location))); }
       });
       const form = body().querySelector?.('[data-ext-batch]');
       bindSubmit(form, async () => {
@@ -449,7 +486,7 @@ export function createExtensionPages({ adminService, documentRef, router, shell,
       bindFilter(location, ['template']);
       bindActions({
         default: async (id) => { await adminService.templateStyles.setDefault(id, { etag }); await reload(location); },
-        duplicate: async (id) => { const created = await adminService.templateStyles.duplicate(id, { etag }); await navigate(link(`/templates/styles/${encodeURIComponent(created)}`)); },
+        duplicate: async (id) => { const created = await adminService.templateStyles.duplicate(id, { etag }); await navigate(link(`/templates/styles/${encodeURIComponent(created)}`, listState(location))); },
         remove: async (id) => { await adminService.templateStyles.remove(id, { etag }); await reload(location); }
       });
     };
