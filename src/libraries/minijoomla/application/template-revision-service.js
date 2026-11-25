@@ -71,7 +71,7 @@ function json(value, name) {
   try { return clone(JSON.parse(value)); } catch { fail('validation-failed', `${name}: JSON inválido.`); }
 }
 function etag(value) {
-  requireValue(typeof value === 'string' && /^"[^"\u0000-\u001f\u007f]+"$/.test(value), 'ETag específico e forte obrigatório.');
+  requireValue(typeof value === 'string' && /^"[^"\u0000-\u001f\u007f]+"$/.test(value) && !value.includes(','), 'ETag específico e forte obrigatório.');
   return value;
 }
 function tags(value) {
@@ -100,7 +100,7 @@ function metadata(record) {
   if (typeof wire === 'string' && /^[\[{]/.test(wire.trim())) wire = json(wire, 'Styles');
   const envelope = wire && typeof wire === 'object' && !Array.isArray(wire) ? wire : null;
   const defs = envelope ? definitions(envelope.paramDefinitions) : definitions(record.paramDefinitionsJson);
-  if (envelope && record.paramDefinitionsJson !== undefined && record.paramDefinitionsJson !== null && record.paramDefinitionsJson !== '') {
+  if (envelope && Object.hasOwn(record, 'paramDefinitionsJson')) {
     requireValue(equal(defs, definitions(record.paramDefinitionsJson)), 'Definições do registro e envelope divergem.');
   }
   return { styles: validated.styles, definitions: defs, envelope };

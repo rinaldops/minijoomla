@@ -130,7 +130,91 @@ Evidência histórica de integração remota foi feita contra **SharePoint real*
 
 > Perfis de módulos/plugins/templates e executor estão implementados localmente;
 > isso não fecha UI da migração nem aceite de cada operação no host. Templates
-> continuam register-only, sem upgrade/rollback.
+> agora têm revisão seletiva somente pelo contrato oficial abaixo; XML continua register-only para instalação inicial e não autoriza descoberta como upgrade.
+
+### Revisão seletiva de template (contrato oficial)
+
+A evolução de um template já registrado é uma operação distinta de registro XML,
+publicação de arquivos e ativação do template. O serviço público é
+`createTemplateRevisionService({ admin, repositories, files, webUrl })`, que
+expõe `prepare`, `commit` e `rollback`. O serviço não importa entrypoints, não
+executa manifesto durante o prepare e não escreve `MiniJoomlaSiteConfig`.
+
+**Prepare (somente leitura).**
+
+`prepare({ templateId, candidate: { baseUrl, manifestPath, inventoryPath,
+inventoryHash }, isCurrent })` exige `templateId` inteiro e captura o registro
+de template e a configuração do site com `expectedETag: { template, config }`.
+O `inventoryHash` é um pin externo obrigatório. O inventário não precisa conter
+hash de si mesmo; não há autorreferência circular. O serviço preserva snapshot
+privado do JSON wire bruto original de `Styles`, incluindo lista CSS legacy,
+envelope e campos/metadata futuros, além dos hashes dos assets legacy atuais.
+O candidato só é elegível quando a key, `positions` e `paramDefinitions`
+coincidem exatamente (inclusive ordem), as URLs ficam contidas na mesma
+base/origem versionada, e manifesto, entrypoint, styles e todos os arquivos
+declarados têm entrada `path`/`bytes`/`sha256` íntegra e compatível com o pin
+externo.
+
+O resultado pronto é `{ status: 'ready', reason: 'ready', plan, snapshot,
+expectedETag: { template, config } }`. Plano e receipt são serializáveis, mas
+ligados à instância/sessão do serviço; não são journal durável. Plano inválido,
+dependência de leitura indisponível, identidade divergente, slots/parâmetros
+divergentes, hash/inventário incompleto ou URL insegura resulta em retorno
+estruturado bloqueado; nenhum desses casos escreve. Essa é uma verificação de
+integridade dos arquivos declarados, não fechamento transitivo nem análise AST
+de imports JS/CSS.
+
+**Commit (uma escrita seletiva).**
+
+`commit({ plan, confirm: true, expectedETag: { template, config }, isCurrent })`
+revalida registro, configuração, manifesto, inventário, bytes e ETags. Depois
+faz exatamente uma chamada
+`repositories.templates.update(id, { version, entryPointUrl, styles }, { etag: template })`.
+O PATCH mantém `id`, `key`, `enabled`, `positions` e metadata; preserva o
+envelope `Styles` e suas chaves futuras, não altera SiteConfig nem outras listas.
+O serviço deve fazer readback obrigatório. Porém `null`, `204`, timeout ou erro
+após dispatch é sempre `uncertain`, sem retry, mesmo se o readback posterior
+parecer favorável. O retorno confirmado é
+`{ status: 'committed', plan, committedAt, postUpdateETag, rollback }`.
+
+**Rollback (snapshot próprio).**
+
+`rollback({ rollback, confirm: true, expectedETag: { template, config }, isCurrent })`
+somente restaura a revisão registrada no snapshot do próprio commit. Revalida
+ETag fresco do template, id/key e bytes/URLs atuais; um concorrente, asset
+substituído ou URL divergente bloqueia. Usa PATCH seletivo exclusivo do template,
+restaura o wire bruto legacy de `Styles`, não escreve SiteConfig e não usa ETag
+wildcard. `null`, `204`, timeout ou erro após dispatch é sempre `uncertain`, sem
+retry mesmo com readback favorável. O sucesso é `status: 'rolled-back'`.
+
+Não há transação cross-list. Resultado 204 sem readback, timeout ou perda da
+resposta após a escrita é `status: 'uncertain'`; não se faz retry automático nem
+se presume se a escrita ocorreu. É necessária leitura/decisão explícita antes de
+qualquer nova mutação. `isCurrent` interrompe antes da próxima escrita.
+
+#### Retenção operacional da sessão
+
+A implementação mantém no máximo **16 planos/recibos** ainda aptos a participar
+de I/O, incluindo prepares pendentes e recibos de rollback utilizáveis. O 17º
+prepare retorna `unavailable` antes de qualquer leitura ou download adicional;
+não há eviction para admitir outro plano. Um commit bem-sucedido converte o
+plano em recibo e conserva o slot até o rollback concluir. Estados terminais,
+inclusive `uncertain`, liberam seu payload operacional e não são reutilizáveis
+para replay; eviction nunca remove um rollback utilizável.
+
+Há retenção de no máximo **128 tokens terminais** para rejeitar replay tardio.
+A eviction só escolhe tokens que já são terminais, nunca um rollback utilizável.
+Essa memória não tem TTL nem journal durável: pertence à instância/sessão viva
+e deixa de existir quando ela é perdida.
+Estados estruturados: `ready` (prepare), `committed` (commit),
+`rolled-back` (rollback); bloqueios esperados são `unavailable`,
+`confirmation-required`, `validation-failed`, `concurrency-conflict` e
+`uncertain`. Falhas não devem ser engolidas nem convertidas em sucesso.
+
+O serviço cobre apenas a referência persistida da release (`version`,
+`entryPointUrl`, `styles`). O Main continua responsável por compor UI/runner,
+publicar/ativar a release e executar aceite LIVE; a revisão local não prova
+publicação nem ativação.
 
 ### Adoção de módulos externos (gates mínimos)
 

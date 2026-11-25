@@ -10,7 +10,7 @@ import { copyTestTree, removeTestDirectory } from './tooling-validation.test.js'
 const PROJECT = fileURLToPath(new URL('../', import.meta.url));
 const OPTIONAL_FILES = [
   'admin-joomla-forms.test.js', 'admin-integrity.test.js', 'admin-extensions-service.test.js',
-  'admin-extensions-app.test.js', 'spmiddle-integration.test.js',
+  'admin-extensions-app.test.js', 'spmiddle-integration.test.js', 'template-revision-integration.test.js',
   'site-runtime.test.js', 'component-options-runtime.test.js',
   'schema-migration.test.js', 'entity-contracts-final.test.js', 'plugin-group-storage.test.js', 'joomla-pilot-lifecycle.test.js',
   'admin-plugins-runtime.test.js', 'provisioning-model.test.js', 'query-options-main-spmiddle.test.js',

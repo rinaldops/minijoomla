@@ -156,6 +156,19 @@ function localPath(from, specifier) {
   return resolve(dirname(from), path);
 }
 
+// The sibling SPMIDDLE is imported by a depth-sensitive escape
+// (`../../../../../SPMIDDLE/packages/<name>/src/...`). Resolving that literally
+// ties correctness to the tree's absolute depth, which breaks every isolated
+// source root under tmp. Anchor it on the packages root instead so the same
+// specifier resolves identically at any depth. Only the sub-path is taken; the
+// resolved path still has to satisfy the existing assertWithin(packages, ...)
+// and packages/*/src guards at the call site.
+function spmiddleEscape(specifier) {
+  const path = specifier.split(/[?#]/)[0];
+  const match = /^(?:\.\.\/)+SPMIDDLE\/packages\/(.+)$/.exec(path);
+  return match ? match[1].replace(/\/+$/, '') : null;
+}
+
 function references(text, name) {
   if (/\.(?:m?js)$/.test(name)) {
     if (/releases\/\d+\.\d+\.\d+\//.test(text)) throw new Error(`Referência hardcoded a outra release: ${name}`);
@@ -261,7 +274,8 @@ export function stageRelease({ version, output, target = 'all', sourceRoot: sour
     const edits = [];
     for (const ref of references(text, target)) {
       if (/\.(?:m?js)$/.test(target) && !ref.value.startsWith('.')) throw new Error(`Import não relativo: ${target} -> ${ref.value}`);
-      const dependency = localPath(source, ref.value);
+      const escape = packages && /\.(?:m?js)$/.test(target) ? spmiddleEscape(ref.value) : null;
+      const dependency = escape === null ? localPath(source, ref.value) : resolve(packages, escape);
       let dependencyTarget;
       if (within(src, dependency)) dependencyTarget = releasePath(src, dependency);
       else {
