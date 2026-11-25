@@ -76,7 +76,7 @@ body{margin:0;background:var(--atum-bg-light)}
 .admin-breadcrumb a:hover{color:var(--atum-link-dark);text-decoration:underline}
 
 .admin-page{padding:1.25rem}
-.admin-page-inner{max-width:72rem;min-width:0;overflow-wrap:anywhere;container-type:inline-size}
+.admin-page-inner{min-width:0;overflow-wrap:anywhere;container-type:inline-size}
 
 /* ---------- Botões (estilo subhead/toolbar real do Atum: fundo claro, cor no ícone/texto, inverte só no hover) ---------- */
 .admin-btn{display:inline-flex;align-items:center;gap:.4rem;min-height:2.45rem;max-width:100%;border:1px solid var(--atum-border);border-radius:var(--atum-radius);background:#fff;color:var(--atum-gray-700);padding:.4rem 1rem;font:inherit;font-weight:400;cursor:pointer;text-decoration:none;white-space:normal;overflow-wrap:anywhere}
@@ -157,7 +157,7 @@ body{margin:0;background:var(--atum-bg-light)}
 .admin-list thead th.admin-col-count{min-width:7rem;text-align:center}
 .admin-list .admin-col-action{width:1%;white-space:nowrap;text-align:right}
 .admin-list .admin-col-featured,.admin-list .admin-col-state{width:4.5rem;text-align:center}
-.admin-list .admin-col-title{min-width:16rem}
+.admin-list .admin-col-title,.admin-list .admin-col-alias{width:16rem;min-width:16rem;max-width:16rem}
 /* Duas linhas no máximo no título: o link leva o texto inteiro em `title`,
  * então cortar aqui não esconde informação de quem usa leitor de tela (que
  * lê o conteúdo real do link) nem de quem usa mouse (que vê o tooltip). */
@@ -166,7 +166,7 @@ body{margin:0;background:var(--atum-bg-light)}
  * valores de referência, não texto para ler corrido, e deixá-los quebrar
  * era o que desalinhava a altura das linhas. */
 .admin-list .admin-col-alias,.admin-list .admin-col-category,.admin-list .admin-col-author{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.admin-list .admin-col-alias{min-width:10rem;color:var(--atum-gray-700)}
+.admin-list .admin-col-alias{color:var(--atum-gray-700)}
 .admin-list .admin-col-author{width:10rem;min-width:10rem}
 .admin-list .admin-col-author a{color:var(--atum-gray-700)}
 .admin-list .admin-col-publishUp,.admin-list .admin-col-publishUp *{width:6.5rem;white-space:nowrap;overflow-wrap:normal;word-break:keep-all}

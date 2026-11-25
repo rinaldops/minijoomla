@@ -105,6 +105,7 @@ function checkAdminAtum(css) {
   assert.doesNotMatch(source, /\.admin-sidebar\{position:fixed;/, 'menu não invade o chrome do host');
   assert.match(source, /\.admin-form-status:empty\{min-height:0;margin:0;background:transparent\}/, 'formulário sem erro não exibe faixa vermelha');
   assert.match(source, /\.admin-page-inner\{[^}]*container-type:inline-size/, 'reflow usa a largura do conteúdo do host');
+  assert.doesNotMatch(source, /\.admin-page-inner\{[^}]*max-width\s*:/, 'conteúdo administrativo ocupa a largura disponível');
   assert.match(source, /@container\(max-width:50rem\)\{\s*\.admin-article-header,\.admin-article-grid\{grid-template-columns:1fr\}/, 'editor não é esmagado entre as duas sidebars');
   assert.match(source, /\.admin-searchbar input\[type="search"\]\{flex-basis:auto;width:100%\}/);
   assert.match(source, /\.admin-sidebar\{[^}]*visibility:hidden/);

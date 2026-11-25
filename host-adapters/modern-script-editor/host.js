@@ -52,7 +52,7 @@ async function mountSite(root) {
 }
 
 async function mountAdmin(root) {
-  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }, { configureListMemoryScope }] = await Promise.all([
+  const [{ createMiniJoomlaAdminApp }, { createAdminApplication }, { attachRichTextEditor }, { createSharePointFileClient }, { createSharePointRestClient }, { createAtomicExtensionKeyGuard }, { toSharePointFileTransport, withSharePointMediaFolder }, { configureListMemoryScope }, { createSharePointTemplateRevisionFiles }] = await Promise.all([
     import('../libraries/minijoomla/composition/createMiniJoomlaAdminApp.js'),
     import('../administrator/components/com_minijoomla/app.js'),
     import('../administrator/components/com_minijoomla/editor.js'),
@@ -60,7 +60,8 @@ async function mountAdmin(root) {
     import('../libraries/vendor/spmiddle/sharepoint-rest-browser/src/index.js'),
     import('../libraries/minijoomla/infrastructure/spmiddle-extension-guard.js'),
     import('../libraries/minijoomla/infrastructure/sharepoint-media-folder.js'),
-    import('../administrator/components/com_minijoomla/list-memory.js')
+    import('../administrator/components/com_minijoomla/list-memory.js'),
+    import('../libraries/minijoomla/infrastructure/sharepoint-template-revision-files.js')
   ]);
   // Escopo da memória de filtros: o site é obrigatório (todos os sites do
   // tenant dividem a mesma origem do sessionStorage) e o usuário entra por
@@ -97,6 +98,8 @@ async function mountAdmin(root) {
     webUrl: CONFIG.webUrl,
     transportFactory: ({ webUrl }) => createSharePointRestClient({ webUrl: webUrl || '/' }),
     extensionsFileClientFactory: GENERIC_INSTALLATION ? undefined : fileClient,
+    templateRevisionFileClientFactory: ({ webUrl }) => createSharePointTemplateRevisionFiles({ webUrl: webUrl || '/',
+      fileClient: createSharePointFileClient({ transport: toSharePointFileTransport(createSharePointRestClient({ webUrl: webUrl || '/' })), libraryPath: webUrl || '/' }) }),
     joomlaDiscoveryRoots: CONFIG.joomlaDiscoveryRoots ?? [],
     approvedPackageAssets: GENERIC_INSTALLATION ? {moduleStyles:CONFIG.moduleStyles,moduleStyleRevisions:CONFIG.moduleStyleRevisions} : undefined,
     joomlaFileClientFactory: ({ webUrl, root }) => {
@@ -114,6 +117,7 @@ async function mountAdmin(root) {
     pluginRuntime: app.adminPlugins,
     autoStart: false,
     discoveryService: app.discovery,
+    templateRevisionService: app.templateRevision,
     mediaService: app.media,
     sampleDataService: app.sampleData,
     extensionRootsService,
